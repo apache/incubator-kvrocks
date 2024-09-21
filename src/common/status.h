@@ -387,10 +387,10 @@ struct [[nodiscard]] StatusOr {
     if (!status) return std::forward<decltype(status)>(status); \
   })
 
-#define RETURN_IF_ERROR_WITH_MSG_IMPL(expr, msg)                \
-  ({                                                            \
-    auto&& status = (expr);                                     \
-    if (!status) {                                              \
-      return std::forward<decltype(status)>(msg);               \
-    }                                                           \
+#define RETURN_IF_ERROR_WITH_MSG_IMPL(expr, msg)  \
+  ({                                              \
+    auto&& status = (expr);                       \
+    if (!status) {                                \
+      return std::forward<decltype(status)>(msg); \
+    }                                             \
   })
