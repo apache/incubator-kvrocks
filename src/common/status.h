@@ -377,3 +377,20 @@ struct [[nodiscard]] StatusOr {
     if (!status) return std::forward<decltype(status)>(status); \
     std::forward<decltype(status)>(status);                     \
   }).GetValue()
+
+#define _GET_MACRO(_1, _2, NAME, ...) NAME
+#define RETURN_IF_ERROR(...) _GET_MACRO(__VA_ARGS__, RETURN_IF_ERROR_WITH_MSG_IMPL, RETURN_IF_ERROR_IMPL)(__VA_ARGS__)
+
+#define RETURN_IF_ERROR_IMPL(expr)                              \
+  ({                                                            \
+    auto&& status = (expr);                                     \
+    if (!status) return std::forward<decltype(status)>(status); \
+  })
+
+#define RETURN_IF_ERROR_WITH_MSG_IMPL(expr, msg)                \
+  ({                                                            \
+    auto&& status = (expr);                                     \
+    if (!status) {                                              \
+      return std::forward<decltype(status)>(msg);               \
+    }                                                           \
+  })
