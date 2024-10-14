@@ -149,3 +149,47 @@ func TestDump_Set(t *testing.T) {
 	require.NoError(t, rdb.RestoreReplace(ctx, restoredKey, 0, serialized).Err())
 	require.ElementsMatch(t, members, rdb.SMembers(ctx, restoredKey).Val())
 }
+
+func TestDump_Bitset(t *testing.T) {
+	srv := util.StartServer(t, map[string]string{})
+	defer srv.Close()
+
+	ctx := context.Background()
+	rdb := srv.NewClient()
+	defer func() { require.NoError(t, rdb.Close()) }()
+
+	key := "bitsetKey1"
+	require.NoError(t, rdb.SetBit(ctx, key, 1, 1).Err())
+	serialized, err := rdb.Dump(ctx, key).Result()
+	require.NoError(t, err)
+
+	restoredKey := fmt.Sprintf("restore_%s", key)
+	require.NoError(t, rdb.RestoreReplace(ctx, restoredKey, 0, serialized).Err())
+	require.Equal(t, rdb.Get(ctx, key).Val(), rdb.Get(ctx, restoredKey).Val())
+}
+
+func TestDump_IntegerEncoding(t *testing.T) {
+	srv := util.StartServer(t, map[string]string{})
+	defer srv.Close()
+
+	ctx := context.Background()
+	rdb := srv.NewClient()
+	defer func() { require.NoError(t, rdb.Close()) }()
+
+	values := []int64{
+		0, 1, -1, 127, -128, 128, -129, 129,
+		32767, -32768, 32768, -32769,
+		2147483647, -2147483648, 2147483648, -2147483649,
+	}
+	for i, v := range values {
+		key := fmt.Sprintf("key_%d", i)
+		require.NoError(t, rdb.Set(ctx, key, v, 0).Err())
+		serialized, err := rdb.Dump(ctx, key).Result()
+		require.NoError(t, err)
+		restoreKey := fmt.Sprintf("restore_%s", key)
+		require.NoError(t, rdb.Restore(ctx, restoreKey, 0, serialized).Err())
+		got, err := rdb.Get(ctx, restoreKey).Int64()
+		require.NoError(t, err)
+		require.Equal(t, v, got)
+	}
+}

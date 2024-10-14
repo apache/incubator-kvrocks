@@ -275,3 +275,48 @@ func TestChangeProtoMaxBulkLen(t *testing.T) {
 	// Must be >= 1MB
 	require.Error(t, rdb.ConfigSet(ctx, "proto-max-bulk-len", "1024").Err())
 }
+
+func TestGetConfigTxnContext(t *testing.T) {
+	srv := util.StartServer(t, map[string]string{
+		"txn-context-enabled": "yes",
+	})
+	defer srv.Close()
+
+	ctx := context.Background()
+	rdb := srv.NewClient()
+	defer func() { require.NoError(t, rdb.Close()) }()
+	val := rdb.ConfigGet(ctx, "txn-context-enabled").Val()
+	require.EqualValues(t, "yes", val["txn-context-enabled"])
+
+	// default value "no"
+	srv1 := util.StartServer(t, map[string]string{})
+	defer srv1.Close()
+
+	rdb = srv1.NewClient()
+	val = rdb.ConfigGet(ctx, "txn-context-enabled").Val()
+	require.EqualValues(t, "no", val["txn-context-enabled"])
+}
+
+func TestGenerateConfigsMatrix(t *testing.T) {
+	configOptions := []util.ConfigOptions{
+		{
+			Name:       "txn-context-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+		{
+			Name:       "resp3-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+	}
+
+	configsMatrix, err := util.GenerateConfigsMatrix(configOptions)
+
+	require.NoError(t, err)
+	require.Equal(t, 4, len(configsMatrix))
+	require.Contains(t, configsMatrix, util.KvrocksServerConfigs{"txn-context-enabled": "yes", "resp3-enabled": "yes"})
+	require.Contains(t, configsMatrix, util.KvrocksServerConfigs{"txn-context-enabled": "yes", "resp3-enabled": "no"})
+	require.Contains(t, configsMatrix, util.KvrocksServerConfigs{"txn-context-enabled": "no", "resp3-enabled": "yes"})
+	require.Contains(t, configsMatrix, util.KvrocksServerConfigs{"txn-context-enabled": "no", "resp3-enabled": "no"})
+}

@@ -1907,24 +1907,36 @@ func stressTests(t *testing.T, rdb *redis.Client, ctx context.Context, encoding 
 	})
 }
 
-func TestZSetWithRESP2(t *testing.T) {
-	testZSet(t, "no")
+func TestZSet(t *testing.T) {
+	configOptions := []util.ConfigOptions{
+		{
+			Name:       "txn-context-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+		{
+			Name:       "resp3-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+	}
+
+	configsMatrix, err := util.GenerateConfigsMatrix(configOptions)
+	require.NoError(t, err)
+
+	for _, configs := range configsMatrix {
+		testZSet(t, configs)
+	}
 }
 
-func TestZSetWithRESP3(t *testing.T) {
-	testZSet(t, "yes")
-}
-
-var testZSet = func(t *testing.T, enabledRESP3 string) {
-	srv := util.StartServer(t, map[string]string{
-		"resp3-enabled": enabledRESP3,
-	})
+var testZSet = func(t *testing.T, configs util.KvrocksServerConfigs) {
+	srv := util.StartServer(t, configs)
 	defer srv.Close()
 	ctx := context.Background()
 	rdb := srv.NewClient()
 	defer func() { require.NoError(t, rdb.Close()) }()
 
-	basicTests(t, rdb, ctx, enabledRESP3, "skiplist", srv)
+	basicTests(t, rdb, ctx, configs["resp3-enabled"], "skiplist", srv)
 
 	t.Run("ZUNIONSTORE regression, should not create NaN in scores", func(t *testing.T) {
 		rdb.ZAdd(ctx, "z", redis.Z{Score: math.Inf(-1), Member: "neginf"})

@@ -78,20 +78,24 @@ rocksdb::Status BloomChain::createBloomChain(engine::Context &ctx, const Slice &
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisBloomFilter, {"createBloomChain"});
-  batch->PutLogData(log_data.Encode());
+  auto s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   std::string bloom_chain_meta_bytes;
   metadata->Encode(&bloom_chain_meta_bytes);
-  batch->Put(metadata_cf_handle_, ns_key, bloom_chain_meta_bytes);
+  s = batch->Put(metadata_cf_handle_, ns_key, bloom_chain_meta_bytes);
+  if (!s.ok()) return s;
 
   std::string bf_key = getBFKey(ns_key, *metadata, metadata->n_filters - 1);
-  batch->Put(bf_key, block_split_bloom_filter.GetData());
+  s = batch->Put(bf_key, block_split_bloom_filter.GetData());
+  if (!s.ok()) return s;
 
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 
-void BloomChain::createBloomFilterInBatch(const Slice &ns_key, BloomChainMetadata *metadata,
-                                          ObserverOrUniquePtr<rocksdb::WriteBatchBase> &batch, std::string *bf_data) {
+rocksdb::Status BloomChain::createBloomFilterInBatch(const Slice &ns_key, BloomChainMetadata *metadata,
+                                                     ObserverOrUniquePtr<rocksdb::WriteBatchBase> &batch,
+                                                     std::string *bf_data) {
   uint32_t bloom_filter_bytes = BlockSplitBloomFilter::OptimalNumOfBytes(
       static_cast<uint32_t>(metadata->base_capacity * pow(metadata->expansion, metadata->n_filters)),
       metadata->error_rate);
@@ -102,7 +106,9 @@ void BloomChain::createBloomFilterInBatch(const Slice &ns_key, BloomChainMetadat
 
   std::string bloom_chain_meta_bytes;
   metadata->Encode(&bloom_chain_meta_bytes);
-  batch->Put(metadata_cf_handle_, ns_key, bloom_chain_meta_bytes);
+  auto s = batch->Put(metadata_cf_handle_, ns_key, bloom_chain_meta_bytes);
+  if (!s.ok()) return s;
+  return rocksdb::Status::OK();
 }
 
 void BloomChain::bloomAdd(uint64_t item_hash, std::string &bf_data) {
@@ -174,7 +180,8 @@ rocksdb::Status BloomChain::InsertCommon(engine::Context &ctx, const Slice &user
   uint64_t origin_size = metadata.size;
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisBloomFilter, {"insert"});
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   for (size_t i = 0; i < items.size(); ++i) {
     // check
@@ -192,9 +199,11 @@ rocksdb::Status BloomChain::InsertCommon(engine::Context &ctx, const Slice &user
     } else {
       if (metadata.size + 1 > metadata.GetCapacity()) {
         if (metadata.IsScaling()) {
-          batch->Put(bf_key_list.back(), bf_data_list.back().ToStringView());
+          s = batch->Put(bf_key_list.back(), bf_data_list.back().ToStringView());
+          if (!s.ok()) return s;
           std::string bf_data;
-          createBloomFilterInBatch(ns_key, &metadata, batch, &bf_data);
+          s = createBloomFilterInBatch(ns_key, &metadata, batch, &bf_data);
+          if (!s.ok()) return s;
           rocksdb::PinnableSlice pin_slice;
           *pin_slice.GetSelf() = std::move(bf_data);
           pin_slice.PinSelf();
@@ -217,8 +226,10 @@ rocksdb::Status BloomChain::InsertCommon(engine::Context &ctx, const Slice &user
   if (metadata.size != origin_size) {
     std::string bloom_chain_metadata_bytes;
     metadata.Encode(&bloom_chain_metadata_bytes);
-    batch->Put(metadata_cf_handle_, ns_key, bloom_chain_metadata_bytes);
-    batch->Put(bf_key_list.back(), bf_data_list.back().ToStringView());
+    s = batch->Put(metadata_cf_handle_, ns_key, bloom_chain_metadata_bytes);
+    if (!s.ok()) return s;
+    s = batch->Put(bf_key_list.back(), bf_data_list.back().ToStringView());
+    if (!s.ok()) return s;
   }
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }

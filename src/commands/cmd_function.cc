@@ -29,9 +29,9 @@
 namespace redis {
 
 struct CommandFunction : Commander {
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     CommandParser parser(args_, 1);
-    engine::Context ctx(srv->storage);
+
     if (parser.EatEqICase("load")) {
       bool replace = false;
       if (parser.EatEqICase("replace")) {
@@ -85,7 +85,8 @@ struct CommandFunction : Commander {
 
 template <bool read_only = false>
 struct CommandFCall : Commander {
-  Status Execute([[maybe_unused]] Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, [[maybe_unused]] Server *srv, Connection *conn,
+                 std::string *output) override {
     int64_t numkeys = GET_OR_RET(ParseInt<int64_t>(args_[2], 10));
     if (numkeys > int64_t(args_.size() - 3)) {
       return {Status::NotOK, "Number of keys can't be greater than number of args"};

@@ -46,6 +46,10 @@
 
 class Server;
 
+namespace engine {
+struct Context;
+}
+
 namespace redis {
 
 class Connection;
@@ -100,8 +104,8 @@ class Commander {
   void SetArgs(const std::vector<std::string> &args) { args_ = args; }
   virtual Status Parse() { return Parse(args_); }
   virtual Status Parse([[maybe_unused]] const std::vector<std::string> &args) { return Status::OK(); }
-  virtual Status Execute([[maybe_unused]] Server *srv, [[maybe_unused]] Connection *conn,
-                         [[maybe_unused]] std::string *output) {
+  virtual Status Execute([[maybe_unused]] engine::Context &ctx, [[maybe_unused]] Server *srv,
+                         [[maybe_unused]] Connection *conn, [[maybe_unused]] std::string *output) {
     return {Status::RedisExecErr, errNotImplemented};
   }
 

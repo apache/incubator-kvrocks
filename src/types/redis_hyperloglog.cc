@@ -121,7 +121,8 @@ rocksdb::Status HyperLogLog::Add(engine::Context &ctx, const Slice &user_key,
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisHyperLogLog);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   HllSegmentCache cache;
   for (uint64_t element_hash : element_hashes) {
@@ -160,7 +161,8 @@ rocksdb::Status HyperLogLog::Add(engine::Context &ctx, const Slice &user_key,
     if (entry.dirty) {
       std::string sub_key =
           InternalKey(ns_key, std::to_string(segment_index), metadata.version, storage_->IsSlotIdEncoded()).Encode();
-      batch->Put(sub_key, entry.data);
+      s = batch->Put(sub_key, entry.data);
+      if (!s.ok()) return s;
       entry.data.clear();
     }
   }
@@ -170,7 +172,8 @@ rocksdb::Status HyperLogLog::Add(engine::Context &ctx, const Slice &user_key,
     metadata.encode_type = HyperLogLogMetadata::EncodeType::DENSE;
     std::string bytes;
     metadata.Encode(&bytes);
-    batch->Put(metadata_cf_handle_, ns_key, bytes);
+    s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+    if (!s.ok()) return s;
   }
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
@@ -253,14 +256,16 @@ rocksdb::Status HyperLogLog::Merge(engine::Context &ctx, const Slice &dest_user_
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisHyperLogLog);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
   for (uint32_t i = 0; i < kHyperLogLogSegmentCount; i++) {
     if (registers[i].empty()) {
       continue;
     }
     std::string sub_key =
         InternalKey(dest_key, std::to_string(i), metadata.version, storage_->IsSlotIdEncoded()).Encode();
-    batch->Put(sub_key, registers[i]);
+    s = batch->Put(sub_key, registers[i]);
+    if (!s.ok()) return s;
     // Release memory after batch is written
     registers[i].clear();
   }
@@ -269,7 +274,8 @@ rocksdb::Status HyperLogLog::Merge(engine::Context &ctx, const Slice &dest_user_
     metadata.encode_type = HyperLogLogMetadata::EncodeType::DENSE;
     std::string bytes;
     metadata.Encode(&bytes);
-    batch->Put(metadata_cf_handle_, dest_key, bytes);
+    s = batch->Put(metadata_cf_handle_, dest_key, bytes);
+    if (!s.ok()) return s;
   }
 
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());

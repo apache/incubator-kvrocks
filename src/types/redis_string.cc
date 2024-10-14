@@ -106,8 +106,10 @@ std::vector<rocksdb::Status> String::getValues(engine::Context &ctx, const std::
 rocksdb::Status String::updateRawValue(engine::Context &ctx, const std::string &ns_key, const std::string &raw_value) {
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisString);
-  batch->PutLogData(log_data.Encode());
-  batch->Put(metadata_cf_handle_, ns_key, raw_value);
+  auto s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
+  s = batch->Put(metadata_cf_handle_, ns_key, raw_value);
+  if (!s.ok()) return s;
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 
@@ -170,8 +172,10 @@ rocksdb::Status String::GetEx(engine::Context &ctx, const std::string &user_key,
   raw_data.append(value->data(), value->size());
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisString);
-  batch->PutLogData(log_data.Encode());
-  batch->Put(metadata_cf_handle_, ns_key, raw_data);
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
+  s = batch->Put(metadata_cf_handle_, ns_key, raw_data);
+  if (!s.ok()) return s;
   s = storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
   if (!s.ok()) return s;
   return rocksdb::Status::OK();
@@ -410,7 +414,8 @@ rocksdb::Status String::MSet(engine::Context &ctx, const std::vector<StringPair>
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisString);
-  batch->PutLogData(log_data.Encode());
+  auto s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
   for (const auto &pair : pairs) {
     std::string bytes;
     Metadata metadata(kRedisString, false);
@@ -418,7 +423,8 @@ rocksdb::Status String::MSet(engine::Context &ctx, const std::vector<StringPair>
     metadata.Encode(&bytes);
     bytes.append(pair.value.data(), pair.value.size());
     std::string ns_key = AppendNamespacePrefix(pair.key);
-    batch->Put(metadata_cf_handle_, ns_key, bytes);
+    s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+    if (!s.ok()) return s;
   }
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }

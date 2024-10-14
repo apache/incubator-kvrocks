@@ -48,12 +48,12 @@ func WaitForSync(t testing.TB, slave *redis.Client) {
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
-func WaitForOffsetSync(t testing.TB, master, slave *redis.Client) {
+func WaitForOffsetSync(t testing.TB, master, slave *redis.Client, waitFor time.Duration) {
 	require.Eventually(t, func() bool {
 		o1 := FindInfoEntry(master, "master_repl_offset")
 		o2 := FindInfoEntry(slave, "master_repl_offset")
 		return o1 == o2
-	}, 5*time.Second, 100*time.Millisecond)
+	}, waitFor, 100*time.Millisecond)
 }
 
 func SlaveOf(t testing.TB, slave *redis.Client, master *KvrocksServer) {

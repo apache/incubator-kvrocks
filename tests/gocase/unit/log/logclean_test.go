@@ -29,40 +29,39 @@ import (
 )
 
 func TestLogClean(t *testing.T) {
-	err := os.Mkdir("/tmp/kvrocks/logfile", os.ModePerm)
-	if err != nil {
+	logDir := "/tmp/kvrocks/logfile"
+	require.NoError(t, os.RemoveAll(logDir))
+	require.NoError(t, os.MkdirAll(logDir, os.ModePerm))
+
+	srv := util.StartServer(t, map[string]string{
+		"log-dir":            logDir,
+		"log-retention-days": "0",
+	})
+	defer srv.Close()
+
+	files1, err := os.ReadDir(logDir)
+	require.NoError(t, err)
+	if len(files1) == 0 {
 		return
 	}
-	srv1 := util.StartServer(t, map[string]string{
-		"log-dir":            "/tmp/kvrocks/logfile",
-		"log-retention-days": "0",
-	})
-	srv1.Close()
-	files1, _ := os.ReadDir("/tmp/kvrocks/logfile")
-	time.Sleep(2000 * time.Millisecond)
-	srv2 := util.StartServer(t, map[string]string{
-		"log-dir":            "/tmp/kvrocks/logfile",
-		"log-retention-days": "0",
-	})
-	srv2.Close()
-	files2, _ := os.ReadDir("/tmp/kvrocks/logfile")
-	islogclear := false
-	for _, f1 := range files1 {
-		ishave := false
-		for _, f2 := range files2 {
-			if f1.Name() == f2.Name() {
-				ishave = true
-				break
+	require.Eventually(t, func() bool {
+		srv.Restart()
+
+		files2, err := os.ReadDir(logDir)
+		require.NoError(t, err)
+		for _, f1 := range files1 {
+			fileExists := false
+			for _, f2 := range files2 {
+				if f1.Name() == f2.Name() {
+					fileExists = true
+					break
+				}
+			}
+			// If the file does not exist, it means the file has been cleaned
+			if !fileExists {
+				return true
 			}
 		}
-		if !ishave {
-			islogclear = true
-			break
-		}
-	}
-	require.Equal(t, true, islogclear)
-	err = os.RemoveAll("/tmp/kvrocks/logfile")
-	if err != nil {
-		return
-	}
+		return false
+	}, 10*time.Second, 200*time.Millisecond)
 }

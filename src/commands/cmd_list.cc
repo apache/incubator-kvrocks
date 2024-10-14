@@ -33,7 +33,7 @@ class CommandPush : public Commander {
  public:
   CommandPush(bool create_if_missing, bool left) : left_(left), create_if_missing_(create_if_missing) {}
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     std::vector<Slice> elems;
     for (size_t i = 2; i < args_.size(); i++) {
       elems.emplace_back(args_[i]);
@@ -42,7 +42,7 @@ class CommandPush : public Commander {
     uint64_t ret = 0;
     rocksdb::Status s;
     redis::List list_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     if (create_if_missing_) {
       s = list_db.Push(ctx, args_[1], elems, left_, &ret);
     } else {
@@ -110,9 +110,9 @@ class CommandPop : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::List list_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     if (with_count_) {
       std::vector<std::string> elems;
       auto s = list_db.PopMulti(ctx, args_[1], left_, count_, &elems);
@@ -194,12 +194,12 @@ class CommandLMPop : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::List list_db(srv->storage, conn->GetNamespace());
 
     std::vector<std::string> elems;
     std::string chosen_key;
-    engine::Context ctx(srv->storage);
+
     for (auto &key : keys_) {
       auto s = list_db.PopMulti(ctx, key, left_, count_, &elems);
       if (!s.ok() && !s.IsNotFound()) {
@@ -262,10 +262,10 @@ class CommandBPop : public BlockingCommander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     srv_ = srv;
     InitConnection(conn);
-    engine::Context ctx(srv->storage);
+
     auto s = TryPopFromList(ctx);
     if (s.ok() || !s.IsNotFound()) {
       return Status::OK();  // error has already output in TryPopFromList
@@ -383,10 +383,10 @@ class CommandBLMPop : public BlockingCommander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     srv_ = srv;
     InitConnection(conn);
-    engine::Context ctx(srv->storage);
+
     auto s = ExecuteUnblocked(ctx);
     if (s.ok() || !s.IsNotFound()) {
       return Status::OK();  // error has already been output
@@ -474,10 +474,10 @@ class CommandLRem : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     uint64_t ret = 0;
     redis::List list_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = list_db.Rem(ctx, args_[1], count_, args_[3], &ret);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -504,10 +504,10 @@ class CommandLInsert : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     int ret = 0;
     redis::List list_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = list_db.Insert(ctx, args_[1], args_[3], args_[4], before_, &ret);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -535,10 +535,10 @@ class CommandLRange : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::List list_db(srv->storage, conn->GetNamespace());
     std::vector<std::string> elems;
-    engine::Context ctx(srv->storage);
+
     auto s = list_db.Range(ctx, args_[1], start_, stop_, &elems);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -554,10 +554,9 @@ class CommandLRange : public Commander {
 
 class CommandLLen : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::List list_db(srv->storage, conn->GetNamespace());
     uint64_t count = 0;
-    engine::Context ctx(srv->storage);
 
     auto s = list_db.Size(ctx, args_[1], &count);
     if (!s.ok() && !s.IsNotFound()) {
@@ -581,10 +580,10 @@ class CommandLIndex : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::List list_db(srv->storage, conn->GetNamespace());
     std::string elem;
-    engine::Context ctx(srv->storage);
+
     auto s = list_db.Index(ctx, args_[1], index_, &elem);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -614,9 +613,9 @@ class CommandLSet : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::List list_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = list_db.Set(ctx, args_[1], index_, args_[3]);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -649,9 +648,9 @@ class CommandLTrim : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::List list_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = list_db.Trim(ctx, args_[1], start_, stop_);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -668,10 +667,10 @@ class CommandLTrim : public Commander {
 
 class CommandRPopLPUSH : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::List list_db(srv->storage, conn->GetNamespace());
     std::string elem;
-    engine::Context ctx(srv->storage);
+
     auto s = list_db.LMove(ctx, args_[1], args_[2], /*src_left=*/false, /*dst_left=*/true, &elem);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -700,10 +699,10 @@ class CommandLMove : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::List list_db(srv->storage, conn->GetNamespace());
     std::string elem;
-    engine::Context ctx(srv->storage);
+
     auto s = list_db.LMove(ctx, args_[1], args_[2], src_left_, dst_left_, &elem);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -745,13 +744,13 @@ class CommandBLMove : public BlockingCommander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     srv_ = srv;
     InitConnection(conn);
 
     redis::List list_db(srv->storage, conn->GetNamespace());
     std::string elem;
-    engine::Context ctx(srv->storage);
+
     auto s = list_db.LMove(ctx, args_[1], args_[2], src_left_, dst_left_, &elem);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -832,10 +831,10 @@ class CommandLPos : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::List list_db(srv->storage, conn->GetNamespace());
     std::vector<int64_t> indexes;
-    engine::Context ctx(srv->storage);
+
     auto s = list_db.Pos(ctx, args_[1], args_[2], spec_, &indexes);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};

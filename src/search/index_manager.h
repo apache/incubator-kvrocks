@@ -29,6 +29,7 @@
 #include "search/passes/manager.h"
 #include "search/plan_executor.h"
 #include "search/search_encoding.h"
+#include "search/value.h"
 #include "status.h"
 #include "storage/storage.h"
 #include "string_util.h"
@@ -42,13 +43,12 @@ struct IndexManager {
 
   IndexManager(GlobalIndexer *indexer, engine::Storage *storage) : indexer(indexer), storage(storage) {}
 
-  Status Load(const std::string &ns) {
+  Status Load(engine::Context &ctx, const std::string &ns) {
     // currently index cannot work in cluster mode
     if (storage->GetConfig()->cluster_enabled) {
       return Status::OK();
     }
-    auto no_txn_ctx = engine::Context::NoTransactionContext(storage);
-    util::UniqueIterator iter(no_txn_ctx, no_txn_ctx.DefaultScanOptions(), ColumnFamilyID::Search);
+    util::UniqueIterator iter(ctx, ctx.DefaultScanOptions(), ColumnFamilyID::Search);
     auto begin = SearchKey{ns, ""}.ConstructIndexMeta();
 
     for (iter->Seek(begin); iter->Valid(); iter->Next()) {
@@ -75,9 +75,8 @@ struct IndexManager {
 
       auto index_key = SearchKey(ns, index_name.ToStringView());
       std::string prefix_value;
-      if (auto s = storage->Get(no_txn_ctx, no_txn_ctx.DefaultMultiGetOptions(),
-                                storage->GetCFHandle(ColumnFamilyID::Search), index_key.ConstructIndexPrefixes(),
-                                &prefix_value);
+      if (auto s = storage->Get(ctx, ctx.DefaultMultiGetOptions(), storage->GetCFHandle(ColumnFamilyID::Search),
+                                index_key.ConstructIndexPrefixes(), &prefix_value);
           !s.ok()) {
         return {Status::NotOK, fmt::format("fail to find index prefixes for index {}: {}", index_name, s.ToString())};
       }
@@ -91,7 +90,7 @@ struct IndexManager {
       auto info = std::make_unique<kqir::IndexInfo>(index_name.ToString(), metadata, ns);
       info->prefixes = prefixes;
 
-      util::UniqueIterator field_iter(no_txn_ctx, no_txn_ctx.DefaultScanOptions(), ColumnFamilyID::Search);
+      util::UniqueIterator field_iter(ctx, ctx.DefaultScanOptions(), ColumnFamilyID::Search);
       auto field_begin = index_key.ConstructFieldMeta();
 
       for (field_iter->Seek(field_begin); field_iter->Valid(); field_iter->Next()) {
@@ -153,11 +152,17 @@ struct IndexManager {
 
     std::string meta_val;
     info->metadata.Encode(&meta_val);
-    batch->Put(cf, index_key.ConstructIndexMeta(), meta_val);
+    auto s = batch->Put(cf, index_key.ConstructIndexMeta(), meta_val);
+    if (!s.ok()) {
+      return {Status::NotOK, s.ToString()};
+    }
 
     std::string prefix_val;
     info->prefixes.Encode(&prefix_val);
-    batch->Put(cf, index_key.ConstructIndexPrefixes(), prefix_val);
+    s = batch->Put(cf, index_key.ConstructIndexPrefixes(), prefix_val);
+    if (!s.ok()) {
+      return {Status::NotOK, s.ToString()};
+    }
 
     for (const auto &[_, field_info] : info->fields) {
       SearchKey field_key(info->ns, info->name, field_info.name);
@@ -165,7 +170,10 @@ struct IndexManager {
       std::string field_val;
       field_info.metadata->Encode(&field_val);
 
-      batch->Put(cf, field_key.ConstructFieldMeta(), field_val);
+      s = batch->Put(cf, field_key.ConstructFieldMeta(), field_val);
+      if (!s.ok()) {
+        return {Status::NotOK, s.ToString()};
+      }
     }
 
     if (auto s = storage->Write(ctx, storage->DefaultWriteOptions(), batch->GetWriteBatch()); !s.ok()) {
@@ -217,7 +225,7 @@ struct IndexManager {
     return results;
   }
 
-  Status Drop(std::string_view index_name, const std::string &ns) {
+  Status Drop(engine::Context &ctx, std::string_view index_name, const std::string &ns) {
     auto iter = index_map.Find(index_name, ns);
     if (iter == index_map.end()) {
       return {Status::NotOK, "index not found"};
@@ -231,19 +239,30 @@ struct IndexManager {
 
     auto batch = storage->GetWriteBatchBase();
 
-    batch->Delete(cf, index_key.ConstructIndexMeta());
-    batch->Delete(cf, index_key.ConstructIndexPrefixes());
+    auto s = batch->Delete(cf, index_key.ConstructIndexMeta());
+    if (!s.ok()) {
+      return {Status::NotOK, s.ToString()};
+    }
+    s = batch->Delete(cf, index_key.ConstructIndexPrefixes());
+    if (!s.ok()) {
+      return {Status::NotOK, s.ToString()};
+    }
 
     auto begin = index_key.ConstructAllFieldMetaBegin();
     auto end = index_key.ConstructAllFieldMetaEnd();
-    batch->DeleteRange(cf, begin, end);
+    s = batch->DeleteRange(cf, begin, end);
+    if (!s.ok()) {
+      return {Status::NotOK, s.ToString()};
+    }
 
     begin = index_key.ConstructAllFieldDataBegin();
     end = index_key.ConstructAllFieldDataEnd();
-    batch->DeleteRange(cf, begin, end);
+    s = batch->DeleteRange(cf, begin, end);
+    if (!s.ok()) {
+      return {Status::NotOK, s.ToString()};
+    }
 
-    auto no_txn_ctx = engine::Context::NoTransactionContext(storage);
-    if (auto s = storage->Write(no_txn_ctx, storage->DefaultWriteOptions(), batch->GetWriteBatch()); !s.ok()) {
+    if (auto s = storage->Write(ctx, storage->DefaultWriteOptions(), batch->GetWriteBatch()); !s.ok()) {
       return {Status::NotOK, fmt::format("failed to delete index metadata and data: {}", s.ToString())};
     }
 
@@ -251,6 +270,66 @@ struct IndexManager {
 
     return Status::OK();
   }
-};
 
+  StatusOr<std::unordered_set<std::string>> FieldValues(engine::Context &ctx, std::string_view index_name,
+                                                        std::string_view tag_field_name, const std::string &ns) {
+    auto iter = index_map.Find(index_name, ns);
+    if (iter == index_map.end()) {
+      return {Status::NotOK, fmt::format("Index '{}' not found in namespace '{}'", index_name, ns)};
+    }
+    const auto &info = iter->second;
+
+    std::string tag_field_name_str(tag_field_name);
+    auto field_it = info->fields.find(tag_field_name_str);
+    if (field_it == info->fields.end()) {
+      return std::unordered_set<std::string>{};
+    }
+    const auto &[field_name, field_info] = *field_it;
+
+    if (!field_info.metadata || field_info.metadata->type != IndexFieldType::TAG) {
+      return std::unordered_set<std::string>{};
+    }
+
+    std::unordered_set<std::string> matching_values;
+    util::UniqueIterator index_iter(ctx, ctx.DefaultScanOptions(), ColumnFamilyID::Search);
+
+    auto index_key = SearchKey(ns, index_name, field_name);
+    std::string field_prefix;
+    index_key.PutNamespace(&field_prefix);
+    SearchKey::PutType(&field_prefix, SearchSubkeyType::FIELD);
+    index_key.PutIndex(&field_prefix);
+    PutSizedString(&field_prefix, field_name);
+
+    std::string last_tag;
+
+    for (index_iter->Seek(field_prefix); index_iter->Valid(); index_iter->Next()) {
+      auto key = index_iter->key();
+
+      if (!key.starts_with(field_prefix)) {
+        break;
+      }
+
+      Slice key_slice = key;
+      key_slice.remove_prefix(field_prefix.size());
+
+      Slice tag_slice;
+      if (!GetSizedString(&key_slice, &tag_slice)) continue;
+
+      std::string current_tag = tag_slice.ToString();
+
+      if (current_tag == last_tag) {
+        continue;
+      }
+
+      last_tag = current_tag;
+      matching_values.insert(std::move(current_tag));
+    }
+
+    if (auto s = index_iter->status(); !s.ok()) {
+      return {Status::NotOK, fmt::format("Failed to iterate over index data: {}", s.ToString())};
+    }
+
+    return matching_values;
+  }
+};
 }  // namespace redis

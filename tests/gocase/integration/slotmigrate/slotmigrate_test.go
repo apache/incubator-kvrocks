@@ -747,7 +747,7 @@ func TestSlotMigrateDataType(t *testing.T) {
 		require.EqualValues(t, originRes.Length, migratedRes.Length)
 	}
 
-	migrateStreamWithDeletedEnties := func(t *testing.T, migrateType SlotMigrationType) {
+	migrateStreamWithDeletedEntries := func(t *testing.T, migrateType SlotMigrationType) {
 		require.NoError(t, rdb0.ConfigSet(ctx, "migrate-type", string(migrateType)).Err())
 
 		testSlot += 1
@@ -961,7 +961,7 @@ func TestSlotMigrateDataType(t *testing.T) {
 		})
 
 		t.Run(fmt.Sprintf("MIGRATE - Migrating stream with deleted entries using %s", testType), func(t *testing.T) {
-			migrateStreamWithDeletedEnties(t, testType)
+			migrateStreamWithDeletedEntries(t, testType)
 		})
 
 		t.Run(fmt.Sprintf("MIGRATE - Migrate incremental data via parsing and filtering data in WAL using %s", testType), func(t *testing.T) {

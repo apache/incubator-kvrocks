@@ -85,8 +85,8 @@ class BloomChain : public Database {
 
   rocksdb::Status createBloomChain(engine::Context &ctx, const Slice &ns_key, double error_rate, uint32_t capacity,
                                    uint16_t expansion, BloomChainMetadata *metadata);
-  void createBloomFilterInBatch(const Slice &ns_key, BloomChainMetadata *metadata,
-                                ObserverOrUniquePtr<rocksdb::WriteBatchBase> &batch, std::string *bf_data);
+  rocksdb::Status createBloomFilterInBatch(const Slice &ns_key, BloomChainMetadata *metadata,
+                                           ObserverOrUniquePtr<rocksdb::WriteBatchBase> &batch, std::string *bf_data);
 
   /// bf_data: [in/out] The content string of bloomfilter.
   static void bloomAdd(uint64_t item_hash, std::string &bf_data);

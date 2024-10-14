@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/apache/kvrocks/tests/gocase/util"
 	"github.com/redis/go-redis/v9"
@@ -510,12 +511,12 @@ func TestScriptingMasterSlave(t *testing.T) {
 	t.Run("SCRIPTING: script load on master, read on slave", func(t *testing.T) {
 		sha := masterClient.ScriptLoad(ctx, `return 'script loaded'`).Val()
 		require.Equal(t, "4167ea82ed9c381c7659f7cf93f394219147e8c4", sha)
-		util.WaitForOffsetSync(t, masterClient, slaveClient)
+		util.WaitForOffsetSync(t, masterClient, slaveClient, 5*time.Second)
 		require.Equal(t, []bool{true}, masterClient.ScriptExists(ctx, sha).Val())
 		require.Equal(t, []bool{true}, slaveClient.ScriptExists(ctx, sha).Val())
 
 		require.NoError(t, masterClient.ScriptFlush(ctx).Err())
-		util.WaitForOffsetSync(t, masterClient, slaveClient)
+		util.WaitForOffsetSync(t, masterClient, slaveClient, 5*time.Second)
 		require.Equal(t, []bool{false}, masterClient.ScriptExists(ctx, sha).Val())
 		require.Equal(t, []bool{false}, slaveClient.ScriptExists(ctx, sha).Val())
 	})

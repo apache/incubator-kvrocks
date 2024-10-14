@@ -42,8 +42,8 @@ struct HnswNode {
   HnswNode(NodeKey key, uint16_t level);
 
   StatusOr<HnswNodeFieldMetadata> DecodeMetadata(engine::Context& ctx, const SearchKey& search_key) const;
-  void PutMetadata(HnswNodeFieldMetadata* node_meta, const SearchKey& search_key, engine::Storage* storage,
-                   rocksdb::WriteBatchBase* batch) const;
+  Status PutMetadata(HnswNodeFieldMetadata* node_meta, const SearchKey& search_key, engine::Storage* storage,
+                     rocksdb::WriteBatchBase* batch) const;
   void DecodeNeighbours(engine::Context& ctx, const SearchKey& search_key);
 
   // For testing purpose
@@ -92,7 +92,8 @@ struct HnswIndex {
   std::mt19937 generator;
   double m_level_normalization_factor;
 
-  HnswIndex(const SearchKey& search_key, HnswVectorFieldMetadata* vector, engine::Storage* storage);
+  HnswIndex(const SearchKey& search_key, HnswVectorFieldMetadata* vector, engine::Storage* storage,
+            std::random_device::result_type seed = std::random_device()());
 
   static StatusOr<std::vector<VectorItem>> DecodeNodesToVectorItems(engine::Context& ctx,
                                                                     const std::vector<NodeKey>& node_key,

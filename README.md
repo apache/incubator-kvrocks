@@ -24,8 +24,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/apache/kvrocks)](https://github.com/apache/kvrocks/stargazers)
 
 ---
-
-* [Slack Channel](https://join.slack.com/t/kvrockscommunity/shared_invite/zt-p5928e3r-OUAK8SUgC8GOceGM6dAz6w)
+* [Chat on Zulip](https://kvrocks.zulipchat.com/)
 * [Mailing List](https://lists.apache.org/list.html?dev@kvrocks.apache.org) ([how to subscribe](https://www.apache.org/foundation/mailinglists.html#subscribing))
 
 **Apache Kvrocks** is a distributed key value NoSQL database that uses RocksDB as storage engine and is compatible with Redis protocol. Kvrocks intends to decrease the cost of memory and increase the capacity while compared to Redis. The design of replication and storage was inspired by [rocksplicator](https://github.com/pinterest/rocksplicator) and [blackwidow](https://github.com/Qihoo360/blackwidow).

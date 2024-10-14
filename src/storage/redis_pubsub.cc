@@ -27,7 +27,10 @@ rocksdb::Status PubSub::Publish(engine::Context &ctx, const Slice &channel, cons
     return rocksdb::Status::NotSupported("can't publish to db in slave mode");
   }
   auto batch = storage_->GetWriteBatchBase();
-  batch->Put(pubsub_cf_handle_, channel, value);
+  auto s = batch->Put(pubsub_cf_handle_, channel, value);
+  if (!s.ok()) {
+    return s;
+  }
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 

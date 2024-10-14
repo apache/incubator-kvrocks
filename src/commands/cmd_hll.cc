@@ -33,7 +33,7 @@ namespace redis {
 /// Complexity: O(1) for each element added.
 class CommandPfAdd final : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::HyperLogLog hll(srv->storage, conn->GetNamespace());
     DCHECK_GE(args_.size(), 2u);
     std::vector<uint64_t> hashes(args_.size() - 2);
@@ -41,7 +41,7 @@ class CommandPfAdd final : public Commander {
       hashes[i - 2] = redis::HyperLogLog::HllHash(args_[i]);
     }
     uint64_t ret{};
-    engine::Context ctx(srv->storage);
+
     auto s = hll.Add(ctx, args_[1], hashes, &ret);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -56,13 +56,13 @@ class CommandPfAdd final : public Commander {
 ///              O(N) with N being the number of keys, and much bigger constant times,
 ///              when called with multiple keys.
 class CommandPfCount final : public Commander {
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::HyperLogLog hll(srv->storage, conn->GetNamespace());
     uint64_t ret{};
     rocksdb::Status s;
     // The first argument is the command name, so we need to skip it.
     DCHECK_GE(args_.size(), 2u);
-    engine::Context ctx(srv->storage);
+
     if (args_.size() > 2) {
       std::vector<Slice> keys(args_.begin() + 1, args_.end());
       s = hll.CountMultiple(ctx, keys, &ret);
@@ -84,11 +84,11 @@ class CommandPfCount final : public Commander {
 ///
 /// complexity: O(N) to merge N HyperLogLogs, but with high constant times.
 class CommandPfMerge final : public Commander {
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::HyperLogLog hll(srv->storage, conn->GetNamespace());
     DCHECK_GT(args_.size(), 1u);
     std::vector<Slice> src_user_keys(args_.begin() + 2, args_.end());
-    engine::Context ctx(srv->storage);
+
     auto s = hll.Merge(ctx, /*dest_user_key=*/args_[1], src_user_keys);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};

@@ -245,7 +245,7 @@ class Server {
   std::string GetRocksDBStatsJson() const;
   ReplState GetReplicationState();
 
-  void PrepareRestoreDB();
+  bool PrepareRestoreDB();
   void WaitNoMigrateProcessing();
   Status AsyncCompactDB(const std::string &begin_key = "", const std::string &end_key = "");
   Status AsyncBgSaveDB();

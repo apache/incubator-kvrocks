@@ -111,7 +111,8 @@ rocksdb::Status Stream::Add(engine::Context &ctx, const Slice &stream_name, cons
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisStream);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   bool should_add = true;
 
@@ -123,7 +124,9 @@ rocksdb::Status Stream::Add(engine::Context &ctx, const Slice &stream_name, cons
       trim_options.max_len = options.trim_options.max_len > 0 ? options.trim_options.max_len - 1 : 0;
     }
 
-    trim(ctx, ns_key, trim_options, &metadata, batch->GetWriteBatch());
+    uint64_t delete_cnt = 0;
+    s = trim(ctx, ns_key, trim_options, &metadata, batch->GetWriteBatch(), delete_cnt);
+    if (!s.ok()) return s;
 
     if (trim_options.strategy == StreamTrimStrategy::MinID && next_entry_id < trim_options.min_id) {
       // there is no sense to add this element because it would be removed, so just modify metadata and return it's ID
@@ -138,7 +141,8 @@ rocksdb::Status Stream::Add(engine::Context &ctx, const Slice &stream_name, cons
 
   if (should_add) {
     std::string entry_key = internalKeyFromEntryID(ns_key, metadata, next_entry_id);
-    batch->Put(stream_cf_handle_, entry_key, entry_value);
+    s = batch->Put(stream_cf_handle_, entry_key, entry_value);
+    if (!s.ok()) return s;
 
     metadata.last_generated_id = next_entry_id;
     metadata.last_entry_id = next_entry_id;
@@ -157,7 +161,8 @@ rocksdb::Status Stream::Add(engine::Context &ctx, const Slice &stream_name, cons
 
   std::string metadata_bytes;
   metadata.Encode(&metadata_bytes);
-  batch->Put(metadata_cf_handle_, ns_key, metadata_bytes);
+  s = batch->Put(metadata_cf_handle_, ns_key, metadata_bytes);
+  if (!s.ok()) return s;
 
   *id = next_entry_id;
 
@@ -344,7 +349,8 @@ rocksdb::Status Stream::DeletePelEntries(engine::Context &ctx, const Slice &stre
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisStream);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   std::map<std::string, uint64_t> consumer_acknowledges;
   for (const auto &id : entry_ids) {
@@ -356,7 +362,8 @@ rocksdb::Status Stream::DeletePelEntries(engine::Context &ctx, const Slice &stre
     }
     if (s.ok()) {
       *acknowledged += 1;
-      batch->Delete(stream_cf_handle_, entry_key);
+      s = batch->Delete(stream_cf_handle_, entry_key);
+      if (!s.ok()) return s;
 
       // increment ack for each related consumer
       auto pel_entry = decodeStreamPelEntryValue(value);
@@ -367,7 +374,8 @@ rocksdb::Status Stream::DeletePelEntries(engine::Context &ctx, const Slice &stre
     StreamConsumerGroupMetadata group_metadata = decodeStreamConsumerGroupMetadataValue(get_group_value);
     group_metadata.pending_number -= *acknowledged;
     std::string group_value = encodeStreamConsumerGroupMetadataValue(group_metadata);
-    batch->Put(stream_cf_handle_, group_key, group_value);
+    s = batch->Put(stream_cf_handle_, group_key, group_value);
+    if (!s.ok()) return s;
 
     for (const auto &[consumer_name, ack_count] : consumer_acknowledges) {
       auto consumer_meta_key = internalKeyFromConsumerName(ns_key, metadata, group_name, consumer_name);
@@ -379,7 +387,8 @@ rocksdb::Status Stream::DeletePelEntries(engine::Context &ctx, const Slice &stre
       if (s.ok()) {
         auto consumer_metadata = decodeStreamConsumerMetadataValue(consumer_meta_original);
         consumer_metadata.pending_number -= ack_count;
-        batch->Put(stream_cf_handle_, consumer_meta_key, encodeStreamConsumerMetadataValue(consumer_metadata));
+        s = batch->Put(stream_cf_handle_, consumer_meta_key, encodeStreamConsumerMetadataValue(consumer_metadata));
+        if (!s.ok()) return s;
       }
     }
   }
@@ -426,7 +435,8 @@ rocksdb::Status Stream::ClaimPelEntries(engine::Context &ctx, const Slice &strea
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisStream);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   for (const auto &id : entry_ids) {
     std::string raw_value;
@@ -476,8 +486,9 @@ rocksdb::Status Stream::ClaimPelEntries(engine::Context &ctx, const Slice &strea
         StreamConsumerMetadata original_consumer_metadata =
             decodeStreamConsumerMetadataValue(get_original_consumer_value);
         original_consumer_metadata.pending_number -= 1;
-        batch->Put(stream_cf_handle_, original_consumer_key,
-                   encodeStreamConsumerMetadataValue(original_consumer_metadata));
+        s = batch->Put(stream_cf_handle_, original_consumer_key,
+                       encodeStreamConsumerMetadataValue(original_consumer_metadata));
+        if (!s.ok()) return s;
       }
 
       pel_entry.consumer_name = consumer_name;
@@ -499,7 +510,8 @@ rocksdb::Status Stream::ClaimPelEntries(engine::Context &ctx, const Slice &strea
       }
 
       std::string pel_value = encodeStreamPelEntryValue(pel_entry);
-      batch->Put(stream_cf_handle_, entry_key, pel_value);
+      s = batch->Put(stream_cf_handle_, entry_key, pel_value);
+      if (!s.ok()) return s;
     }
   }
 
@@ -507,8 +519,10 @@ rocksdb::Status Stream::ClaimPelEntries(engine::Context &ctx, const Slice &strea
     group_metadata.last_delivered_id = options.last_delivered_id;
   }
 
-  batch->Put(stream_cf_handle_, consumer_key, encodeStreamConsumerMetadataValue(consumer_metadata));
-  batch->Put(stream_cf_handle_, group_key, encodeStreamConsumerGroupMetadataValue(group_metadata));
+  s = batch->Put(stream_cf_handle_, consumer_key, encodeStreamConsumerMetadataValue(consumer_metadata));
+  if (!s.ok()) return s;
+  s = batch->Put(stream_cf_handle_, group_key, encodeStreamConsumerGroupMetadataValue(group_metadata));
+  if (!s.ok()) return s;
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 
@@ -565,7 +579,8 @@ rocksdb::Status Stream::AutoClaim(engine::Context &ctx, const Slice &stream_name
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisStream);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   auto iter = util::UniqueIterator(ctx, read_options, stream_cf_handle_);
   uint64_t total_claimed_count = 0;
@@ -590,7 +605,8 @@ rocksdb::Status Stream::AutoClaim(engine::Context &ctx, const Slice &stream_name
     if (!s.ok()) {
       if (s.IsNotFound()) {
         deleted_entries.push_back(entry_id);
-        batch->Delete(stream_cf_handle_, iter->key());
+        s = batch->Delete(stream_cf_handle_, iter->key());
+        if (!s.ok()) return s;
         --count;
         continue;
       }
@@ -617,7 +633,8 @@ rocksdb::Status Stream::AutoClaim(engine::Context &ctx, const Slice &stream_name
       if (!options.just_id) {
         penl_entry.last_delivery_count += 1;
       }
-      batch->Put(stream_cf_handle_, iter->key(), encodeStreamPelEntryValue(penl_entry));
+      s = batch->Put(stream_cf_handle_, iter->key(), encodeStreamPelEntryValue(penl_entry));
+      if (!s.ok()) return s;
     }
   }
 
@@ -625,7 +642,8 @@ rocksdb::Status Stream::AutoClaim(engine::Context &ctx, const Slice &stream_name
     current_consumer_metadata.pending_number += total_claimed_count;
     current_consumer_metadata.last_attempted_interaction_ms = now_ms;
 
-    batch->Put(stream_cf_handle_, consumer_key, encodeStreamConsumerMetadataValue(current_consumer_metadata));
+    s = batch->Put(stream_cf_handle_, consumer_key, encodeStreamConsumerMetadataValue(current_consumer_metadata));
+    if (!s.ok()) return s;
 
     for (const auto &[consumer, count] : claimed_consumer_entity_count) {
       std::string tmp_consumer_key = internalKeyFromConsumerName(ns_key, metadata, group_name, consumer);
@@ -636,7 +654,8 @@ rocksdb::Status Stream::AutoClaim(engine::Context &ctx, const Slice &stream_name
       }
       StreamConsumerMetadata tmp_consumer_metadata = decodeStreamConsumerMetadataValue(tmp_consumer_value);
       tmp_consumer_metadata.pending_number -= count;
-      batch->Put(stream_cf_handle_, tmp_consumer_key, encodeStreamConsumerMetadataValue(tmp_consumer_metadata));
+      s = batch->Put(stream_cf_handle_, tmp_consumer_key, encodeStreamConsumerMetadataValue(tmp_consumer_metadata));
+      if (!s.ok()) return s;
     }
   }
 
@@ -699,7 +718,8 @@ rocksdb::Status Stream::CreateGroup(engine::Context &ctx, const Slice &stream_na
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisStream);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   std::string get_entry_value;
   s = storage_->Get(ctx, ctx.GetReadOptions(), stream_cf_handle_, entry_key, &get_entry_value);
@@ -710,11 +730,13 @@ rocksdb::Status Stream::CreateGroup(engine::Context &ctx, const Slice &stream_na
     return rocksdb::Status::Busy();
   }
 
-  batch->Put(stream_cf_handle_, entry_key, entry_value);
+  s = batch->Put(stream_cf_handle_, entry_key, entry_value);
+  if (!s.ok()) return s;
   metadata.group_number += 1;
   std::string metadata_bytes;
   metadata.Encode(&metadata_bytes);
-  batch->Put(metadata_cf_handle_, ns_key, metadata_bytes);
+  s = batch->Put(metadata_cf_handle_, ns_key, metadata_bytes);
+  if (!s.ok()) return s;
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 
@@ -736,7 +758,8 @@ rocksdb::Status Stream::DestroyGroup(engine::Context &ctx, const Slice &stream_n
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisStream);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   std::string sub_key_prefix;
   PutFixed64(&sub_key_prefix, group_name.size());
@@ -753,7 +776,8 @@ rocksdb::Status Stream::DestroyGroup(engine::Context &ctx, const Slice &stream_n
 
   auto iter = util::UniqueIterator(ctx, read_options, stream_cf_handle_);
   for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
-    batch->Delete(stream_cf_handle_, iter->key());
+    s = batch->Delete(stream_cf_handle_, iter->key());
+    if (!s.ok()) return s;
     *delete_cnt += 1;
   }
 
@@ -765,7 +789,8 @@ rocksdb::Status Stream::DestroyGroup(engine::Context &ctx, const Slice &stream_n
     metadata.group_number -= 1;
     std::string metadata_bytes;
     metadata.Encode(&metadata_bytes);
-    batch->Put(metadata_cf_handle_, ns_key, metadata_bytes);
+    s = batch->Put(metadata_cf_handle_, ns_key, metadata_bytes);
+    if (!s.ok()) return s;
   }
 
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
@@ -806,13 +831,16 @@ rocksdb::Status Stream::createConsumerWithoutLock(engine::Context &ctx, const Sl
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisStream);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
-  batch->Put(stream_cf_handle_, consumer_key, consumer_value);
+  s = batch->Put(stream_cf_handle_, consumer_key, consumer_value);
+  if (!s.ok()) return s;
   StreamConsumerGroupMetadata consumer_group_metadata = decodeStreamConsumerGroupMetadataValue(get_entry_value);
   consumer_group_metadata.consumer_number += 1;
   std::string consumer_group_metadata_bytes = encodeStreamConsumerGroupMetadataValue(consumer_group_metadata);
-  batch->Put(stream_cf_handle_, entry_key, consumer_group_metadata_bytes);
+  s = batch->Put(stream_cf_handle_, entry_key, consumer_group_metadata_bytes);
+  if (!s.ok()) return s;
   s = storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
   if (s.ok()) *created_number = 1;
   return s;
@@ -857,7 +885,8 @@ rocksdb::Status Stream::DestroyConsumer(engine::Context &ctx, const Slice &strea
   deleted_pel = consumer_metadata.pending_number;
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisStream);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   std::string prefix_key = internalPelKeyFromGroupAndEntryId(ns_key, metadata, group_name, StreamEntryID::Minimum());
   std::string end_key = internalPelKeyFromGroupAndEntryId(ns_key, metadata, group_name, StreamEntryID::Maximum());
@@ -872,7 +901,8 @@ rocksdb::Status Stream::DestroyConsumer(engine::Context &ctx, const Slice &strea
   for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
     StreamPelEntry pel_entry = decodeStreamPelEntryValue(iter->value().ToString());
     if (pel_entry.consumer_name == consumer_name) {
-      batch->Delete(stream_cf_handle_, iter->key());
+      s = batch->Delete(stream_cf_handle_, iter->key());
+      if (!s.ok()) return s;
     }
   }
 
@@ -880,11 +910,13 @@ rocksdb::Status Stream::DestroyConsumer(engine::Context &ctx, const Slice &strea
     return s;
   }
 
-  batch->Delete(stream_cf_handle_, consumer_key);
+  s = batch->Delete(stream_cf_handle_, consumer_key);
+  if (!s.ok()) return s;
   StreamConsumerGroupMetadata group_metadata = decodeStreamConsumerGroupMetadataValue(get_group_value);
   group_metadata.consumer_number -= 1;
   group_metadata.pending_number -= deleted_pel;
-  batch->Put(stream_cf_handle_, group_key, encodeStreamConsumerGroupMetadataValue(group_metadata));
+  s = batch->Put(stream_cf_handle_, group_key, encodeStreamConsumerGroupMetadataValue(group_metadata));
+  if (!s.ok()) return s;
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 
@@ -920,8 +952,10 @@ rocksdb::Status Stream::GroupSetId(engine::Context &ctx, const Slice &stream_nam
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisStream);
-  batch->PutLogData(log_data.Encode());
-  batch->Put(stream_cf_handle_, entry_key, entry_value);
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
+  s = batch->Put(stream_cf_handle_, entry_key, entry_value);
+  if (!s.ok()) return s;
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 
@@ -940,7 +974,8 @@ rocksdb::Status Stream::DeleteEntries(engine::Context &ctx, const Slice &stream_
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisStream);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   std::string next_version_prefix_key =
       InternalKey(ns_key, "", metadata.version + 1, storage_->IsSlotIdEncoded()).Encode();
@@ -960,7 +995,8 @@ rocksdb::Status Stream::DeleteEntries(engine::Context &ctx, const Slice &stream_
     s = storage_->Get(ctx, read_options, stream_cf_handle_, entry_key, &value);
     if (s.ok()) {
       *deleted_cnt += 1;
-      batch->Delete(stream_cf_handle_, entry_key);
+      s = batch->Delete(stream_cf_handle_, entry_key);
+      if (!s.ok()) return s;
 
       if (metadata.max_deleted_entry_id < id) {
         metadata.max_deleted_entry_id = id;
@@ -1002,7 +1038,8 @@ rocksdb::Status Stream::DeleteEntries(engine::Context &ctx, const Slice &stream_
 
     std::string bytes;
     metadata.Encode(&bytes);
-    batch->Put(metadata_cf_handle_, ns_key, bytes);
+    s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+    if (!s.ok()) return s;
   }
 
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
@@ -1303,7 +1340,8 @@ rocksdb::Status Stream::GetGroupInfo(engine::Context &ctx, const Slice &stream_n
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s;
 
-  std::string subkey_type_delimiter = std::to_string(UINT64_MAX);
+  std::string subkey_type_delimiter;
+  PutFixed64(&subkey_type_delimiter, UINT64_MAX);
   PutFixed8(&subkey_type_delimiter, (uint8_t)StreamSubkeyType::StreamConsumerGroupMetadata);
   std::string next_version_prefix_key =
       InternalKey(ns_key, subkey_type_delimiter, metadata.version + 1, storage_->IsSlotIdEncoded()).Encode();
@@ -1318,6 +1356,10 @@ rocksdb::Status Stream::GetGroupInfo(engine::Context &ctx, const Slice &stream_n
 
   auto iter = util::UniqueIterator(ctx, read_options, stream_cf_handle_);
   for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
+    if (identifySubkeyType(iter->key()) != StreamSubkeyType::StreamConsumerGroupMetadata) {
+      continue;
+    }
+
     std::string group_name = groupNameFromInternalKey(iter->key());
     StreamConsumerGroupMetadata cg_metadata = decodeStreamConsumerGroupMetadataValue(iter->value().ToString());
     CheckLagValid(metadata, cg_metadata);
@@ -1353,6 +1395,10 @@ rocksdb::Status Stream::GetConsumerInfo(
 
   auto iter = util::UniqueIterator(ctx, read_options, stream_cf_handle_);
   for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
+    if (identifySubkeyType(iter->key()) != StreamSubkeyType::StreamConsumerMetadata) {
+      continue;
+    }
+
     std::string consumer_name = consumerNameFromInternalKey(iter->key());
     StreamConsumerMetadata c_metadata = decodeStreamConsumerMetadataValue(iter->value().ToString());
     std::pair<std::string, StreamConsumerMetadata> tmp_item(consumer_name, c_metadata);
@@ -1436,7 +1482,8 @@ rocksdb::Status Stream::RangeWithPending(engine::Context &ctx, const Slice &stre
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisStream);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   StreamConsumerGroupMetadata consumergroup_metadata = decodeStreamConsumerGroupMetadataValue(get_group_value);
   s = storage_->Get(ctx, ctx.GetReadOptions(), stream_cf_handle_, consumer_key, &get_consumer_value);
@@ -1468,7 +1515,8 @@ rocksdb::Status Stream::RangeWithPending(engine::Context &ctx, const Slice &stre
         std::string pel_key = internalPelKeyFromGroupAndEntryId(ns_key, metadata, group_name, id);
         StreamPelEntry pel_entry = {0, 0, consumer_name};
         std::string pel_value = encodeStreamPelEntryValue(pel_entry);
-        batch->Put(stream_cf_handle_, pel_key, pel_value);
+        s = batch->Put(stream_cf_handle_, pel_key, pel_value);
+        if (!s.ok()) return s;
         consumergroup_metadata.entries_read += 1;
         consumergroup_metadata.pending_number += 1;
         consumer_metadata.pending_number += 1;
@@ -1507,7 +1555,8 @@ rocksdb::Status Stream::RangeWithPending(engine::Context &ctx, const Slice &stre
       entries->emplace_back(entry_id.ToString(), std::move(values));
       pel_entry.last_delivery_count += 1;
       pel_entry.last_delivery_time_ms = now_ms;
-      batch->Put(stream_cf_handle_, iter->key(), encodeStreamPelEntryValue(pel_entry));
+      s = batch->Put(stream_cf_handle_, iter->key(), encodeStreamPelEntryValue(pel_entry));
+      if (!s.ok()) return s;
       ++count;
       if (count >= options.count) break;
     }
@@ -1516,8 +1565,10 @@ rocksdb::Status Stream::RangeWithPending(engine::Context &ctx, const Slice &stre
       return s;
     }
   }
-  batch->Put(stream_cf_handle_, group_key, encodeStreamConsumerGroupMetadataValue(consumergroup_metadata));
-  batch->Put(stream_cf_handle_, consumer_key, encodeStreamConsumerMetadataValue(consumer_metadata));
+  s = batch->Put(stream_cf_handle_, group_key, encodeStreamConsumerGroupMetadataValue(consumergroup_metadata));
+  if (!s.ok()) return s;
+  s = batch->Put(stream_cf_handle_, consumer_key, encodeStreamConsumerMetadataValue(consumer_metadata));
+  if (!s.ok()) return s;
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 
@@ -1541,14 +1592,19 @@ rocksdb::Status Stream::Trim(engine::Context &ctx, const Slice &stream_name, con
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisStream);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
-  *delete_cnt = trim(ctx, ns_key, options, &metadata, batch->GetWriteBatch());
+  s = trim(ctx, ns_key, options, &metadata, batch->GetWriteBatch(), *delete_cnt);
+  if (!s.ok()) {
+    return s;
+  }
 
   if (*delete_cnt > 0) {
     std::string bytes;
     metadata.Encode(&bytes);
-    batch->Put(metadata_cf_handle_, ns_key, bytes);
+    s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+    if (!s.ok()) return s;
 
     return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
   }
@@ -1556,21 +1612,24 @@ rocksdb::Status Stream::Trim(engine::Context &ctx, const Slice &stream_name, con
   return rocksdb::Status::OK();
 }
 
-uint64_t Stream::trim(engine::Context &ctx, const std::string &ns_key, const StreamTrimOptions &options,
-                      StreamMetadata *metadata, rocksdb::WriteBatch *batch) {
+rocksdb::Status Stream::trim(engine::Context &ctx, const std::string &ns_key, const StreamTrimOptions &options,
+                             StreamMetadata *metadata, rocksdb::WriteBatch *batch, uint64_t &delete_cnt) {
   if (metadata->size == 0) {
-    return 0;
+    delete_cnt = 0;
+    return rocksdb::Status::OK();
   }
 
   if (options.strategy == StreamTrimStrategy::MaxLen && metadata->size <= options.max_len) {
-    return 0;
+    delete_cnt = 0;
+    return rocksdb::Status::OK();
   }
 
   if (options.strategy == StreamTrimStrategy::MinID && metadata->first_entry_id >= options.min_id) {
-    return 0;
+    delete_cnt = 0;
+    return rocksdb::Status::OK();
   }
 
-  uint64_t ret = 0;
+  delete_cnt = 0;
 
   std::string next_version_prefix_key =
       InternalKey(ns_key, "", metadata->version + 1, storage_->IsSlotIdEncoded()).Encode();
@@ -1596,9 +1655,12 @@ uint64_t Stream::trim(engine::Context &ctx, const std::string &ns_key, const Str
       break;
     }
 
-    batch->Delete(stream_cf_handle_, iter->key());
+    auto s = batch->Delete(stream_cf_handle_, iter->key());
+    if (!s.ok()) {
+      return s;
+    }
 
-    ret += 1;
+    delete_cnt += 1;
     metadata->size -= 1;
     last_deleted = iter->key().ToString();
 
@@ -1619,11 +1681,11 @@ uint64_t Stream::trim(engine::Context &ctx, const std::string &ns_key, const Str
     metadata->recorded_first_entry_id.Clear();
   }
 
-  if (ret > 0) {
+  if (delete_cnt > 0) {
     metadata->max_deleted_entry_id = entryIDFromInternalKey(last_deleted);
   }
 
-  return ret;
+  return rocksdb::Status::OK();
 }
 
 rocksdb::Status Stream::SetId(engine::Context &ctx, const Slice &stream_name, const StreamEntryID &last_generated_id,
@@ -1673,11 +1735,13 @@ rocksdb::Status Stream::SetId(engine::Context &ctx, const Slice &stream_name, co
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisStream, {"XSETID"});
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   std::string bytes;
   metadata.Encode(&bytes);
-  batch->Put(metadata_cf_handle_, ns_key, bytes);
+  s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+  if (!s.ok()) return s;
 
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }

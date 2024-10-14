@@ -35,6 +35,22 @@ import (
 )
 
 func TestString(t *testing.T) {
+	configOptions := []util.ConfigOptions{
+		{
+			Name:       "txn-context-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+	}
+
+	configsMatrix, err := util.GenerateConfigsMatrix(configOptions)
+	require.NoError(t, err)
+
+	for _, configs := range configsMatrix {
+		testString(t, configs)
+	}
+}
+func testString(t *testing.T, configs util.KvrocksServerConfigs) {
 	srv := util.StartServer(t, map[string]string{})
 	defer srv.Close()
 	ctx := context.Background()

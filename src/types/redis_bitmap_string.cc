@@ -59,8 +59,14 @@ rocksdb::Status BitmapString::SetBit(engine::Context &ctx, const Slice &ns_key, 
   raw_value->append(string_value);
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisString);
-  batch->PutLogData(log_data.Encode());
-  batch->Put(metadata_cf_handle_, ns_key, *raw_value);
+  auto s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) {
+    return s;
+  }
+  s = batch->Put(metadata_cf_handle_, ns_key, *raw_value);
+  if (!s.ok()) {
+    return s;
+  }
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 
@@ -257,8 +263,14 @@ rocksdb::Status BitmapString::Bitfield(engine::Context &ctx, const Slice &ns_key
   raw_value->append(string_value);
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisString);
-  batch->PutLogData(log_data.Encode());
-  batch->Put(metadata_cf_handle_, ns_key, *raw_value);
+  auto s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) {
+    return s;
+  }
+  s = batch->Put(metadata_cf_handle_, ns_key, *raw_value);
+  if (!s.ok()) {
+    return s;
+  }
 
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }

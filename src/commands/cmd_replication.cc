@@ -56,7 +56,7 @@ class CommandPSync : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     LOG(INFO) << "Slave " << conn->GetAddr() << ", listening port: " << conn->GetListeningPort()
               << ", announce ip: " << conn->GetAnnounceIP() << " asks for synchronization"
               << " with next sequence: " << next_repl_seq_
@@ -186,7 +186,8 @@ class CommandReplConf : public Commander {
     return Status::OK();
   }
 
-  Status Execute([[maybe_unused]] Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, [[maybe_unused]] Server *srv, Connection *conn,
+                 std::string *output) override {
     if (port_ != 0) {
       conn->SetListeningPort(port_);
     }
@@ -206,7 +207,8 @@ class CommandFetchMeta : public Commander {
  public:
   Status Parse([[maybe_unused]] const std::vector<std::string> &args) override { return Status::OK(); }
 
-  Status Execute(Server *srv, Connection *conn, [[maybe_unused]] std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn,
+                 [[maybe_unused]] std::string *output) override {
     int repl_fd = conn->GetFD();
     std::string ip = conn->GetAnnounceIP();
 
@@ -262,7 +264,8 @@ class CommandFetchFile : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, [[maybe_unused]] std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn,
+                 [[maybe_unused]] std::string *output) override {
     std::vector<std::string> files = util::Split(files_str_, ",");
 
     int repl_fd = conn->GetFD();
@@ -334,7 +337,8 @@ class CommandDBName : public Commander {
  public:
   Status Parse([[maybe_unused]] const std::vector<std::string> &args) override { return Status::OK(); }
 
-  Status Execute(Server *srv, Connection *conn, [[maybe_unused]] std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn,
+                 [[maybe_unused]] std::string *output) override {
     conn->Reply(srv->storage->GetName() + CRLF);
     return Status::OK();
   }

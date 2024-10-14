@@ -53,6 +53,7 @@ github:
     '2.7': {}
     '2.8': {}
     '2.9': {}
+    '2.10': {}
 
 notifications:
   commits:      commits@kvrocks.apache.org

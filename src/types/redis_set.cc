@@ -41,15 +41,18 @@ rocksdb::Status Set::Overwrite(engine::Context &ctx, Slice user_key, const std::
   SetMetadata metadata;
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisSet);
-  batch->PutLogData(log_data.Encode());
+  auto s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
   for (const auto &member : members) {
     std::string sub_key = InternalKey(ns_key, member, metadata.version, storage_->IsSlotIdEncoded()).Encode();
-    batch->Put(sub_key, Slice());
+    s = batch->Put(sub_key, Slice());
+    if (!s.ok()) return s;
   }
   metadata.size = static_cast<uint32_t>(members.size());
   std::string bytes;
   metadata.Encode(&bytes);
-  batch->Put(metadata_cf_handle_, ns_key, bytes);
+  s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+  if (!s.ok()) return s;
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 
@@ -67,7 +70,8 @@ rocksdb::Status Set::Add(engine::Context &ctx, const Slice &user_key, const std:
   std::string value;
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisSet);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
   std::unordered_set<std::string_view> mset;
   for (const auto &member : members) {
     if (!mset.insert(member.ToStringView()).second) {
@@ -76,14 +80,16 @@ rocksdb::Status Set::Add(engine::Context &ctx, const Slice &user_key, const std:
     std::string sub_key = InternalKey(ns_key, member, metadata.version, storage_->IsSlotIdEncoded()).Encode();
     s = storage_->Get(ctx, ctx.GetReadOptions(), sub_key, &value);
     if (s.ok()) continue;
-    batch->Put(sub_key, Slice());
+    s = batch->Put(sub_key, Slice());
+    if (!s.ok()) return s;
     *added_cnt += 1;
   }
   if (*added_cnt > 0) {
     metadata.size += *added_cnt;
     std::string bytes;
     metadata.Encode(&bytes);
-    batch->Put(metadata_cf_handle_, ns_key, bytes);
+    s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+    if (!s.ok()) return s;
   }
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
@@ -102,7 +108,8 @@ rocksdb::Status Set::Remove(engine::Context &ctx, const Slice &user_key, const s
   std::string value;
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisSet);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
   std::unordered_set<std::string_view> mset;
   for (const auto &member : members) {
     if (!mset.insert(member.ToStringView()).second) {
@@ -111,7 +118,8 @@ rocksdb::Status Set::Remove(engine::Context &ctx, const Slice &user_key, const s
     std::string sub_key = InternalKey(ns_key, member, metadata.version, storage_->IsSlotIdEncoded()).Encode();
     s = storage_->Get(ctx, ctx.GetReadOptions(), sub_key, &value);
     if (!s.ok()) continue;
-    batch->Delete(sub_key);
+    s = batch->Delete(sub_key);
+    if (!s.ok()) return s;
     *removed_cnt += 1;
   }
   if (*removed_cnt > 0) {
@@ -119,9 +127,11 @@ rocksdb::Status Set::Remove(engine::Context &ctx, const Slice &user_key, const s
       metadata.size -= *removed_cnt;
       std::string bytes;
       metadata.Encode(&bytes);
-      batch->Put(metadata_cf_handle_, ns_key, bytes);
+      s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+      if (!s.ok()) return s;
     } else {
-      batch->Delete(metadata_cf_handle_, ns_key);
+      s = batch->Delete(metadata_cf_handle_, ns_key);
+      if (!s.ok()) return s;
     }
   }
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
@@ -218,7 +228,8 @@ rocksdb::Status Set::Take(engine::Context &ctx, const Slice &user_key, std::vect
   ObserverOrUniquePtr<rocksdb::WriteBatchBase> batch = storage_->GetWriteBatchBase();
   if (pop) {
     WriteBatchLogData log_data(kRedisSet);
-    batch->PutLogData(log_data.Encode());
+    s = batch->PutLogData(log_data.Encode());
+    if (!s.ok()) return s;
   }
   members->clear();
   s = ExtractRandMemberFromSet<std::string>(
@@ -234,12 +245,14 @@ rocksdb::Status Set::Take(engine::Context &ctx, const Slice &user_key, std::vect
   if (members->empty()) return rocksdb::Status::OK();
   for (std::string &user_sub_key : *members) {
     std::string sub_key = InternalKey(ns_key, user_sub_key, metadata.version, storage_->IsSlotIdEncoded()).Encode();
-    batch->Delete(sub_key);
+    s = batch->Delete(sub_key);
+    if (!s.ok()) return s;
   }
   metadata.size -= members->size();
   std::string bytes;
   metadata.Encode(&bytes);
-  batch->Put(metadata_cf_handle_, ns_key, bytes);
+  s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+  if (!s.ok()) return s;
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 

@@ -46,14 +46,16 @@ rocksdb::Status Sortedint::Add(engine::Context &ctx, const Slice &user_key, cons
   std::string value;
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisSortedint);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
   for (const auto id : ids) {
     std::string id_buf;
     PutFixed64(&id_buf, id);
     std::string sub_key = InternalKey(ns_key, id_buf, metadata.version, storage_->IsSlotIdEncoded()).Encode();
     s = storage_->Get(ctx, ctx.GetReadOptions(), sub_key, &value);
     if (s.ok()) continue;
-    batch->Put(sub_key, Slice());
+    s = batch->Put(sub_key, Slice());
+    if (!s.ok()) return s;
     *added_cnt += 1;
   }
 
@@ -62,7 +64,8 @@ rocksdb::Status Sortedint::Add(engine::Context &ctx, const Slice &user_key, cons
   metadata.size += *added_cnt;
   std::string bytes;
   metadata.Encode(&bytes);
-  batch->Put(metadata_cf_handle_, ns_key, bytes);
+  s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+  if (!s.ok()) return s;
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 
@@ -80,21 +83,24 @@ rocksdb::Status Sortedint::Remove(engine::Context &ctx, const Slice &user_key, c
   std::string value;
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisSortedint);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
   for (const auto id : ids) {
     std::string id_buf;
     PutFixed64(&id_buf, id);
     std::string sub_key = InternalKey(ns_key, id_buf, metadata.version, storage_->IsSlotIdEncoded()).Encode();
     s = storage_->Get(ctx, ctx.GetReadOptions(), sub_key, &value);
     if (!s.ok()) continue;
-    batch->Delete(sub_key);
+    s = batch->Delete(sub_key);
+    if (!s.ok()) return s;
     *removed_cnt += 1;
   }
   if (*removed_cnt == 0) return rocksdb::Status::OK();
   metadata.size -= *removed_cnt;
   std::string bytes;
   metadata.Encode(&bytes);
-  batch->Put(metadata_cf_handle_, ns_key, bytes);
+  s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+  if (!s.ok()) return s;
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 

@@ -34,7 +34,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
       - name: Install sonar-scanner and build-wrapper
-        uses: SonarSource/sonarcloud-github-c-cpp@v2
+        uses: SonarSource/sonarcloud-github-c-cpp@v3
       - name: 'Download code coverage'
         uses: actions/github-script@v7
         with:

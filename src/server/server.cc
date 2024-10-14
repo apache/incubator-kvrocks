@@ -158,9 +158,10 @@ Status Server::Start() {
   }
 
   if (!config_->cluster_enabled) {
-    GET_OR_RET(index_mgr.Load(kDefaultNamespace));
+    engine::Context no_txn_ctx = engine::Context::NoTransactionContext(storage);
+    GET_OR_RET(index_mgr.Load(no_txn_ctx, kDefaultNamespace));
     for (auto [_, ns] : namespace_.List()) {
-      GET_OR_RET(index_mgr.Load(ns));
+      GET_OR_RET(index_mgr.Load(no_txn_ctx, ns));
     }
   }
 
@@ -281,7 +282,7 @@ Status Server::AddMaster(const std::string &host, uint32_t port, bool force_reco
   if (GetConfig()->master_use_repl_port) master_listen_port += 1;
 
   replication_thread_ = std::make_unique<ReplicationThread>(host, master_listen_port, this);
-  auto s = replication_thread_->Start([this]() { PrepareRestoreDB(); },
+  auto s = replication_thread_->Start([this]() { return PrepareRestoreDB(); },
                                       [this]() {
                                         this->is_loading_ = false;
                                         if (auto s = task_runner_.Start(); !s) {
@@ -852,13 +853,10 @@ void Server::GetRocksDBInfo(std::string *info) {
   uint64_t num_immutable_tables = 0, memtable_flush_pending = 0, compaction_pending = 0;
   uint64_t num_running_compaction = 0, num_live_versions = 0, num_super_version = 0, num_background_errors = 0;
 
-  db->GetAggregatedIntProperty("rocksdb.num-snapshots", &num_snapshots);
   db->GetAggregatedIntProperty("rocksdb.size-all-mem-tables", &memtable_sizes);
   db->GetAggregatedIntProperty("rocksdb.cur-size-all-mem-tables", &cur_memtable_sizes);
-  db->GetAggregatedIntProperty("rocksdb.num-running-flushes", &num_running_flushes);
   db->GetAggregatedIntProperty("rocksdb.num-immutable-mem-table", &num_immutable_tables);
   db->GetAggregatedIntProperty("rocksdb.mem-table-flush-pending", &memtable_flush_pending);
-  db->GetAggregatedIntProperty("rocksdb.num-running-compactions", &num_running_compaction);
   db->GetAggregatedIntProperty("rocksdb.current-super-version-number", &num_super_version);
   db->GetAggregatedIntProperty("rocksdb.background-errors", &num_background_errors);
   db->GetAggregatedIntProperty("rocksdb.compaction-pending", &compaction_pending);
@@ -876,6 +874,11 @@ void Server::GetRocksDBInfo(std::string *info) {
     db->GetIntProperty(subkey_cf_handle, rocksdb::DB::Properties::kBlockCachePinnedUsage, &block_cache_pinned_usage);
     string_stream << "block_cache_pinned_usage[" << subkey_cf_handle->GetName() << "]:" << block_cache_pinned_usage
                   << "\r\n";
+
+    // All column faimilies share the same property of the DB, so it's good to count a single one.
+    db->GetIntProperty(subkey_cf_handle, rocksdb::DB::Properties::kNumSnapshots, &num_snapshots);
+    db->GetIntProperty(subkey_cf_handle, rocksdb::DB::Properties::kNumRunningFlushes, &num_running_flushes);
+    db->GetIntProperty(subkey_cf_handle, rocksdb::DB::Properties::kNumRunningCompactions, &num_running_compaction);
   }
 
   for (const auto &cf_handle : *storage->GetCFHandles()) {
@@ -1336,17 +1339,10 @@ std::string Server::GetRocksDBStatsJson() const {
 // This function is called by replication thread when finished fetching all files from its master.
 // Before restoring the db from backup or checkpoint, we should
 // guarantee other threads don't access DB and its column families, then close db.
-void Server::PrepareRestoreDB() {
+bool Server::PrepareRestoreDB() {
   // Stop feeding slaves thread
   LOG(INFO) << "[server] Disconnecting slaves...";
   DisconnectSlaves();
-
-  // Stop task runner
-  LOG(INFO) << "[server] Stopping the task runner and clear task queue...";
-  task_runner_.Cancel();
-  if (auto s = task_runner_.Join(); !s) {
-    LOG(WARNING) << "[server] " << s.Msg();
-  }
 
   // If the DB is restored, the object 'db_' will be destroyed, but
   // 'db_' will be accessed in data migration task. To avoid wrong
@@ -1362,12 +1358,27 @@ void Server::PrepareRestoreDB() {
   // ASAP to avoid user can't receive responses for long time, because the following
   // 'CloseDB' may cost much time to acquire DB mutex.
   LOG(INFO) << "[server] Waiting workers for finishing executing commands...";
-  { auto exclusivity = WorkExclusivityGuard(); }
+  while (!works_concurrency_rw_lock_.try_lock()) {
+    if (replication_thread_->IsStopped()) {
+      is_loading_ = false;
+      return false;
+    }
+    usleep(1000);
+  }
+  works_concurrency_rw_lock_.unlock();
+
+  // Stop task runner
+  LOG(INFO) << "[server] Stopping the task runner and clear task queue...";
+  task_runner_.Cancel();
+  if (auto s = task_runner_.Join(); !s) {
+    LOG(WARNING) << "[server] " << s.Msg();
+  }
 
   // Cron thread, compaction checker thread, full synchronization thread
   // may always run in the background, we need to close db, so they don't actually work.
   LOG(INFO) << "[server] Waiting for closing DB...";
   storage->CloseDB();
+  return true;
 }
 
 void Server::WaitNoMigrateProcessing() {

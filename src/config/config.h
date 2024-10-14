@@ -218,6 +218,7 @@ struct Config {
       bool no_slowdown;
       bool low_pri;
       bool memtable_insert_hint_per_batch;
+      int write_batch_max_bytes;
     } write_options;
 
     struct ReadOptions {

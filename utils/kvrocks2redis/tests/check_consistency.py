@@ -110,11 +110,16 @@ class RedisComparator:
             time.sleep(0.02)
             keys = [key, incr_key, hash_key, set_key, zset_key]
             for key in keys:
-                data_type = self.src_cli.type(key)
-                src_data, dst_data = self._compare_data([key], data_type)
-                if src_data != dst_data:
+                attempts = 0
+                while attempts <= 3:
+                    data_type = self.src_cli.type(key)
+                    src_data, dst_data = self._compare_data([key], data_type)
+                    if src_data == dst_data:
+                        break
+                    attempts += 1
+                    time.sleep(0.1)
+                else:
                     raise AssertionError(f"Data mismatch for key '{key}': source data: '{src_data}' destination data: '{dst_data}'")
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Redis Comparator')

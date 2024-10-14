@@ -17,7 +17,7 @@
  * under the License.
  *
  */
-#include "storage/rdb.h"
+#include "storage/rdb/rdb.h"
 
 #include <cmath>
 #include <filesystem>

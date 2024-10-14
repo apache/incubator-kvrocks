@@ -813,7 +813,9 @@ int RedisGenericCommand(lua_State *lua, int raise_error) {
   }
 
   std::string output;
-  s = conn->ExecuteCommand(cmd_name, args, cmd.get(), &output);
+  // TODO: make it possible for multiple redis commands in lua script to use the same txn context.
+  engine::Context ctx(srv->storage);
+  s = conn->ExecuteCommand(ctx, cmd_name, args, cmd.get(), &output);
   if (!s) {
     PushError(lua, s.Msg().data());
     return raise_error ? RaiseError(lua) : 1;

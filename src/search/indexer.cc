@@ -226,13 +226,19 @@ Status IndexUpdater::UpdateTagIndex(engine::Context &ctx, std::string_view key, 
   for (const auto &tag : tags_to_delete) {
     auto index_key = search_key.ConstructTagFieldData(tag, key);
 
-    batch->Delete(cf_handle, index_key);
+    auto s = batch->Delete(cf_handle, index_key);
+    if (!s.ok()) {
+      return {Status::NotOK, s.ToString()};
+    }
   }
 
   for (const auto &tag : tags_to_add) {
     auto index_key = search_key.ConstructTagFieldData(tag, key);
 
-    batch->Put(cf_handle, index_key, Slice());
+    auto s = batch->Put(cf_handle, index_key, Slice());
+    if (!s.ok()) {
+      return {Status::NotOK, s.ToString()};
+    }
   }
 
   auto s = storage->Write(ctx, storage->DefaultWriteOptions(), batch->GetWriteBatch());
@@ -253,13 +259,19 @@ Status IndexUpdater::UpdateNumericIndex(engine::Context &ctx, std::string_view k
   if (!original.IsNull()) {
     auto index_key = search_key.ConstructNumericFieldData(original.Get<kqir::Numeric>(), key);
 
-    batch->Delete(cf_handle, index_key);
+    auto s = batch->Delete(cf_handle, index_key);
+    if (!s.ok()) {
+      return {Status::NotOK, s.ToString()};
+    }
   }
 
   if (!current.IsNull()) {
     auto index_key = search_key.ConstructNumericFieldData(current.Get<kqir::Numeric>(), key);
 
-    batch->Put(cf_handle, index_key, Slice());
+    auto s = batch->Put(cf_handle, index_key, Slice());
+    if (!s.ok()) {
+      return {Status::NotOK, s.ToString()};
+    }
   }
   auto s = storage->Write(ctx, storage->DefaultWriteOptions(), batch->GetWriteBatch());
   if (!s.ok()) return {Status::NotOK, s.ToString()};

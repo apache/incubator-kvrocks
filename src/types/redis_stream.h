@@ -91,8 +91,8 @@ class Stream : public SubKeyScanner {
   StreamEntryID entryIDFromInternalKey(const rocksdb::Slice &key) const;
   std::string internalKeyFromEntryID(const std::string &ns_key, const StreamMetadata &metadata,
                                      const StreamEntryID &id) const;
-  uint64_t trim(engine::Context &ctx, const std::string &ns_key, const StreamTrimOptions &options,
-                StreamMetadata *metadata, rocksdb::WriteBatch *batch);
+  rocksdb::Status trim(engine::Context &ctx, const std::string &ns_key, const StreamTrimOptions &options,
+                       StreamMetadata *metadata, rocksdb::WriteBatch *batch, uint64_t &delete_cnt);
   std::string internalKeyFromGroupName(const std::string &ns_key, const StreamMetadata &metadata,
                                        const std::string &group_name) const;
   std::string groupNameFromInternalKey(rocksdb::Slice key) const;

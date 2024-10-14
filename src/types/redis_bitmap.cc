@@ -213,13 +213,16 @@ rocksdb::Status Bitmap::SetBit(engine::Context &ctx, const Slice &user_key, uint
   util::lsb::SetBitTo(data_ptr, bit_offset_in_segment, new_bit);
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisBitmap, {std::to_string(kRedisCmdSetBit), std::to_string(bit_offset)});
-  batch->PutLogData(log_data.Encode());
-  batch->Put(sub_key, value);
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
+  s = batch->Put(sub_key, value);
+  if (!s.ok()) return s;
   if (metadata.size != bitmap_size) {
     metadata.size = bitmap_size;
     std::string bytes;
     metadata.Encode(&bytes);
-    batch->Put(metadata_cf_handle_, ns_key, bytes);
+    s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+    if (!s.ok()) return s;
   }
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
@@ -485,7 +488,8 @@ rocksdb::Status Bitmap::BitOp(engine::Context &ctx, BitOpFlags op_flag, const st
   auto batch = storage_->GetWriteBatchBase();
   if (max_bitmap_size == 0) {
     /* Compute the bit operation, if all bitmap is empty. cleanup the dest bitmap. */
-    batch->Delete(metadata_cf_handle_, ns_key);
+    auto s = batch->Delete(metadata_cf_handle_, ns_key);
+    if (!s.ok()) return s;
     return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
   }
   std::vector<std::string> log_args = {std::to_string(kRedisCmdBitOp), op_name};
@@ -493,7 +497,8 @@ rocksdb::Status Bitmap::BitOp(engine::Context &ctx, BitOpFlags op_flag, const st
     log_args.emplace_back(op_key.ToString());
   }
   WriteBatchLogData log_data(kRedisBitmap, std::move(log_args));
-  batch->PutLogData(log_data.Encode());
+  auto s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
 
   BitmapMetadata res_metadata;
   // If the operation is AND and the number of keys is less than the number of op_keys,
@@ -632,7 +637,8 @@ rocksdb::Status Bitmap::BitOp(engine::Context &ctx, BitOpFlags op_flag, const st
         std::string sub_key = InternalKey(ns_key, std::to_string(frag_index * kBitmapSegmentBytes),
                                           res_metadata.version, storage_->IsSlotIdEncoded())
                                   .Encode();
-        batch->Put(sub_key, Slice(reinterpret_cast<char *>(frag_res.get()), frag_maxlen));
+        auto s = batch->Put(sub_key, Slice(reinterpret_cast<char *>(frag_res.get()), frag_maxlen));
+        if (!s.ok()) return s;
       }
     }
   }
@@ -640,7 +646,8 @@ rocksdb::Status Bitmap::BitOp(engine::Context &ctx, BitOpFlags op_flag, const st
   std::string bytes;
   res_metadata.size = max_bitmap_size;
   res_metadata.Encode(&bytes);
-  batch->Put(metadata_cf_handle_, ns_key, bytes);
+  s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+  if (!s.ok()) return s;
   *len = static_cast<int64_t>(max_bitmap_size);
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
@@ -670,13 +677,16 @@ class Bitmap::SegmentCacheStore {
   }
 
   // Add all dirty segments into write batch.
-  void BatchForFlush(ObserverOrUniquePtr<rocksdb::WriteBatchBase> &batch) {
+  rocksdb::Status BatchForFlush(ObserverOrUniquePtr<rocksdb::WriteBatchBase> &batch) {
     uint64_t used_size = 0;
     for (auto &[index, content] : cache_) {
       if (content.first) {
         std::string sub_key =
             InternalKey(ns_key_, getSegmentSubKey(index), metadata_.version, storage_->IsSlotIdEncoded()).Encode();
-        batch->Put(sub_key, content.second);
+        auto s = batch->Put(sub_key, content.second);
+        if (!s.ok()) {
+          return s;
+        }
         used_size = std::max(used_size, static_cast<uint64_t>(index) * kBitmapSegmentBytes + content.second.size());
       }
     }
@@ -684,8 +694,12 @@ class Bitmap::SegmentCacheStore {
       metadata_.size = used_size;
       std::string bytes;
       metadata_.Encode(&bytes);
-      batch->Put(metadata_cf_handle_, ns_key_, bytes);
+      auto s = batch->Put(metadata_cf_handle_, ns_key_, bytes);
+      if (!s.ok()) {
+        return s;
+      }
     }
+    return rocksdb::Status::OK();
   }
 
  private:
@@ -846,7 +860,10 @@ rocksdb::Status Bitmap::bitfield(engine::Context &ctx, const Slice &user_key, co
     // Write changes into storage.
     auto batch = storage_->GetWriteBatchBase();
     if (bitfieldWriteAheadLog(batch, ops)) {
-      cache.BatchForFlush(batch);
+      auto s = cache.BatchForFlush(batch);
+      if (!s.ok()) {
+        return s;
+      }
       return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
     }
   }

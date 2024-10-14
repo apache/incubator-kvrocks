@@ -68,11 +68,11 @@ class CommandZAdd : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     uint64_t ret = 0;
     double old_score = member_scores_[0].score;
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.Add(ctx, args_[1], flags_, &member_scores_, &ret);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -141,10 +141,10 @@ class CommandZCount : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     uint64_t ret = 0;
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.Count(ctx, args_[1], spec_, &ret);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -160,10 +160,10 @@ class CommandZCount : public Commander {
 
 class CommandZCard : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     uint64_t ret = 0;
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.Card(ctx, args_[1], &ret);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -185,10 +185,10 @@ class CommandZIncrBy : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     double score = 0;
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.IncrBy(ctx, args_[1], args_[3], incr_, &score);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -211,10 +211,10 @@ class CommandZLexCount : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     uint64_t size = 0;
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.RangeByLex(ctx, args_[1], spec_, nullptr, &size);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -248,10 +248,10 @@ class CommandZPop : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
     std::vector<MemberScore> member_scores;
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.Pop(ctx, args_[1], count_, min_, &member_scores);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -318,7 +318,7 @@ class CommandBZPop : public BlockingCommander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     srv_ = srv;
     InitConnection(conn);
 
@@ -326,7 +326,7 @@ class CommandBZPop : public BlockingCommander {
     std::vector<MemberScore> member_scores;
 
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = PopFromMultipleZsets(ctx, &zset_db, keys_, min_, 1, &user_key, &member_scores);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -445,9 +445,9 @@ class CommandZMPop : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     for (auto &user_key : keys_) {
       std::vector<MemberScore> member_scores;
       auto s = zset_db.Pop(ctx, user_key, count_, flag_ == ZSET_MIN, &member_scores);
@@ -512,7 +512,7 @@ class CommandBZMPop : public BlockingCommander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     srv_ = srv;
     InitConnection(conn);
 
@@ -520,7 +520,7 @@ class CommandBZMPop : public BlockingCommander {
     std::vector<MemberScore> member_scores;
 
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = PopFromMultipleZsets(ctx, &zset_db, keys_, flag_ == ZSET_MIN, count_, &user_key, &member_scores);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -657,13 +657,13 @@ class CommandZRangeStore : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
 
     std::vector<MemberScore> member_scores;
 
     rocksdb::Status s;
-    engine::Context ctx(srv->storage);
+
     switch (range_type_) {
       case kZRangeAuto:
       case kZRangeRank:
@@ -795,12 +795,12 @@ class CommandZRangeGeneric : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
     std::vector<MemberScore> member_scores;
 
     rocksdb::Status s;
-    engine::Context ctx(srv->storage);
+
     switch (range_type_) {
       case kZRangeAuto:
       case kZRangeRank:
@@ -900,11 +900,11 @@ class CommandZRank : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     int rank = 0;
     double score = 0.0;
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.Rank(ctx, args_[1], args_[2], reversed_, &rank, &score);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -940,7 +940,7 @@ class CommandZRevRank : public CommandZRank {
 
 class CommandZRem : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     std::vector<rocksdb::Slice> members;
     for (size_t i = 2; i < args_.size(); i++) {
       members.emplace_back(args_[i]);
@@ -948,7 +948,7 @@ class CommandZRem : public Commander {
 
     uint64_t size = 0;
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.Remove(ctx, args_[1], members, &size);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -974,13 +974,12 @@ class CommandZRemRangeByRank : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
 
     uint64_t cnt = 0;
     spec_.with_deletion = true;
 
-    engine::Context ctx(srv->storage);
     auto s = zset_db.RangeByRank(ctx, args_[1], spec_, nullptr, &cnt);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -1002,13 +1001,12 @@ class CommandZRemRangeByScore : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
 
     uint64_t cnt = 0;
     spec_.with_deletion = true;
 
-    engine::Context ctx(srv->storage);
     auto s = zset_db.RangeByScore(ctx, args_[1], spec_, nullptr, &cnt);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -1030,13 +1028,12 @@ class CommandZRemRangeByLex : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
 
     uint64_t cnt = 0;
     spec_.with_deletion = true;
 
-    engine::Context ctx(srv->storage);
     auto s = zset_db.RangeByLex(ctx, args_[1], spec_, nullptr, &cnt);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -1052,10 +1049,10 @@ class CommandZRemRangeByLex : public Commander {
 
 class CommandZScore : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     double score = 0;
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.Score(ctx, args_[1], args_[2], &score);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -1072,14 +1069,14 @@ class CommandZScore : public Commander {
 
 class CommandZMScore : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     std::vector<Slice> members;
     for (size_t i = 2; i < args_.size(); i++) {
       members.emplace_back(args_[i]);
     }
     std::map<std::string, double> mscores;
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.MGet(ctx, args_[1], members, &mscores);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -1143,10 +1140,10 @@ class CommandZUnion : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
     std::vector<MemberScore> member_scores;
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.Union(ctx, keys_weights_, aggregate_method_, &member_scores);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -1229,10 +1226,10 @@ class CommandZUnionStore : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     uint64_t size = 0;
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.UnionStore(ctx, args_[1], keys_weights_, aggregate_method_, &size);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -1257,10 +1254,10 @@ class CommandZInterStore : public CommandZUnionStore {
  public:
   CommandZInterStore() : CommandZUnionStore() {}
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     uint64_t size = 0;
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.InterStore(ctx, args_[1], keys_weights_, aggregate_method_, &size);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -1280,10 +1277,10 @@ class CommandZInter : public CommandZUnion {
  public:
   CommandZInter() : CommandZUnion() {}
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
     std::vector<MemberScore> member_scores;
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.Inter(ctx, keys_weights_, aggregate_method_, &member_scores);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -1336,10 +1333,10 @@ class CommandZInterCard : public Commander {
 
     return Commander::Parse(args);
   }
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
     uint64_t count = 0;
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.InterCard(ctx, keys_, limit_, &count);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -1363,12 +1360,12 @@ class CommandZScan : public CommandSubkeyScanBase {
  public:
   CommandZScan() = default;
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
     std::vector<std::string> members;
     std::vector<double> scores;
     auto key_name = srv->GetKeyNameFromCursor(cursor_, CursorType::kTypeZSet);
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.Scan(ctx, key_, key_name, limit_, prefix_, &members, &scores);
     if (!s.ok() && !s.IsNotFound()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -1415,10 +1412,10 @@ class CommandZRandMember : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
     std::vector<MemberScore> member_scores;
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.RandMember(ctx, args_[1], count_, &member_scores);
 
     if (!s.ok() && !s.IsNotFound()) {
@@ -1471,11 +1468,11 @@ class CommandZDiff : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
 
     std::vector<MemberScore> members_with_scores;
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.Diff(ctx, keys_, &members_with_scores);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -1519,11 +1516,11 @@ class CommandZDiffStore : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::ZSet zset_db(srv->storage, conn->GetNamespace());
 
     uint64_t stored_count = 0;
-    engine::Context ctx(srv->storage);
+
     auto s = zset_db.DiffStore(ctx, args_[1], keys_, &stored_count);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};

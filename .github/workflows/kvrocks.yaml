@@ -40,7 +40,7 @@ jobs:
       docs_only: ${{ steps.result.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3.0.0
+      - uses: dorny/paths-filter@v3
         id: changes
         with:
           filters: .github/config/changes.yml
@@ -58,7 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check typos
-        uses: crate-ci/typos@v1.22.9
+        uses: crate-ci/typos@v1.25.0
         with:
           config: .github/config/typos.toml
 
@@ -204,11 +204,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       SONARCLOUD_OUTPUT_DIR: sonarcloud-data
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
     steps:
       - name: Setup macOS
         if: ${{ startsWith(matrix.os, 'macos') }}
         run: |
-          brew install cmake gcc autoconf automake libtool openssl coreutils
+          brew install --quiet --formula cmake gcc autoconf automake libtool openssl coreutils
           echo "NPROC=$(sysctl -n hw.ncpu)" >> $GITHUB_ENV
           echo "CMAKE_EXTRA_DEFS=-DOPENSSL_ROOT_DIR=/usr/local/opt/openssl" >> $GITHUB_ENV
       - name: Setup Linux
@@ -486,7 +487,7 @@ jobs:
 
       - name: Cache redis
         id: cache-redis
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/local/bin/redis-cli
@@ -494,7 +495,7 @@ jobs:
 
       - name: Cache redis server
         id: cache-redis-server
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/local/bin/redis-server
@@ -540,6 +541,8 @@ jobs:
         run: apt install -y python3-redis
 
       - name: Run kvrocks2redis Test
+        # FIXME: https://github.com/apache/kvrocks/issues/2574
+        if: ${{ !startsWith(matrix.image, 'archlinux') }}
         shell: bash
         run: |
           $HOME/local/bin/redis-server --daemonize yes

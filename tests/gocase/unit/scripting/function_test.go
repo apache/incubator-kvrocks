@@ -97,18 +97,30 @@ func decodeListLibResult(t *testing.T, v interface{}) ListLibResult {
 	return ListLibResult{}
 }
 
-func TestFunctionsWithRESP3(t *testing.T) {
-	testFunctions(t, "yes")
+func TestFunctions(t *testing.T) {
+	configOptions := []util.ConfigOptions{
+		{
+			Name:       "txn-context-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+		{
+			Name:       "resp3-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+	}
+
+	configsMatrix, err := util.GenerateConfigsMatrix(configOptions)
+	require.NoError(t, err)
+
+	for _, configs := range configsMatrix {
+		testFunctions(t, configs)
+	}
 }
 
-func TestFunctionsWithoutRESP2(t *testing.T) {
-	testFunctions(t, "no")
-}
-
-var testFunctions = func(t *testing.T, enabledRESP3 string) {
-	srv := util.StartServer(t, map[string]string{
-		"resp3-enabled": enabledRESP3,
-	})
+var testFunctions = func(t *testing.T, config util.KvrocksServerConfigs) {
+	srv := util.StartServer(t, config)
 	defer srv.Close()
 
 	ctx := context.Background()

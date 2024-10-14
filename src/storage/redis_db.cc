@@ -135,8 +135,14 @@ rocksdb::Status Database::Expire(engine::Context &ctx, const Slice &user_key, ui
   }
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisNone, {std::to_string(kRedisCmdExpire)});
-  batch->PutLogData(log_data.Encode());
-  batch->Put(metadata_cf_handle_, ns_key, value);
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) {
+    return s;
+  }
+  s = batch->Put(metadata_cf_handle_, ns_key, value);
+  if (!s.ok()) {
+    return s;
+  }
   s = storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
   return s;
 }
@@ -170,7 +176,10 @@ rocksdb::Status Database::MDel(engine::Context &ctx, const std::vector<Slice> &k
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisNone);
-  batch->PutLogData(log_data.Encode());
+  auto s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) {
+    return s;
+  }
 
   std::vector<Slice> slice_keys;
   slice_keys.reserve(lock_keys.size());
@@ -194,7 +203,8 @@ rocksdb::Status Database::MDel(engine::Context &ctx, const std::vector<Slice> &k
     if (!s.ok()) continue;
     if (metadata.Expired()) continue;
 
-    batch->Delete(metadata_cf_handle_, lock_keys[i]);
+    s = batch->Delete(metadata_cf_handle_, lock_keys[i]);
+    if (!s.ok()) return s;
     *deleted_cnt += 1;
   }
 
@@ -662,16 +672,25 @@ rocksdb::Status Database::Copy(engine::Context &ctx, const std::string &key, con
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(type);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) {
+    return s;
+  }
 
   engine::DBIterator iter(ctx, ctx.GetReadOptions());
   iter.Seek(key);
 
   if (delete_old) {
-    batch->Delete(metadata_cf_handle_, key);
+    s = batch->Delete(metadata_cf_handle_, key);
+    if (!s.ok()) {
+      return s;
+    }
   }
   // copy metadata
-  batch->Put(metadata_cf_handle_, new_key, iter.Value());
+  s = batch->Put(metadata_cf_handle_, new_key, iter.Value());
+  if (!s.ok()) {
+    return s;
+  }
 
   auto subkey_iter = iter.GetSubKeyIterator();
 
@@ -683,7 +702,10 @@ rocksdb::Status Database::Copy(engine::Context &ctx, const std::string &key, con
       std::string to_ikey =
           InternalKey(new_key, from_ikey.GetSubKey(), from_ikey.GetVersion(), storage_->IsSlotIdEncoded()).Encode();
       // copy sub key
-      batch->Put(subkey_iter->ColumnFamilyHandle(), to_ikey, subkey_iter->Value());
+      auto s = batch->Put(subkey_iter->ColumnFamilyHandle(), to_ikey, subkey_iter->Value());
+      if (!s.ok()) {
+        return s;
+      }
 
       // The ZSET type stores an extra score and member field inside `zset_score` column family
       // while compared to other composed data structures. The purpose is to allow to seek by score.
@@ -693,7 +715,10 @@ rocksdb::Status Database::Copy(engine::Context &ctx, const std::string &key, con
         // copy score key
         std::string score_key =
             InternalKey(new_key, score_bytes, from_ikey.GetVersion(), storage_->IsSlotIdEncoded()).Encode();
-        batch->Put(zset_score_cf, score_key, Slice());
+        auto s = batch->Put(zset_score_cf, score_key, Slice());
+        if (!s.ok()) {
+          return s;
+        }
       }
     }
   }

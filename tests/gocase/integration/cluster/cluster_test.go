@@ -126,9 +126,30 @@ func TestClusterNodes(t *testing.T) {
 		require.ErrorContains(t, rdb.Do(ctx, "cluster", "nodes", "a").Err(), "CLUSTER")
 		require.ErrorContains(t, rdb.Do(ctx, "clusterx", "setnodeid", "a").Err(), "CLUSTER")
 		require.ErrorContains(t, rdb.Do(ctx, "clusterx", "setnodes", "a").Err(), "CLUSTER")
-		require.ErrorContains(t, rdb.Do(ctx, "clusterx", "setnodes", "a", -1).Err(), "Invalid cluster version")
+		require.ErrorContains(t, rdb.Do(ctx, "clusterx", "setnodes", "a", -1).Err(), "ERR Invalid cluster version")
 		require.ErrorContains(t, rdb.Do(ctx, "clusterx", "setslot", "16384", "07c37dfeb235213a872192d90877d0cd55635b91", 1).Err(), "CLUSTER")
 		require.ErrorContains(t, rdb.Do(ctx, "clusterx", "setslot", "16384", "a", 1).Err(), "CLUSTER")
+	})
+
+	t.Run("command line simulation with missing newlines", func(t *testing.T) {
+		clusterNodes := fmt.Sprintf("%s %s %d master - 0-100 %s %s %d slave %s",
+			nodeID, srv.Host(), srv.Port(),
+			"07c37dfeb235213a872192d90877d0cd55635b92", srv.Host(), srv.Port()+1, nodeID)
+
+		// set cluster nodes without newlines
+		err := rdb.Do(ctx, "clusterx", "SETNODES", clusterNodes, "2").Err()
+		require.ErrorContains(t, err, "Invalid nodes definition: Missing newline between node entries.")
+
+		// add the missing newline to correct the definition
+		clusterNodesWithNewline := fmt.Sprintf("%s %s %d master - 0-100\n%s %s %d slave %s",
+			nodeID, srv.Host(), srv.Port(),
+			"07c37dfeb235213a872192d90877d0cd55635b92", srv.Host(), srv.Port()+1, nodeID)
+
+		err = rdb.Do(ctx, "clusterx", "SETNODES", clusterNodesWithNewline, "2").Err()
+		require.NoError(t, err)
+		nodes := rdb.ClusterNodes(ctx).Val()
+		require.Contains(t, nodes, "0-100")
+		require.Contains(t, nodes, "slave")
 	})
 }
 
@@ -399,7 +420,7 @@ func TestClusterMultiple(t *testing.T) {
 		// request replicas a write command, it's wrong
 		require.ErrorContains(t, rdb[3].Set(ctx, util.SlotTable[16383], 16383, 0).Err(), "MOVED")
 		// request a read-only command to node3 that serve slot 16383, that's ok
-		util.WaitForOffsetSync(t, rdb[2], rdb[3])
+		util.WaitForOffsetSync(t, rdb[2], rdb[3], 5*time.Second)
 		//the default option is READWRITE, which will redirect both read and write to master
 		require.ErrorContains(t, rdb[3].Get(ctx, util.SlotTable[16383]).Err(), "MOVED")
 
@@ -445,7 +466,7 @@ func TestClusterMultiple(t *testing.T) {
 
 		require.NoError(t, rdb[3].Do(ctx, "READONLY").Err())
 		require.NoError(t, rdb[2].Set(ctx, util.SlotTable[8192], 8192, 0).Err())
-		util.WaitForOffsetSync(t, rdb[2], rdb[3])
+		util.WaitForOffsetSync(t, rdb[2], rdb[3], 5*time.Second)
 		// request node3 that serves slot 8192, that's ok
 		require.Equal(t, "8192", rdb[3].Get(ctx, util.SlotTable[8192]).Val())
 

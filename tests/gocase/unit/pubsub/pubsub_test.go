@@ -36,18 +36,30 @@ func receiveType[T any](t *testing.T, pubsub *redis.PubSub, typ T) T {
 	return msg.(T)
 }
 
-func TestPubSubWithRESP2(t *testing.T) {
-	testPubSub(t, "no")
+func TestPubSub(t *testing.T) {
+	configOptions := []util.ConfigOptions{
+		{
+			Name:       "txn-context-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+		{
+			Name:       "resp3-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+	}
+
+	configsMatrix, err := util.GenerateConfigsMatrix(configOptions)
+	require.NoError(t, err)
+
+	for _, configs := range configsMatrix {
+		testPubSub(t, configs)
+	}
 }
 
-func TestPubSubWithRESP3(t *testing.T) {
-	testPubSub(t, "yes")
-}
-
-func testPubSub(t *testing.T, enabledRESP3 string) {
-	srv := util.StartServer(t, map[string]string{
-		"resp3-enabled": enabledRESP3,
-	})
+func testPubSub(t *testing.T, configs util.KvrocksServerConfigs) {
+	srv := util.StartServer(t, configs)
 	defer srv.Close()
 
 	ctx := context.Background()

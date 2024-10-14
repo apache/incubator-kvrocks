@@ -96,13 +96,16 @@ rocksdb::Status Hash::IncrBy(engine::Context &ctx, const Slice &user_key, const 
   *new_value = old_value + increment;
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisHash);
-  batch->PutLogData(log_data.Encode());
-  batch->Put(sub_key, std::to_string(*new_value));
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
+  s = batch->Put(sub_key, std::to_string(*new_value));
+  if (!s.ok()) return s;
   if (!exists) {
     metadata.size += 1;
     std::string bytes;
     metadata.Encode(&bytes);
-    batch->Put(metadata_cf_handle_, ns_key, bytes);
+    s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+    if (!s.ok()) return s;
   }
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
@@ -141,13 +144,16 @@ rocksdb::Status Hash::IncrByFloat(engine::Context &ctx, const Slice &user_key, c
   *new_value = n;
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisHash);
-  batch->PutLogData(log_data.Encode());
-  batch->Put(sub_key, std::to_string(*new_value));
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
+  s = batch->Put(sub_key, std::to_string(*new_value));
+  if (!s.ok()) return s;
   if (!exists) {
     metadata.size += 1;
     std::string bytes;
     metadata.Encode(&bytes);
-    batch->Put(metadata_cf_handle_, ns_key, bytes);
+    s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+    if (!s.ok()) return s;
   }
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
@@ -203,9 +209,10 @@ rocksdb::Status Hash::Delete(engine::Context &ctx, const Slice &user_key, const 
   HashMetadata metadata(false);
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisHash);
-  batch->PutLogData(log_data.Encode());
+  auto s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
   LockGuard guard(storage_->GetLockManager(), ns_key);
-  rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
+  s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s.IsNotFound() ? rocksdb::Status::OK() : s;
 
   std::string value;
@@ -218,7 +225,8 @@ rocksdb::Status Hash::Delete(engine::Context &ctx, const Slice &user_key, const 
     s = storage_->Get(ctx, ctx.GetReadOptions(), sub_key, &value);
     if (s.ok()) {
       *deleted_cnt += 1;
-      batch->Delete(sub_key);
+      s = batch->Delete(sub_key);
+      if (!s.ok()) return s;
     }
   }
   if (*deleted_cnt == 0) {
@@ -227,7 +235,8 @@ rocksdb::Status Hash::Delete(engine::Context &ctx, const Slice &user_key, const 
   metadata.size -= *deleted_cnt;
   std::string bytes;
   metadata.Encode(&bytes);
-  batch->Put(metadata_cf_handle_, ns_key, bytes);
+  s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+  if (!s.ok()) return s;
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
 
@@ -244,7 +253,8 @@ rocksdb::Status Hash::MSet(engine::Context &ctx, const Slice &user_key, const st
   int added = 0;
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisHash);
-  batch->PutLogData(log_data.Encode());
+  s = batch->PutLogData(log_data.Encode());
+  if (!s.ok()) return s;
   std::unordered_set<std::string_view> field_set;
   for (auto it = field_values.rbegin(); it != field_values.rend(); it++) {
     if (!field_set.insert(it->field).second) {
@@ -268,7 +278,8 @@ rocksdb::Status Hash::MSet(engine::Context &ctx, const Slice &user_key, const st
 
     if (!exists) added++;
 
-    batch->Put(sub_key, it->value);
+    s = batch->Put(sub_key, it->value);
+    if (!s.ok()) return s;
   }
 
   if (added > 0) {
@@ -276,7 +287,8 @@ rocksdb::Status Hash::MSet(engine::Context &ctx, const Slice &user_key, const st
     metadata.size += added;
     std::string bytes;
     metadata.Encode(&bytes);
-    batch->Put(metadata_cf_handle_, ns_key, bytes);
+    s = batch->Put(metadata_cf_handle_, ns_key, bytes);
+    if (!s.ok()) return s;
   }
 
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());

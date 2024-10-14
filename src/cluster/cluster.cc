@@ -773,9 +773,14 @@ Status Cluster::parseClusterNodes(const std::string &nodes_str, ClusterNodes *no
 
     // 6) slot info
     auto valid_range = NumericRange<int>{0, kClusterSlots - 1};
+    const std::regex node_id_regex(R"(\b[a-fA-F0-9]{40}\b)");
     for (unsigned i = 5; i < fields.size(); i++) {
       std::vector<std::string> ranges = util::Split(fields[i], "-");
       if (ranges.size() == 1) {
+        if (std::regex_match(fields[i], node_id_regex)) {
+          return {Status::ClusterInvalidInfo, "Invalid nodes definition: Missing newline between node entries."};
+        }
+
         auto parse_start = ParseInt<int>(ranges[0], valid_range, 10);
         if (!parse_start) {
           return {Status::ClusterInvalidInfo, errSlotOutOfRange};

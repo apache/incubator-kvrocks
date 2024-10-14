@@ -29,7 +29,7 @@
 #include "server/redis_reply.h"
 #include "server/server.h"
 #include "stats/disk_stats.h"
-#include "storage/rdb.h"
+#include "storage/rdb/rdb.h"
 #include "string_util.h"
 #include "time_util.h"
 
@@ -37,7 +37,7 @@ namespace redis {
 
 class CommandAuth : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     auto &user_password = args_[1];
     std::string ns;
     AuthResult result = srv->AuthenticateUser(user_password, &ns);
@@ -61,7 +61,7 @@ class CommandAuth : public Commander {
 
 class CommandNamespace : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     if (!conn->IsAdmin()) {
       return {Status::RedisExecErr, errAdminPermissionRequired};
     }
@@ -113,11 +113,11 @@ class CommandNamespace : public Commander {
 
 class CommandKeys : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     std::string prefix = args_[1];
     std::vector<std::string> keys;
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     rocksdb::Status s;
     if (prefix == "*") {
       s = redis.Keys(ctx, std::string(), &keys);
@@ -138,7 +138,7 @@ class CommandKeys : public Commander {
 
 class CommandFlushDB : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     if (srv->GetConfig()->cluster_enabled) {
       if (srv->slot_migrator->IsMigrationInProgress()) {
         srv->slot_migrator->SetStopMigrationFlag(true);
@@ -146,7 +146,7 @@ class CommandFlushDB : public Commander {
       }
     }
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = redis.FlushDB(ctx);
     LOG(WARNING) << "DB keys in namespace: " << conn->GetNamespace() << " was flushed, addr: " << conn->GetAddr();
     if (s.ok()) {
@@ -160,7 +160,7 @@ class CommandFlushDB : public Commander {
 
 class CommandFlushAll : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     if (!conn->IsAdmin()) {
       return {Status::RedisExecErr, errAdminPermissionRequired};
     }
@@ -173,7 +173,7 @@ class CommandFlushAll : public Commander {
     }
 
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = redis.FlushAll(ctx);
     if (s.ok()) {
       LOG(WARNING) << "All DB keys was flushed, addr: " << conn->GetAddr();
@@ -187,7 +187,8 @@ class CommandFlushAll : public Commander {
 
 class CommandPing : public Commander {
  public:
-  Status Execute([[maybe_unused]] Server *srv, [[maybe_unused]] Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, [[maybe_unused]] Server *srv, [[maybe_unused]] Connection *conn,
+                 std::string *output) override {
     if (args_.size() == 1) {
       *output = redis::SimpleString("PONG");
     } else if (args_.size() == 2) {
@@ -201,7 +202,8 @@ class CommandPing : public Commander {
 
 class CommandSelect : public Commander {
  public:
-  Status Execute([[maybe_unused]] Server *srv, [[maybe_unused]] Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, [[maybe_unused]] Server *srv, [[maybe_unused]] Connection *conn,
+                 std::string *output) override {
     *output = redis::SimpleString("OK");
     return Status::OK();
   }
@@ -209,7 +211,7 @@ class CommandSelect : public Commander {
 
 class CommandConfig : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     if (!conn->IsAdmin()) {
       return {Status::RedisExecErr, errAdminPermissionRequired};
     }
@@ -247,7 +249,7 @@ class CommandConfig : public Commander {
 
 class CommandInfo : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     std::string section = "all";
     if (args_.size() == 2) {
       section = util::ToLower(args_[1]);
@@ -269,10 +271,10 @@ class CommandDisk : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     RedisType type = kRedisNone;
     redis::Disk disk_db(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = disk_db.Type(ctx, args_[2], &type);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
 
@@ -296,7 +298,8 @@ class CommandMemory : public CommandDisk {};
 
 class CommandRole : public Commander {
  public:
-  Status Execute(Server *srv, [[maybe_unused]] Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, [[maybe_unused]] Connection *conn,
+                 std::string *output) override {
     srv->GetRoleInfo(output);
     return Status::OK();
   }
@@ -304,7 +307,7 @@ class CommandRole : public Commander {
 
 class CommandDBSize : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     std::string ns = conn->GetNamespace();
     if (args_.size() == 1) {
       KeyNumStats stats;
@@ -343,7 +346,8 @@ class CommandPerfLog : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, [[maybe_unused]] Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, [[maybe_unused]] Connection *conn,
+                 std::string *output) override {
     auto perf_log = srv->GetPerfLog();
     if (subcommand_ == "len") {
       *output = redis::Integer(static_cast<int64_t>(perf_log->Size()));
@@ -380,7 +384,8 @@ class CommandSlowlog : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, [[maybe_unused]] Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, [[maybe_unused]] Connection *conn,
+                 std::string *output) override {
     auto slowlog = srv->GetSlowLog();
     if (subcommand_ == "reset") {
       slowlog->Reset();
@@ -480,7 +485,7 @@ class CommandClient : public Commander {
     return {Status::RedisInvalidCmd, "Syntax error, try CLIENT LIST|INFO|KILL ip:port|GETNAME|SETNAME"};
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     if (subcommand_ == "list") {
       *output = conn->VerbatimString("txt", srv->GetClientsStr());
       return Status::OK();
@@ -527,7 +532,8 @@ class CommandClient : public Commander {
 
 class CommandMonitor : public Commander {
  public:
-  Status Execute([[maybe_unused]] Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, [[maybe_unused]] Server *srv, Connection *conn,
+                 std::string *output) override {
     conn->Owner()->BecomeMonitorConn(conn);
     *output = redis::SimpleString("OK");
     return Status::OK();
@@ -536,7 +542,8 @@ class CommandMonitor : public Commander {
 
 class CommandShutdown : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, [[maybe_unused]] std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn,
+                 [[maybe_unused]] std::string *output) override {
     if (!conn->IsAdmin()) {
       return {Status::RedisExecErr, errAdminPermissionRequired};
     }
@@ -551,7 +558,8 @@ class CommandShutdown : public Commander {
 
 class CommandQuit : public Commander {
  public:
-  Status Execute([[maybe_unused]] Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, [[maybe_unused]] Server *srv, Connection *conn,
+                 std::string *output) override {
     conn->EnableFlag(redis::Connection::kCloseAfterReply);
     *output = redis::SimpleString("OK");
     return Status::OK();
@@ -585,7 +593,7 @@ class CommandDebug : public Commander {
     return {Status::RedisInvalidCmd, "Syntax error, DEBUG SLEEP <seconds>|PROTOCOL <type>|DBSIZE-LIMIT <0|1>"};
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     if (subcommand_ == "sleep") {
       usleep(microsecond_);
       *output = redis::SimpleString("OK");
@@ -652,7 +660,8 @@ class CommandDebug : public Commander {
 
 class CommandCommand : public Commander {
  public:
-  Status Execute([[maybe_unused]] Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, [[maybe_unused]] Server *srv, Connection *conn,
+                 std::string *output) override {
     if (args_.size() == 1) {
       CommandTable::GetAllCommandsInfo(output);
     } else {
@@ -697,7 +706,8 @@ class CommandCommand : public Commander {
 
 class CommandEcho : public Commander {
  public:
-  Status Execute([[maybe_unused]] Server *srv, [[maybe_unused]] Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, [[maybe_unused]] Server *srv, [[maybe_unused]] Connection *conn,
+                 std::string *output) override {
     *output = redis::BulkString(args_[1]);
     return Status::OK();
   }
@@ -705,7 +715,8 @@ class CommandEcho : public Commander {
 
 class CommandTime : public Commander {
  public:
-  Status Execute([[maybe_unused]] Server *srv, [[maybe_unused]] Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, [[maybe_unused]] Server *srv, [[maybe_unused]] Connection *conn,
+                 std::string *output) override {
     uint64_t now = util::GetTimeStampUS();
     uint64_t s = now / 1000 / 1000;         // unix time in seconds.
     uint64_t us = now - (s * 1000 * 1000);  // microseconds.
@@ -725,7 +736,7 @@ class CommandTime : public Commander {
  */
 class CommandHello final : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     size_t next_arg = 1;
     int protocol = 2;  // default protocol version is 2
     if (args_.size() >= 2) {
@@ -835,13 +846,13 @@ class CommandScan : public CommandScanBase {
     return redis::Array(list);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis_db(srv->storage, conn->GetNamespace());
     auto key_name = srv->GetKeyNameFromCursor(cursor_, CursorType::kTypeBase);
 
     std::vector<std::string> keys;
     std::string end_key;
-    engine::Context ctx(srv->storage);
+
     auto s = redis_db.Scan(ctx, key_name, limit_, prefix_, &keys, &end_key, type_);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -853,11 +864,11 @@ class CommandScan : public CommandScanBase {
 
 class CommandRandomKey : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     std::string key;
     auto cursor = srv->GetLastRandomKeyCursor();
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = redis.RandomKey(ctx, cursor, &key);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -870,7 +881,7 @@ class CommandRandomKey : public Commander {
 
 class CommandCompact : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     std::string begin_key, end_key;
     auto ns = conn->GetNamespace();
     if (ns != kDefaultNamespace) {
@@ -889,7 +900,7 @@ class CommandCompact : public Commander {
 
 class CommandBGSave : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     if (!conn->IsAdmin()) {
       return {Status::RedisExecErr, errAdminPermissionRequired};
     }
@@ -905,7 +916,7 @@ class CommandBGSave : public Commander {
 
 class CommandFlushBackup : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     if (!conn->IsAdmin()) {
       return {Status::RedisExecErr, errAdminPermissionRequired};
     }
@@ -956,7 +967,7 @@ class CommandSlaveOf : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     if (srv->GetConfig()->cluster_enabled) {
       return {Status::RedisExecErr, "can't change to slave in cluster mode"};
     }
@@ -1011,7 +1022,8 @@ class CommandSlaveOf : public Commander {
 
 class CommandStats : public Commander {
  public:
-  Status Execute(Server *srv, [[maybe_unused]] Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, [[maybe_unused]] Connection *conn,
+                 std::string *output) override {
     std::string stats_json = srv->GetRocksDBStatsJson();
     *output = redis::BulkString(stats_json);
     return Status::OK();
@@ -1028,7 +1040,7 @@ static uint64_t GenerateConfigFlag(uint64_t flags, const std::vector<std::string
 
 class CommandLastSave : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     if (!conn->IsAdmin()) {
       return {Status::RedisExecErr, errAdminPermissionRequired};
     }
@@ -1068,10 +1080,10 @@ class CommandRestore : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     rocksdb::Status db_status;
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     if (!replace_) {
       int count = 0;
       db_status = redis.Exists(ctx, {args_[1]}, &count);
@@ -1136,13 +1148,12 @@ class CommandRdb : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     if (!conn->IsAdmin()) {
       return {Status::RedisExecErr, errAdminPermissionRequired};
     }
 
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
 
     auto stream_ptr = std::make_unique<RdbFileStream>(path_);
     GET_OR_RET(stream_ptr->Open());
@@ -1163,7 +1174,7 @@ class CommandRdb : public Commander {
 
 class CommandReset : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     // 1. Discards the current MULTI transaction block, if one exists.
     if (conn->IsFlagEnabled(Connection::kMultiExec)) {
       conn->ResetMultiExec();
@@ -1210,7 +1221,8 @@ class CommandApplyBatch : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *svr, [[maybe_unused]] Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *svr, [[maybe_unused]] Connection *conn,
+                 std::string *output) override {
     size_t size = raw_batch_.size();
     auto options = svr->storage->DefaultWriteOptions();
     options.low_pri = low_pri_;
@@ -1235,12 +1247,12 @@ class CommandDump : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     rocksdb::Status db_status;
     std::string &key = args_[1];
     redis::Database redis(srv->storage, conn->GetNamespace());
     int count = 0;
-    engine::Context ctx(srv->storage);
+
     db_status = redis.Exists(ctx, {key}, &count);
     if (!db_status.ok()) {
       if (db_status.IsNotFound()) {
@@ -1294,7 +1306,7 @@ class CommandPollUpdates : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     uint64_t next_sequence = sequence_;
     // sequence + 1 is for excluding the current sequence to avoid getting duplicate updates
     auto batches = GET_OR_RET(srv->PollUpdates(sequence_ + 1, max_, is_strict_));
@@ -1331,7 +1343,7 @@ REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only o
                         MakeCmdAttr<CommandRole>("role", 1, "read-only ok-loading", 0, 0, 0),
                         MakeCmdAttr<CommandConfig>("config", -2, "read-only", 0, 0, 0, GenerateConfigFlag),
                         MakeCmdAttr<CommandNamespace>("namespace", -3, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandKeys>("keys", 2, "read-only", 0, 0, 0),
+                        MakeCmdAttr<CommandKeys>("keys", 2, "read-only slow", 0, 0, 0),
                         MakeCmdAttr<CommandFlushDB>("flushdb", 1, "write no-dbsize-check", 0, 0, 0),
                         MakeCmdAttr<CommandFlushAll>("flushall", 1, "write no-dbsize-check", 0, 0, 0),
                         MakeCmdAttr<CommandDBSize>("dbsize", -1, "read-only", 0, 0, 0),

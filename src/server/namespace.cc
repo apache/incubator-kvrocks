@@ -54,7 +54,8 @@ bool Namespace::IsAllowModify() const {
 Status Namespace::loadFromDB(std::map<std::string, std::string>* db_tokens) const {
   std::string value;
   engine::Context ctx(storage_);
-  auto s = storage_->Get(ctx, ctx.GetReadOptions(), cf_, kNamespaceDBKey, &value);
+  auto cf = storage_->GetCFHandle(ColumnFamilyID::Propagate);
+  auto s = storage_->Get(ctx, ctx.GetReadOptions(), cf, kNamespaceDBKey, &value);
   if (!s.ok()) {
     if (s.IsNotFound()) return Status::OK();
     return {Status::NotOK, s.ToString()};

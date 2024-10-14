@@ -26,8 +26,7 @@ constexpr const char *kNamespaceDBKey = "__namespace_keys__";
 
 class Namespace {
  public:
-  explicit Namespace(engine::Storage *storage)
-      : storage_(storage), cf_(storage_->GetCFHandle(ColumnFamilyID::Propagate)) {}
+  explicit Namespace(engine::Storage *storage) : storage_(storage) {}
 
   ~Namespace() = default;
   Namespace(const Namespace &) = delete;
@@ -45,7 +44,6 @@ class Namespace {
 
  private:
   engine::Storage *storage_;
-  rocksdb::ColumnFamilyHandle *cf_ = nullptr;
 
   std::shared_mutex tokens_mu_;
   // mapping from token to namespace name

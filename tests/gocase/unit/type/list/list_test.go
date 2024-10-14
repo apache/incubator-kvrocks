@@ -42,7 +42,24 @@ var largeValue = map[string]string{
 }
 
 func TestLTRIM(t *testing.T) {
-	srv := util.StartServer(t, map[string]string{})
+	configOptions := []util.ConfigOptions{
+		{
+			Name:       "txn-context-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+	}
+
+	configsMatrix, err := util.GenerateConfigsMatrix(configOptions)
+	require.NoError(t, err)
+
+	for _, configs := range configsMatrix {
+		testLTRIM(t, configs)
+	}
+}
+
+func testLTRIM(t *testing.T, configs util.KvrocksServerConfigs) {
+	srv := util.StartServer(t, configs)
 	defer srv.Close()
 	ctx := context.Background()
 	rdb := srv.NewClient()
@@ -85,7 +102,24 @@ func TestLTRIM(t *testing.T) {
 }
 
 func TestZipList(t *testing.T) {
-	srv := util.StartServer(t, map[string]string{})
+	configOptions := []util.ConfigOptions{
+		{
+			Name:       "txn-context-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+	}
+
+	configsMatrix, err := util.GenerateConfigsMatrix(configOptions)
+	require.NoError(t, err)
+
+	for _, configs := range configsMatrix {
+		testZipList(t, configs)
+	}
+}
+
+func testZipList(t *testing.T, configs util.KvrocksServerConfigs) {
+	srv := util.StartServer(t, configs)
 	defer srv.Close()
 	ctx := context.Background()
 	rdb := srv.NewClientWithOption(&redis.Options{
@@ -233,7 +267,29 @@ func TestZipList(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	srv := util.StartServer(t, map[string]string{})
+	configOptions := []util.ConfigOptions{
+		{
+			Name:       "txn-context-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+		{
+			Name:       "resp3-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+	}
+
+	configsMatrix, err := util.GenerateConfigsMatrix(configOptions)
+	require.NoError(t, err)
+
+	for _, configs := range configsMatrix {
+		testList(t, configs)
+	}
+}
+
+func testList(t *testing.T, configs util.KvrocksServerConfigs) {
+	srv := util.StartServer(t, configs)
 	defer srv.Close()
 	ctx := context.Background()
 	rdb := srv.NewClient()

@@ -74,7 +74,7 @@ func TestRSIDMasterAndReplicaYes(t *testing.T) {
 
 	t.Run("chained replication can propagate updates", func(t *testing.T) {
 		require.NoError(t, rdbB.Set(ctx, "master", "B", 0).Err())
-		util.WaitForOffsetSync(t, rdbB, rdbA)
+		util.WaitForOffsetSync(t, rdbB, rdbA, 5*time.Second)
 		require.Equal(t, "B", rdbA.Get(ctx, "master").Val())
 	})
 

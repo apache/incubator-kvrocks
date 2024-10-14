@@ -344,13 +344,14 @@ void Connection::RecordProfilingSampleIfNeed(const std::string &cmd, uint64_t du
   srv_->GetPerfLog()->PushEntry(std::move(entry));
 }
 
-Status Connection::ExecuteCommand(const std::string &cmd_name, const std::vector<std::string> &cmd_tokens,
-                                  Commander *current_cmd, std::string *reply) {
+Status Connection::ExecuteCommand(engine::Context &ctx, const std::string &cmd_name,
+                                  const std::vector<std::string> &cmd_tokens, Commander *current_cmd,
+                                  std::string *reply) {
   srv_->stats.IncrCalls(cmd_name);
 
   auto start = std::chrono::high_resolution_clock::now();
   bool is_profiling = IsProfilingEnabled(cmd_name);
-  auto s = current_cmd->Execute(srv_, this, reply);
+  auto s = current_cmd->Execute(ctx, srv_, this, reply);
   auto end = std::chrono::high_resolution_clock::now();
   uint64_t duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
   if (is_profiling) RecordProfilingSampleIfNeed(cmd_name, duration);
@@ -497,7 +498,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       continue;
     }
 
-    auto no_txn_ctx = engine::Context::NoTransactionContext(srv_->storage);
+    engine::Context ctx(srv_->storage);
     // TODO: transaction support for index recording
     std::vector<GlobalIndexer::RecordResult> index_records;
     if (!srv_->index_mgr.index_map.empty() && IsCmdForIndexing(attributes) && !config->cluster_enabled) {
@@ -505,7 +506,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
           [&, this](const std::vector<std::string> &args, const CommandKeyRange &key_range) {
             key_range.ForEachKey(
                 [&, this](const std::string &key) {
-                  auto res = srv_->indexer.Record(no_txn_ctx, key, ns_);
+                  auto res = srv_->indexer.Record(ctx, key, ns_);
                   if (res.IsOK()) {
                     index_records.push_back(*res);
                   } else if (!res.Is<Status::NoPrefixMatched>() && !res.Is<Status::TypeMismatched>()) {
@@ -518,11 +519,10 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
     }
 
     SetLastCmd(cmd_name);
-    s = ExecuteCommand(cmd_name, cmd_tokens, current_cmd.get(), &reply);
-
+    s = ExecuteCommand(ctx, cmd_name, cmd_tokens, current_cmd.get(), &reply);
     // TODO: transaction support for index updating
     for (const auto &record : index_records) {
-      auto s = GlobalIndexer::Update(no_txn_ctx, record);
+      auto s = GlobalIndexer::Update(ctx, record);
       if (!s.IsOK() && !s.Is<Status::TypeMismatched>()) {
         LOG(WARNING) << "index updating failed for key: " << record.key;
       }

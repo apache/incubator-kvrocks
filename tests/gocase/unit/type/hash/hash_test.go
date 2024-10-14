@@ -50,18 +50,30 @@ func getVals(hash map[string]string) []string {
 	return r
 }
 
-func TestHashWithRESP2(t *testing.T) {
-	testHash(t, "no")
+func TestHash(t *testing.T) {
+	configOptions := []util.ConfigOptions{
+		{
+			Name:       "txn-context-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+		{
+			Name:       "resp3-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+	}
+
+	configsMatrix, err := util.GenerateConfigsMatrix(configOptions)
+	require.NoError(t, err)
+
+	for _, configs := range configsMatrix {
+		testHash(t, configs)
+	}
 }
 
-func TestHashWithRESP3(t *testing.T) {
-	testHash(t, "yes")
-}
-
-var testHash = func(t *testing.T, enabledRESP3 string) {
-	srv := util.StartServer(t, map[string]string{
-		"resp3-enabled": enabledRESP3,
-	})
+var testHash = func(t *testing.T, configs util.KvrocksServerConfigs) {
+	srv := util.StartServer(t, configs)
 	defer srv.Close()
 	ctx := context.Background()
 	rdb := srv.NewClient()

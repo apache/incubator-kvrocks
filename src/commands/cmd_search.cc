@@ -34,6 +34,7 @@
 #include "search/sql_transformer.h"
 #include "server/redis_reply.h"
 #include "server/server.h"
+#include "status.h"
 #include "string_util.h"
 #include "tao/pegtl/string_input.hpp"
 
@@ -179,9 +180,9 @@ class CommandFTCreate : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     index_info_->ns = conn->GetNamespace();
-    engine::Context ctx(srv->storage);
+
     GET_OR_RET(srv->index_mgr.Create(ctx, std::move(index_info_)));
 
     output->append(redis::SimpleString("OK"));
@@ -275,7 +276,7 @@ class CommandFTExplainSQL : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     auto plan = GET_OR_RET(srv->index_mgr.GeneratePlan(std::move(ir_), conn->GetNamespace()));
 
     if (format_ == SIMPLE) {
@@ -306,7 +307,7 @@ class CommandFTSearchSQL : public Commander {
 
     return Status::OK();
   }
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     auto results = GET_OR_RET(srv->index_mgr.Search(std::move(ir_), conn->GetNamespace()));
 
     DumpQueryResult(results, output);
@@ -384,7 +385,7 @@ class CommandFTExplain : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     CHECK(ir_);
     auto plan = GET_OR_RET(srv->index_mgr.GeneratePlan(std::move(ir_), conn->GetNamespace()));
 
@@ -403,7 +404,7 @@ class CommandFTSearch : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     CHECK(ir_);
     auto results = GET_OR_RET(srv->index_mgr.Search(std::move(ir_), conn->GetNamespace()));
 
@@ -417,7 +418,7 @@ class CommandFTSearch : public Commander {
 };
 
 class CommandFTInfo : public Commander {
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     const auto &index_map = srv->index_mgr.index_map;
     const auto &index_name = args_[1];
 
@@ -427,24 +428,37 @@ class CommandFTInfo : public Commander {
     }
 
     const auto &info = iter->second;
-    output->append(MultiLen(8));
+    output->append(MultiLen(6));
 
     output->append(redis::SimpleString("index_name"));
     output->append(redis::BulkString(info->name));
 
-    output->append(redis::SimpleString("on_data_type"));
+    output->append(redis::SimpleString("index_definition"));
+    output->append(redis::MultiLen(4));
+    output->append(redis::SimpleString("key_type"));
     output->append(redis::BulkString(RedisTypeNames[(size_t)info->metadata.on_data_type]));
-
     output->append(redis::SimpleString("prefixes"));
     output->append(redis::ArrayOfBulkStrings(info->prefixes.prefixes));
 
     output->append(redis::SimpleString("fields"));
     output->append(MultiLen(info->fields.size()));
     for (const auto &[_, field] : info->fields) {
-      output->append(MultiLen(2));
+      output->append(MultiLen(6));
+      output->append(redis::SimpleString("identifier"));
       output->append(redis::BulkString(field.name));
+      output->append(redis::SimpleString("type"));
       auto type = field.metadata->Type();
       output->append(redis::BulkString(std::string(type.begin(), type.end())));
+      output->append(redis::SimpleString("options"));
+      if (auto tag = field.MetadataAs<TagFieldMetadata>()) {
+        output->append(redis::MultiLen(4));
+        output->append(redis::SimpleString("separator"));
+        output->append(redis::BulkString(std::string(1, tag->separator)));
+        output->append(redis::SimpleString("case_sensitive"));
+        output->append(conn->Bool(tag->case_sensitive));
+      } else {
+        output->append(redis::MultiLen(0));
+      }
     }
 
     return Status::OK();
@@ -452,7 +466,7 @@ class CommandFTInfo : public Commander {
 };
 
 class CommandFTList : public Commander {
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     const auto &index_map = srv->index_mgr.index_map;
 
     std::vector<std::string> results;
@@ -469,10 +483,10 @@ class CommandFTList : public Commander {
 };
 
 class CommandFTDrop : public Commander {
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     const auto &index_name = args_[1];
 
-    GET_OR_RET(srv->index_mgr.Drop(index_name, conn->GetNamespace()));
+    GET_OR_RET(srv->index_mgr.Drop(ctx, index_name, conn->GetNamespace()));
 
     output->append(SimpleString("OK"));
 
@@ -480,14 +494,30 @@ class CommandFTDrop : public Commander {
   };
 };
 
+class CommandFTTagVals : public Commander {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
+    const auto &index_name = args_[1];
+    const auto &tag_field_name = args_[2];
+    auto field_values = GET_OR_RET(srv->index_mgr.FieldValues(ctx, index_name, tag_field_name, conn->GetNamespace()));
+
+    std::vector<std::string> result_vec(field_values.begin(), field_values.end());
+
+    *output = conn->SetOfBulkStrings(result_vec);
+
+    return Status::OK();
+  };
+};
+
 REDIS_REGISTER_COMMANDS(Search,
-                        MakeCmdAttr<CommandFTCreate>("ft.create", -2, "write exclusive no-multi no-script", 0, 0, 0),
+                        MakeCmdAttr<CommandFTCreate>("ft.create", -2, "write exclusive no-multi no-script slow", 0, 0,
+                                                     0),
                         MakeCmdAttr<CommandFTSearchSQL>("ft.searchsql", -2, "read-only", 0, 0, 0),
                         MakeCmdAttr<CommandFTSearch>("ft.search", -3, "read-only", 0, 0, 0),
                         MakeCmdAttr<CommandFTExplainSQL>("ft.explainsql", -2, "read-only", 0, 0, 0),
                         MakeCmdAttr<CommandFTExplain>("ft.explain", -3, "read-only", 0, 0, 0),
                         MakeCmdAttr<CommandFTInfo>("ft.info", 2, "read-only", 0, 0, 0),
                         MakeCmdAttr<CommandFTList>("ft._list", 1, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandFTDrop>("ft.dropindex", 2, "write exclusive no-multi no-script", 0, 0, 0));
+                        MakeCmdAttr<CommandFTDrop>("ft.dropindex", 2, "write exclusive no-multi no-script", 0, 0, 0),
+                        MakeCmdAttr<CommandFTTagVals>("ft.tagvals", 3, "read-only slow", 0, 0, 0));
 
 }  // namespace redis

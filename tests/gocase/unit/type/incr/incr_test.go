@@ -28,7 +28,24 @@ import (
 )
 
 func TestIncr(t *testing.T) {
-	srv := util.StartServer(t, map[string]string{})
+	configOptions := []util.ConfigOptions{
+		{
+			Name:       "txn-context-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+	}
+
+	configsMatrix, err := util.GenerateConfigsMatrix(configOptions)
+	require.NoError(t, err)
+
+	for _, configs := range configsMatrix {
+		testIncr(t, configs)
+	}
+}
+
+func testIncr(t *testing.T, configs util.KvrocksServerConfigs) {
+	srv := util.StartServer(t, configs)
 	defer srv.Close()
 	ctx := context.Background()
 	rdb := srv.NewClient()

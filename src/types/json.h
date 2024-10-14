@@ -51,10 +51,12 @@ struct JsonValue {
     Mul = 2,
   };
 
+  static const size_t default_max_nesting_depth = 1024;
+
   JsonValue() = default;
   explicit JsonValue(jsoncons::basic_json<char> value) : value(std::move(value)) {}
 
-  static StatusOr<JsonValue> FromString(std::string_view str, int max_nesting_depth = std::numeric_limits<int>::max()) {
+  static StatusOr<JsonValue> FromString(std::string_view str, int max_nesting_depth = default_max_nesting_depth) {
     jsoncons::json val;
 
     jsoncons::json_options options;
@@ -69,7 +71,7 @@ struct JsonValue {
     return JsonValue(std::move(val));
   }
 
-  static StatusOr<JsonValue> FromCBOR(std::string_view str, int max_nesting_depth = std::numeric_limits<int>::max()) {
+  static StatusOr<JsonValue> FromCBOR(std::string_view str, int max_nesting_depth = default_max_nesting_depth) {
     jsoncons::json val;
 
     jsoncons::cbor::cbor_options options;
@@ -84,13 +86,13 @@ struct JsonValue {
     return JsonValue(std::move(val));
   }
 
-  StatusOr<std::string> Dump(int max_nesting_depth = std::numeric_limits<int>::max()) const {
+  StatusOr<std::string> Dump(int max_nesting_depth = default_max_nesting_depth) const {
     std::string res;
     GET_OR_RET(Dump(&res, max_nesting_depth));
     return res;
   }
 
-  Status Dump(std::string *buffer, int max_nesting_depth = std::numeric_limits<int>::max()) const {
+  Status Dump(std::string *buffer, int max_nesting_depth = default_max_nesting_depth) const {
     jsoncons::json_options options;
     options.max_nesting_depth(max_nesting_depth);
 
@@ -104,13 +106,13 @@ struct JsonValue {
     return Status::OK();
   }
 
-  StatusOr<std::string> DumpCBOR(int max_nesting_depth = std::numeric_limits<int>::max()) const {
+  StatusOr<std::string> DumpCBOR(int max_nesting_depth = default_max_nesting_depth) const {
     std::string res;
     GET_OR_RET(DumpCBOR(&res, max_nesting_depth));
     return res;
   }
 
-  Status DumpCBOR(std::string *buffer, int max_nesting_depth = std::numeric_limits<int>::max()) const {
+  Status DumpCBOR(std::string *buffer, int max_nesting_depth = default_max_nesting_depth) const {
     jsoncons::cbor::cbor_options options;
     options.max_nesting_depth(max_nesting_depth);
 
@@ -221,7 +223,7 @@ struct JsonValue {
   }
 
   StatusOr<std::vector<size_t>> GetBytes(std::string_view path, JsonStorageFormat format,
-                                         int max_nesting_depth = std::numeric_limits<int>::max()) const {
+                                         int max_nesting_depth = default_max_nesting_depth) const {
     std::vector<size_t> results;
     Status s;
     try {

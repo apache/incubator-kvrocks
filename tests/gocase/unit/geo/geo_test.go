@@ -87,18 +87,30 @@ func compareLists(list1, list2 []string) []string {
 	return result
 }
 
-func TestGeoWithRESP2(t *testing.T) {
-	testGeo(t, "no")
+func TestGeo(t *testing.T) {
+	configOptions := []util.ConfigOptions{
+		{
+			Name:       "txn-context-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+		{
+			Name:       "resp3-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+	}
+
+	configsMatrix, err := util.GenerateConfigsMatrix(configOptions)
+	require.NoError(t, err)
+
+	for _, configs := range configsMatrix {
+		testGeo(t, configs)
+	}
 }
 
-func TestGeoWithRESP3(t *testing.T) {
-	testGeo(t, "yes")
-}
-
-var testGeo = func(t *testing.T, enabledRESP3 string) {
-	srv := util.StartServer(t, map[string]string{
-		"resp3-enabled": enabledRESP3,
-	})
+var testGeo = func(t *testing.T, configs util.KvrocksServerConfigs) {
+	srv := util.StartServer(t, configs)
 	defer srv.Close()
 	ctx := context.Background()
 	rdb := srv.NewClient()

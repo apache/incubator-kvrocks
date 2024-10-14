@@ -29,7 +29,10 @@
 #include "rdb_listpack.h"
 #include "rdb_ziplist.h"
 #include "rdb_zipmap.h"
+#include "storage/redis_metadata.h"
 #include "time_util.h"
+#include "types/redis_bitmap.h"
+#include "types/redis_bitmap_string.h"
 #include "types/redis_hash.h"
 #include "types/redis_list.h"
 #include "types/redis_set.h"
@@ -154,7 +157,7 @@ StatusOr<std::string> RDB::loadEncodedString() {
     unsigned char buf[4] = {0};
     if (len == RDBEncInt8) {
       auto next = GET_OR_RET(stream_->ReadByte());
-      return std::to_string(static_cast<int>(next));
+      return std::to_string(static_cast<int8_t>(next));
     } else if (len == RDBEncInt16) {
       GET_OR_RET(stream_->Read(reinterpret_cast<char *>(buf), 2));
       auto value = static_cast<uint16_t>(buf[0]) | (static_cast<uint16_t>(buf[1]) << 8);
@@ -718,7 +721,7 @@ Status RDB::Dump(const std::string &key, const RedisType type) {
 
 Status RDB::SaveObjectType(const RedisType type) {
   int robj_type = -1;
-  if (type == kRedisString) {
+  if (type == kRedisString || type == kRedisBitmap) {
     robj_type = RDBTypeString;
   } else if (type == kRedisHash) {
     robj_type = RDBTypeHash;
@@ -781,6 +784,16 @@ Status RDB::SaveObject(const std::string &key, const RedisType type) {
     }
 
     return SaveHashObject(field_values);
+  } else if (type == kRedisBitmap) {
+    std::string value;
+    redis::Bitmap bitmap_db(storage_, ns_);
+    Config *config = storage_->GetConfig();
+    uint32_t max_btos_size = static_cast<uint32_t>(config->max_bitmap_to_string_mb) * MiB;
+    auto s = bitmap_db.GetString(ctx, key, max_btos_size, &value);
+    if (!s.ok() && !s.IsNotFound()) {
+      return {Status::RedisExecErr, s.ToString()};
+    }
+    return SaveStringObject(value);
   } else {
     LOG(WARNING) << "Invalid or Not supported object type: " << type;
     return {Status::NotOK, "Invalid or Not supported object type"};

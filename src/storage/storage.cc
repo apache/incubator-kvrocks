@@ -482,6 +482,7 @@ Status Storage::RestoreFromCheckpoint() {
   // Clean old backups and checkpoints because server will work on the new db
   PurgeOldBackups(0, 0);
   rocksdb::DestroyDB(config_->checkpoint_dir, rocksdb::Options());
+  rocksdb::DestroyDB(tmp_dir, rocksdb::Options());
 
   // Maybe there is no database directory
   auto s = env_->CreateDirIfMissing(config_->db_dir);
@@ -719,7 +720,10 @@ rocksdb::Status Storage::writeToDB(engine::Context &ctx, const rocksdb::WriteOpt
 rocksdb::Status Storage::Delete(engine::Context &ctx, const rocksdb::WriteOptions &options,
                                 rocksdb::ColumnFamilyHandle *cf_handle, const rocksdb::Slice &key) {
   auto batch = GetWriteBatchBase();
-  batch->Delete(cf_handle, key);
+  auto s = batch->Delete(cf_handle, key);
+  if (!s.ok()) {
+    return s;
+  }
   return Write(ctx, options, batch->GetWriteBatch());
 }
 
@@ -864,7 +868,9 @@ Status Storage::BeginTxn() {
   // The EXEC command is exclusive and shouldn't have multi transaction at the same time,
   // so it's fine to reset the global write batch without any lock.
   is_txn_mode_ = true;
-  txn_write_batch_ = std::make_unique<rocksdb::WriteBatchWithIndex>();
+  txn_write_batch_ =
+      std::make_unique<rocksdb::WriteBatchWithIndex>(rocksdb::BytewiseComparator() /*default backup_index_comparator */,
+                                                     0 /* default reserved_bytes*/, GetWriteBatchMaxBytes());
   return Status::OK();
 }
 
@@ -887,7 +893,8 @@ ObserverOrUniquePtr<rocksdb::WriteBatchBase> Storage::GetWriteBatchBase() {
   if (is_txn_mode_) {
     return ObserverOrUniquePtr<rocksdb::WriteBatchBase>(txn_write_batch_.get(), ObserverOrUnique::Observer);
   }
-  return ObserverOrUniquePtr<rocksdb::WriteBatchBase>(new rocksdb::WriteBatch(), ObserverOrUnique::Unique);
+  return ObserverOrUniquePtr<rocksdb::WriteBatchBase>(
+      new rocksdb::WriteBatch(0 /*reserved_bytes*/, GetWriteBatchMaxBytes()), ObserverOrUnique::Unique);
 }
 
 Status Storage::WriteToPropagateCF(engine::Context &ctx, const std::string &key, const std::string &value) {
@@ -896,8 +903,8 @@ Status Storage::WriteToPropagateCF(engine::Context &ctx, const std::string &key,
   }
   auto batch = GetWriteBatchBase();
   auto cf = GetCFHandle(ColumnFamilyID::Propagate);
-  batch->Put(cf, key, value);
-  auto s = Write(ctx, default_write_opts_, batch->GetWriteBatch());
+  auto s = batch->Put(cf, key, value);
+  s = Write(ctx, default_write_opts_, batch->GetWriteBatch());
   if (!s.ok()) {
     return {Status::NotOK, s.ToString()};
   }

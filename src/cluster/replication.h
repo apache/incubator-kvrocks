@@ -95,8 +95,9 @@ class FeedSlaveThread {
 class ReplicationThread : private EventCallbackBase<ReplicationThread> {
  public:
   explicit ReplicationThread(std::string host, uint32_t port, Server *srv);
-  Status Start(std::function<void()> &&pre_fullsync_cb, std::function<void()> &&post_fullsync_cb);
+  Status Start(std::function<bool()> &&pre_fullsync_cb, std::function<void()> &&post_fullsync_cb);
   void Stop();
+  bool IsStopped() const { return stop_flag_; }
   ReplState State() { return repl_state_.load(std::memory_order_relaxed); }
   int64_t LastIOTimeSecs() const { return last_io_time_secs_.load(std::memory_order_relaxed); }
 
@@ -159,7 +160,7 @@ class ReplicationThread : private EventCallbackBase<ReplicationThread> {
   bool next_try_old_psync_ = false;
   bool next_try_without_announce_ip_address_ = false;
 
-  std::function<void()> pre_fullsync_cb_;
+  std::function<bool()> pre_fullsync_cb_;
   std::function<void()> post_fullsync_cb_;
 
   // Internal states managed by FullSync procedure

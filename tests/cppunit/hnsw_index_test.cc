@@ -66,6 +66,7 @@ struct HnswIndexTest : TestBase {
   std::string idx_name = "hnsw_test_idx";
   std::string key = "vector";
   std::unique_ptr<redis::HnswIndex> hnsw_index;
+  const std::random_device::result_type seed = 14863;  // fixed seed for reproducibility
 
   HnswIndexTest() {
     metadata.vector_type = redis::VectorType::FLOAT64;
@@ -73,7 +74,7 @@ struct HnswIndexTest : TestBase {
     metadata.m = 3;
     metadata.distance_metric = redis::DistanceMetric::L2;
     auto search_key = redis::SearchKey(ns, idx_name, key);
-    hnsw_index = std::make_unique<redis::HnswIndex>(search_key, &metadata, storage_.get());
+    hnsw_index = std::make_unique<redis::HnswIndex>(search_key, &metadata, storage_.get(), seed);
   }
 
   void TearDown() override { hnsw_index.reset(); }
@@ -185,12 +186,15 @@ TEST_F(HnswIndexTest, DecodeNodesToVectorItems) {
   redis::HnswNodeFieldMetadata metadata3(0, {7, 8, 9});
 
   auto batch = storage_->GetWriteBatchBase();
-  node1.PutMetadata(&metadata1, hnsw_index->search_key, hnsw_index->storage, batch.Get());
-  node2.PutMetadata(&metadata2, hnsw_index->search_key, hnsw_index->storage, batch.Get());
-  node3.PutMetadata(&metadata3, hnsw_index->search_key, hnsw_index->storage, batch.Get());
+  auto s = node1.PutMetadata(&metadata1, hnsw_index->search_key, hnsw_index->storage, batch.Get());
+  ASSERT_TRUE(s.IsOK());
+  s = node2.PutMetadata(&metadata2, hnsw_index->search_key, hnsw_index->storage, batch.Get());
+  ASSERT_TRUE(s.IsOK());
+  s = node3.PutMetadata(&metadata3, hnsw_index->search_key, hnsw_index->storage, batch.Get());
+  ASSERT_TRUE(s.IsOK());
   engine::Context ctx(storage_.get());
-  auto s = storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
-  ASSERT_TRUE(s.ok());
+  auto s2 = storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
+  ASSERT_TRUE(s2.ok());
 
   std::vector<std::string> keys = {node_key1, node_key2, node_key3};
 
@@ -290,11 +294,16 @@ TEST_F(HnswIndexTest, SearchLayer) {
 
   // Add Nodes
   auto batch = storage_->GetWriteBatchBase();
-  node1.PutMetadata(&metadata1, hnsw_index->search_key, hnsw_index->storage, batch.Get());
-  node2.PutMetadata(&metadata2, hnsw_index->search_key, hnsw_index->storage, batch.Get());
-  node3.PutMetadata(&metadata3, hnsw_index->search_key, hnsw_index->storage, batch.Get());
-  node4.PutMetadata(&metadata4, hnsw_index->search_key, hnsw_index->storage, batch.Get());
-  node5.PutMetadata(&metadata5, hnsw_index->search_key, hnsw_index->storage, batch.Get());
+  auto put_meta_data_status = node1.PutMetadata(&metadata1, hnsw_index->search_key, hnsw_index->storage, batch.Get());
+  ASSERT_TRUE(put_meta_data_status.IsOK());
+  put_meta_data_status = node2.PutMetadata(&metadata2, hnsw_index->search_key, hnsw_index->storage, batch.Get());
+  ASSERT_TRUE(put_meta_data_status.IsOK());
+  put_meta_data_status = node3.PutMetadata(&metadata3, hnsw_index->search_key, hnsw_index->storage, batch.Get());
+  ASSERT_TRUE(put_meta_data_status.IsOK());
+  put_meta_data_status = node4.PutMetadata(&metadata4, hnsw_index->search_key, hnsw_index->storage, batch.Get());
+  ASSERT_TRUE(put_meta_data_status.IsOK());
+  put_meta_data_status = node5.PutMetadata(&metadata5, hnsw_index->search_key, hnsw_index->storage, batch.Get());
+  ASSERT_TRUE(put_meta_data_status.IsOK());
   engine::Context ctx(storage_.get());
   auto s = storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
   ASSERT_TRUE(s.ok());

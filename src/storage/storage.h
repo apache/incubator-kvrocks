@@ -291,6 +291,7 @@ class Storage {
   Storage(const Storage &) = delete;
   Storage &operator=(const Storage &) = delete;
 
+  int GetWriteBatchMaxBytes() const { return config_->rocks_db.write_options.write_batch_max_bytes; }
   // Full replication data files manager
   class ReplDataManager {
    public:

@@ -53,12 +53,15 @@ TEST_F(NodeTest, PutAndDecodeMetadata) {
   redis::HnswNodeFieldMetadata metadata3(0, {7, 8, 9});
 
   auto batch = storage_->GetWriteBatchBase();
-  node1.PutMetadata(&metadata1, search_key, storage_.get(), batch.Get());
-  node2.PutMetadata(&metadata2, search_key, storage_.get(), batch.Get());
-  node3.PutMetadata(&metadata3, search_key, storage_.get(), batch.Get());
+  auto s = node1.PutMetadata(&metadata1, search_key, storage_.get(), batch.Get());
+  ASSERT_TRUE(s.IsOK());
+  s = node2.PutMetadata(&metadata2, search_key, storage_.get(), batch.Get());
+  ASSERT_TRUE(s.IsOK());
+  s = node3.PutMetadata(&metadata3, search_key, storage_.get(), batch.Get());
+  ASSERT_TRUE(s.IsOK());
   engine::Context ctx(storage_.get());
-  auto s = storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
-  ASSERT_TRUE(s.ok());
+  auto s1 = storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
+  ASSERT_TRUE(s1.ok());
 
   auto decoded_metadata1 = node1.DecodeMetadata(ctx, search_key);
   ASSERT_TRUE(decoded_metadata1.IsOK());
@@ -82,12 +85,16 @@ TEST_F(NodeTest, PutAndDecodeMetadata) {
   auto edge3 = search_key.ConstructHnswEdge(layer, "node2", "node3");
   auto edge4 = search_key.ConstructHnswEdge(layer, "node3", "node2");
 
-  batch->Put(storage_->GetCFHandle(ColumnFamilyID::Search), edge1, Slice());
-  batch->Put(storage_->GetCFHandle(ColumnFamilyID::Search), edge2, Slice());
-  batch->Put(storage_->GetCFHandle(ColumnFamilyID::Search), edge3, Slice());
-  batch->Put(storage_->GetCFHandle(ColumnFamilyID::Search), edge4, Slice());
-  s = storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
-  ASSERT_TRUE(s.ok());
+  s1 = batch->Put(storage_->GetCFHandle(ColumnFamilyID::Search), edge1, Slice());
+  ASSERT_TRUE(s1.ok());
+  s1 = batch->Put(storage_->GetCFHandle(ColumnFamilyID::Search), edge2, Slice());
+  ASSERT_TRUE(s1.ok());
+  s1 = batch->Put(storage_->GetCFHandle(ColumnFamilyID::Search), edge3, Slice());
+  ASSERT_TRUE(s1.ok());
+  s1 = batch->Put(storage_->GetCFHandle(ColumnFamilyID::Search), edge4, Slice());
+  ASSERT_TRUE(s1.ok());
+  s1 = storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
+  ASSERT_TRUE(s1.ok());
 
   node1.DecodeNeighbours(ctx, search_key);
   EXPECT_EQ(node1.neighbours.size(), 1);
@@ -118,10 +125,14 @@ TEST_F(NodeTest, ModifyNeighbours) {
 
   // Add Nodes
   auto batch1 = storage_->GetWriteBatchBase();
-  node1.PutMetadata(&metadata1, search_key, storage_.get(), batch1.Get());
-  node2.PutMetadata(&metadata2, search_key, storage_.get(), batch1.Get());
-  node3.PutMetadata(&metadata3, search_key, storage_.get(), batch1.Get());
-  node4.PutMetadata(&metadata4, search_key, storage_.get(), batch1.Get());
+  auto put_meta_data = node1.PutMetadata(&metadata1, search_key, storage_.get(), batch1.Get());
+  ASSERT_TRUE(put_meta_data.IsOK());
+  put_meta_data = node2.PutMetadata(&metadata2, search_key, storage_.get(), batch1.Get());
+  ASSERT_TRUE(put_meta_data.IsOK());
+  put_meta_data = node3.PutMetadata(&metadata3, search_key, storage_.get(), batch1.Get());
+  ASSERT_TRUE(put_meta_data.IsOK());
+  put_meta_data = node4.PutMetadata(&metadata4, search_key, storage_.get(), batch1.Get());
+  ASSERT_TRUE(put_meta_data.IsOK());
   engine::Context ctx(storage_.get());
   auto s = storage_->Write(ctx, storage_->DefaultWriteOptions(), batch1->GetWriteBatch());
   ASSERT_TRUE(s.ok());

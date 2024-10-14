@@ -29,8 +29,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBloom(t *testing.T) {
-	srv := util.StartServer(t, map[string]string{})
+func TestBloomInfo(t *testing.T) {
+	configOptions := []util.ConfigOptions{
+		{
+			Name:       "txn-context-enabled",
+			Options:    []string{"yes", "no"},
+			ConfigType: util.YesNo,
+		},
+	}
+
+	configsMatrix, err := util.GenerateConfigsMatrix(configOptions)
+	require.NoError(t, err)
+
+	for _, configs := range configsMatrix {
+		testBloom(t, configs)
+	}
+}
+func testBloom(t *testing.T, configs util.KvrocksServerConfigs) {
+	srv := util.StartServer(t, configs)
 	defer srv.Close()
 	ctx := context.Background()
 	rdb := srv.NewClient()

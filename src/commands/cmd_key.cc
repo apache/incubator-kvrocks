@@ -32,10 +32,10 @@ namespace redis {
 
 class CommandType : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis(srv->storage, conn->GetNamespace());
     RedisType type = kRedisNone;
-    engine::Context ctx(srv->storage);
+
     auto s = redis.Type(ctx, args_[1], &type);
     if (s.ok()) {
       if (type >= RedisTypeNames.size()) return {Status::RedisExecErr, "Invalid type"};
@@ -54,10 +54,10 @@ class CommandMove : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     int count = 0;
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     rocksdb::Status s = redis.Exists(ctx, {args_[1]}, &count);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
 
@@ -68,7 +68,7 @@ class CommandMove : public Commander {
 
 class CommandMoveX : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     std::string &key = args_[1], &token = args_[2];
 
     redis::Database redis(srv->storage, conn->GetNamespace());
@@ -88,7 +88,7 @@ class CommandMoveX : public Commander {
     Database::CopyResult res = Database::CopyResult::DONE;
     std::string ns_key = redis.AppendNamespacePrefix(key);
     std::string new_ns_key = ComposeNamespaceKey(ns, key, srv->storage->IsSlotIdEncoded());
-    engine::Context ctx(srv->storage);
+
     auto s = redis.Copy(ctx, ns_key, new_ns_key, true, true, &res);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
 
@@ -103,11 +103,11 @@ class CommandMoveX : public Commander {
 
 class CommandObject : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     if (util::ToLower(args_[1]) == "dump") {
       redis::Database redis(srv->storage, conn->GetNamespace());
       std::vector<std::string> infos;
-      engine::Context ctx(srv->storage);
+
       auto s = redis.Dump(ctx, args_[2], &infos);
       if (!s.ok()) {
         return {Status::RedisExecErr, s.ToString()};
@@ -126,10 +126,10 @@ class CommandObject : public Commander {
 
 class CommandTTL : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis(srv->storage, conn->GetNamespace());
     int64_t ttl = 0;
-    engine::Context ctx(srv->storage);
+
     auto s = redis.TTL(ctx, args_[1], &ttl);
     if (s.ok()) {
       *output = redis::Integer(ttl > 0 ? ttl / 1000 : ttl);
@@ -142,10 +142,10 @@ class CommandTTL : public Commander {
 
 class CommandPTTL : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis(srv->storage, conn->GetNamespace());
     int64_t ttl = 0;
-    engine::Context ctx(srv->storage);
+
     auto s = redis.TTL(ctx, args_[1], &ttl);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
 
@@ -156,7 +156,7 @@ class CommandPTTL : public Commander {
 
 class CommandExists : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     std::vector<rocksdb::Slice> keys;
     keys.reserve(args_.size() - 1);
     for (size_t i = 1; i < args_.size(); i++) {
@@ -165,7 +165,7 @@ class CommandExists : public Commander {
 
     int cnt = 0;
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = redis.Exists(ctx, keys, &cnt);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
     *output = redis::Integer(cnt);
@@ -181,9 +181,9 @@ class CommandExpire : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = redis.Expire(ctx, args_[1], ttl_ * 1000 + util::GetTimeStampMS());
     if (s.ok()) {
       *output = redis::Integer(1);
@@ -204,9 +204,9 @@ class CommandPExpire : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = redis.Expire(ctx, args_[1], seconds_);
     if (s.ok()) {
       *output = redis::Integer(1);
@@ -233,9 +233,9 @@ class CommandExpireAt : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = redis.Expire(ctx, args_[1], timestamp_ * 1000);
     if (s.ok()) {
       *output = redis::Integer(1);
@@ -262,9 +262,9 @@ class CommandPExpireAt : public Commander {
     return Commander::Parse(args);
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = redis.Expire(ctx, args_[1], timestamp_);
     if (s.ok()) {
       *output = redis::Integer(1);
@@ -280,10 +280,10 @@ class CommandPExpireAt : public Commander {
 
 class CommandExpireTime : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis(srv->storage, conn->GetNamespace());
     uint64_t timestamp = 0;
-    engine::Context ctx(srv->storage);
+
     auto s = redis.GetExpireTime(ctx, args_[1], &timestamp);
     if (s.ok()) {
       *output = timestamp > 0 ? redis::Integer(timestamp / 1000) : redis::Integer(-1);
@@ -298,10 +298,10 @@ class CommandExpireTime : public Commander {
 
 class CommandPExpireTime : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis(srv->storage, conn->GetNamespace());
     uint64_t timestamp = 0;
-    engine::Context ctx(srv->storage);
+
     auto s = redis.GetExpireTime(ctx, args_[1], &timestamp);
     if (s.ok()) {
       *output = timestamp > 0 ? redis::Integer(timestamp) : redis::Integer(-1);
@@ -316,10 +316,10 @@ class CommandPExpireTime : public Commander {
 
 class CommandPersist : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     int64_t ttl = 0;
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = redis.TTL(ctx, args_[1], &ttl);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
 
@@ -338,7 +338,7 @@ class CommandPersist : public Commander {
 
 class CommandDel : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     std::vector<rocksdb::Slice> keys;
     keys.reserve(args_.size() - 1);
     for (size_t i = 1; i < args_.size(); i++) {
@@ -347,7 +347,7 @@ class CommandDel : public Commander {
 
     uint64_t cnt = 0;
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     auto s = redis.MDel(ctx, keys, &cnt);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
 
@@ -358,12 +358,12 @@ class CommandDel : public Commander {
 
 class CommandRename : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis(srv->storage, conn->GetNamespace());
     Database::CopyResult res = Database::CopyResult::DONE;
     std::string ns_key = redis.AppendNamespacePrefix(args_[1]);
     std::string new_ns_key = redis.AppendNamespacePrefix(args_[2]);
-    engine::Context ctx(srv->storage);
+
     auto s = redis.Copy(ctx, ns_key, new_ns_key, false, true, &res);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
     if (res == Database::CopyResult::KEY_NOT_EXIST) return {Status::RedisExecErr, "no such key"};
@@ -374,12 +374,12 @@ class CommandRename : public Commander {
 
 class CommandRenameNX : public Commander {
  public:
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis(srv->storage, conn->GetNamespace());
     Database::CopyResult res = Database::CopyResult::DONE;
     std::string ns_key = redis.AppendNamespacePrefix(args_[1]);
     std::string new_ns_key = redis.AppendNamespacePrefix(args_[2]);
-    engine::Context ctx(srv->storage);
+
     auto s = redis.Copy(ctx, ns_key, new_ns_key, true, true, &res);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
     switch (res) {
@@ -417,12 +417,12 @@ class CommandCopy : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis(srv->storage, conn->GetNamespace());
     Database::CopyResult res = Database::CopyResult::DONE;
     std::string ns_key = redis.AppendNamespacePrefix(args_[1]);
     std::string new_ns_key = redis.AppendNamespacePrefix(args_[2]);
-    engine::Context ctx(srv->storage);
+
     auto s = redis.Copy(ctx, ns_key, new_ns_key, !replace_, false, &res);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
     switch (res) {
@@ -490,9 +490,9 @@ class CommandSort : public Commander {
     return Status::OK();
   }
 
-  Status Execute(Server *srv, Connection *conn, std::string *output) override {
+  Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     redis::Database redis(srv->storage, conn->GetNamespace());
-    engine::Context ctx(srv->storage);
+
     RedisType type = kRedisNone;
     if (auto s = redis.Type(ctx, args_[1], &type); !s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
@@ -572,7 +572,7 @@ REDIS_REGISTER_COMMANDS(Key, MakeCmdAttr<CommandTTL>("ttl", 2, "read-only", 1, 1
                         MakeCmdAttr<CommandRename>("rename", 3, "write", 1, 2, 1),
                         MakeCmdAttr<CommandRenameNX>("renamenx", 3, "write", 1, 2, 1),
                         MakeCmdAttr<CommandCopy>("copy", -3, "write", 1, 2, 1),
-                        MakeCmdAttr<CommandSort<false>>("sort", -2, "write", 1, 1, 1),
-                        MakeCmdAttr<CommandSort<true>>("sort_ro", -2, "read-only", 1, 1, 1))
+                        MakeCmdAttr<CommandSort<false>>("sort", -2, "write slow", 1, 1, 1),
+                        MakeCmdAttr<CommandSort<true>>("sort_ro", -2, "read-only slow", 1, 1, 1))
 
 }  // namespace redis

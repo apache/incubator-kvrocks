@@ -66,7 +66,7 @@ func TestClusterReplication(t *testing.T) {
 		require.Equal(t, "slave", util.FindInfoEntry(replicaClient, "role"))
 		masterClient.Set(ctx, "k0", "v0", 0)
 		masterClient.LPush(ctx, "k1", "e0", "e1", "e2")
-		util.WaitForOffsetSync(t, masterClient, replicaClient)
+		util.WaitForOffsetSync(t, masterClient, replicaClient, 5*time.Second)
 
 		require.Equal(t, "v0", replicaClient.Get(ctx, "k0").Val())
 		require.Equal(t, []string{"e2", "e1", "e0"}, replicaClient.LRange(ctx, "k1", 0, -1).Val())
@@ -84,7 +84,7 @@ func TestClusterReplication(t *testing.T) {
 		// allow to run the read-only command in the replica
 		require.NoError(t, replicaClient.ReadOnly(ctx).Err())
 
-		util.WaitForOffsetSync(t, masterClient, replicaClient)
+		util.WaitForOffsetSync(t, masterClient, replicaClient, 5*time.Second)
 		require.Equal(t, "v1", replicaClient.Get(ctx, "k0").Val())
 		require.Equal(t, map[string]string{"f0": "v0", "f1": "v1"}, replicaClient.HGetAll(ctx, "k2").Val())
 	})
@@ -387,7 +387,7 @@ func TestReplicationContinueRunning(t *testing.T) {
 			"0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
 			"a": "a", "b": "b", "c": "c", "d": "d", "e": "e", "f": "f", "g": "g", "h": "h", "i": "i", "j": "j", "k": "k"})
 		require.EqualValues(t, 21, masterClient.HLen(ctx, "myhash").Val())
-		util.WaitForOffsetSync(t, masterClient, slaveClient)
+		util.WaitForOffsetSync(t, masterClient, slaveClient, 5*time.Second)
 		require.Equal(t, "1", slaveClient.HGet(ctx, "myhash", "1").Val())
 		require.Equal(t, "a", slaveClient.HGet(ctx, "myhash", "a").Val())
 	})
@@ -506,5 +506,49 @@ func TestShouldNotReplicate(t *testing.T) {
 		err := masterClient.SlaveOf(ctx, slave.Host(), fmt.Sprintf("%d", slave.Port())).Err()
 		require.EqualErrorf(t, err, "ERR can't replicate your own replicas", err.Error())
 		require.Equal(t, "master", util.FindInfoEntry(masterClient, "role"))
+	})
+}
+
+func TestFullSyncReplication(t *testing.T) {
+	master := util.StartServer(t, map[string]string{
+		"rocksdb.write_buffer_size":       "4",
+		"rocksdb.target_file_size_base":   "16",
+		"rocksdb.max_write_buffer_number": "1",
+		"rocksdb.wal_ttl_seconds":         "0",
+		"rocksdb.wal_size_limit_mb":       "0",
+	})
+	defer master.Close()
+	masterClient := master.NewClient()
+	defer func() { require.NoError(t, masterClient.Close()) }()
+
+	slave := util.StartServer(t, map[string]string{})
+	defer slave.Close()
+	slaveClient := slave.NewClient()
+	defer func() { require.NoError(t, slaveClient.Close()) }()
+
+	ctx := context.Background()
+
+	t.Run("Full sync replication should work correctly", func(t *testing.T) {
+		value := strings.Repeat("a", 128*1024)
+		for i := 0; i < 1024; i++ {
+			require.NoError(t, masterClient.Set(ctx, fmt.Sprintf("key%d", i), value, 0).Err())
+		}
+
+		util.SlaveOf(t, slaveClient, master)
+		// Wait more time for full sync to avoid flake test in CI environment
+		util.WaitForOffsetSync(t, masterClient, slaveClient, 60*time.Second)
+
+		// Make sure the full sync happened in replication
+		syncFullCount, err := strconv.Atoi(util.FindInfoEntry(masterClient, "sync_full"))
+		require.NoError(t, err)
+		require.Greater(t, syncFullCount, 0)
+
+		got, err := slaveClient.Get(ctx, "key1").Result()
+		require.NoError(t, err)
+		require.Equal(t, value, got)
+
+		require.NoError(t, masterClient.Set(ctx, "foo", "bar", 0).Err())
+		util.WaitForOffsetSync(t, masterClient, slaveClient, 5*time.Second)
+		require.Equal(t, "bar", slaveClient.Get(ctx, "foo").Val())
 	})
 }
