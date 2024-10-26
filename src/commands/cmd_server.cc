@@ -1352,8 +1352,8 @@ REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only o
                         MakeCmdAttr<CommandCommand>("command", -1, "read-only", NO_KEY),
                         MakeCmdAttr<CommandEcho>("echo", 2, "read-only", NO_KEY),
                         MakeCmdAttr<CommandTime>("time", 1, "read-only ok-loading", NO_KEY),
-                        MakeCmdAttr<CommandDisk>("disk", 3, "read-only", NO_KEY),
-                        MakeCmdAttr<CommandMemory>("memory", 3, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandDisk>("disk", 3, "read-only", 2, 2, 1),
+                        MakeCmdAttr<CommandMemory>("memory", 3, "read-only", 2, 2, 1),
                         MakeCmdAttr<CommandHello>("hello", -1, "read-only ok-loading", NO_KEY),
                         MakeCmdAttr<CommandRestore>("restore", -4, "write", 1, 1, 1),
 
@@ -1366,6 +1366,6 @@ REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only o
                         MakeCmdAttr<CommandRdb>("rdb", -3, "write exclusive", NO_KEY),
                         MakeCmdAttr<CommandReset>("reset", 1, "ok-loading multi no-script pub-sub", NO_KEY),
                         MakeCmdAttr<CommandApplyBatch>("applybatch", -2, "write no-multi", NO_KEY),
-                        MakeCmdAttr<CommandDump>("dump", 2, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandDump>("dump", 2, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandPollUpdates>("pollupdates", -2, "read-only", NO_KEY), )
 }  // namespace redis
