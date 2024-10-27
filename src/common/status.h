@@ -101,6 +101,7 @@ class [[nodiscard]] Status {
 
   bool IsOK() const { return !impl_; }
   explicit operator bool() const { return IsOK(); }
+  inline bool ok() const { return IsOK(); }  // NOLINT
 
   Code GetCode() const { return impl_ ? impl_->code : cOK; }
 
@@ -378,19 +379,20 @@ struct [[nodiscard]] StatusOr {
     std::forward<decltype(status)>(status);                     \
   }).GetValue()
 
-#define _GET_MACRO(_1, _2, NAME, ...) NAME
-#define RETURN_IF_ERROR(...) _GET_MACRO(__VA_ARGS__, RETURN_IF_ERROR_WITH_MSG_IMPL, RETURN_IF_ERROR_IMPL)(__VA_ARGS__)
-
-#define RETURN_IF_ERROR_IMPL(expr)                              \
-  ({                                                            \
-    auto&& status = (expr);                                     \
-    if (!status) return std::forward<decltype(status)>(status); \
+#define RETURN_IF_ERROR(expr)                                        \
+  ({                                                                 \
+    auto&& status = (expr);                                          \
+    if (!status.ok()) return std::forward<decltype(status)>(status); \
   })
 
-#define RETURN_IF_ERROR_WITH_MSG_IMPL(expr, msg)  \
-  ({                                              \
-    auto&& status = (expr);                       \
-    if (!status) {                                \
-      return std::forward<decltype(status)>(msg); \
-    }                                             \
+#define RETURN_IF_ERR_FROM_ROCKSDB(expr, error_code, format_str, with_status_string) \
+  ({                                                                                 \
+    auto&& status = (expr);                                                          \
+    if (!status.ok()) {                                                              \
+      if (with_status_string) {                                                      \
+        return {error_code, fmt::format(format_str, status.ToString())};             \
+      } else {                                                                       \
+        return {error_code, fmt::format(format_str)};                                \
+      }                                                                              \
+    }                                                                                \
   })

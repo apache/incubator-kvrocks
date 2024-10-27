@@ -164,8 +164,7 @@ Status Cluster::SetClusterNodes(const std::string &nodes_str, int64_t version, b
 
   ClusterNodes nodes;
   std::unordered_map<int, std::string> slots_nodes;
-  Status s = parseClusterNodes(nodes_str, &nodes, &slots_nodes);
-  if (!s.IsOK()) return s;
+  RETURN_IF_ERROR(parseClusterNodes(nodes_str, &nodes, &slots_nodes));
 
   // Update version and cluster topology
   version_ = version;
@@ -205,7 +204,7 @@ Status Cluster::SetClusterNodes(const std::string &nodes_str, int64_t version, b
 
   // Set replication relationship
   if (myself_) {
-    s = SetMasterSlaveRepl();
+    auto s = SetMasterSlaveRepl();
     if (!s.IsOK()) {
       return s.Prefixed("failed to set master-replica replication");
     }
@@ -346,8 +345,7 @@ Status Cluster::ImportSlotRange(redis::Connection *conn, const SlotRange &slot_r
   Status s;
   switch (state) {
     case kImportStart:
-      s = srv_->slot_import->Start(slot_range);
-      if (!s.IsOK()) return s;
+      RETURN_IF_ERROR(srv_->slot_import->Start(slot_range));
 
       // Set link importing
       conn->SetImporting();
@@ -363,13 +361,11 @@ Status Cluster::ImportSlotRange(redis::Connection *conn, const SlotRange &slot_r
       LOG(INFO) << fmt::format("[import] Start importing slot(s) {}", slot_range.String());
       break;
     case kImportSuccess:
-      s = srv_->slot_import->Success(slot_range);
-      if (!s.IsOK()) return s;
+      RETURN_IF_ERROR(srv_->slot_import->Success(slot_range));
       LOG(INFO) << fmt::format("[import] Mark the importing slot(s) {} as succeed", slot_range.String());
       break;
     case kImportFailed:
-      s = srv_->slot_import->Fail(slot_range);
-      if (!s.IsOK()) return s;
+      RETURN_IF_ERROR(srv_->slot_import->Fail(slot_range));
       LOG(INFO) << fmt::format("[import] Mark the importing slot(s) {} as failed", slot_range.String());
       break;
     default:
@@ -929,8 +925,7 @@ Status Cluster::Reset() {
     return {Status::NotOK, "Can't reset cluster while database is not empty"};
   }
   if (srv_->IsSlave()) {
-    auto s = srv_->RemoveMaster();
-    if (!s.IsOK()) return s;
+    RETURN_IF_ERROR(srv_->RemoveMaster());
   }
 
   version_ = -1;

@@ -278,8 +278,7 @@ rocksdb::Status Hash::MSet(engine::Context &ctx, const Slice &user_key, const st
 
     if (!exists) added++;
 
-    s = batch->Put(sub_key, it->value);
-    if (!s.ok()) return s;
+    RETURN_IF_ERROR(batch->Put(sub_key, it->value));
   }
 
   if (added > 0) {
@@ -287,8 +286,7 @@ rocksdb::Status Hash::MSet(engine::Context &ctx, const Slice &user_key, const st
     metadata.size += added;
     std::string bytes;
     metadata.Encode(&bytes);
-    s = batch->Put(metadata_cf_handle_, ns_key, bytes);
-    if (!s.ok()) return s;
+    RETURN_IF_ERROR(batch->Put(metadata_cf_handle_, ns_key, bytes));
   }
 
   return storage_->Write(ctx, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
