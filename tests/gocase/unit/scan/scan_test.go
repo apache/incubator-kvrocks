@@ -120,7 +120,7 @@ func ScanTest(t *testing.T, rdb *redis.Client, ctx context.Context) {
 		require.Equal(t, []string{"ab", "abb"}, keys)
 
 		keys = scanAll(t, rdb, "match", "*ab")
-		require.Equal(t, []string{"aab", "aabb", "ab", "abb"}, keys)
+		require.Equal(t, []string{"aab", "ab"}, keys)
 
 		keys = scanAll(t, rdb, "match", "*ab*")
 		require.Equal(t, []string{"aab", "aabb", "ab", "abb"}, keys)
