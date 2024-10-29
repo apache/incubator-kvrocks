@@ -495,3 +495,12 @@ rocksdb::Status HyperLogLogMetadata::Decode(Slice *input) {
 
   return rocksdb::Status::OK();
 }
+
+void TDigestMetadata::Encode(std::string *dst) const {
+  // TODO: implement it
+}
+
+rocksdb::Status TDigestMetadata::Decode(Slice *input) {
+  // TODO: implement it
+  return {};
+}
