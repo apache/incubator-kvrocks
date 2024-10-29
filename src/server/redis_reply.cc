@@ -37,7 +37,14 @@ namespace redis {
 
 void Reply(evbuffer *output, const std::string &data) { evbuffer_add(output, data.c_str(), data.length()); }
 
-std::string SimpleString(const std::string &data) { return "+" + data + CRLF; }
+std::string SimpleString(std::string_view data) {
+  std::string res;
+  res.reserve(data.size() + 3);  // 1 for '+', 2 for CRLF
+  res += RESP_PREFIX_SIMPLE_STRING;
+  res += data;
+  res += CRLF;
+  return res;
+}
 
 std::string Error(const Status &s) { return RESP_PREFIX_ERROR + StatusToRedisErrorMsg(s) + CRLF; }
 
