@@ -30,6 +30,7 @@
 
 #include "cluster/redis_slot.h"
 #include "encoding.h"
+#include "rocksdb/status.h"
 #include "time_util.h"
 
 // 52 bit for microseconds and 11 bit for counter
@@ -497,10 +498,34 @@ rocksdb::Status HyperLogLogMetadata::Decode(Slice *input) {
 }
 
 void TDigestMetadata::Encode(std::string *dst) const {
-  // TODO: implement it
+  Metadata::Encode(dst);
+  PutFixed64(dst, compression);
+  PutFixed64(dst, capcacity);
+  PutFixed64(dst, unmerged_nodes);
+  PutFixed64(dst, merged_nodes);
+  PutFixed64(dst, total_weight);
+  PutFixed64(dst, merged_weight);
+  PutFixed64(dst, total_observations);
+  PutFixed64(dst, merge_times);
 }
 
 rocksdb::Status TDigestMetadata::Decode(Slice *input) {
-  // TODO: implement it
-  return {};
+  if (auto s = Metadata::Decode(input); !s.ok()) {
+    return s;
+  }
+
+  if (input->size() < sizeof(uint64_t) * 8) {
+    return rocksdb::Status::InvalidArgument(kErrMetadataTooShort);
+  }
+
+  GetFixed64(input, &compression);
+  GetFixed64(input, &capcacity);
+  GetFixed64(input, &unmerged_nodes);
+  GetFixed64(input, &merged_nodes);
+  GetFixed64(input, &total_weight);
+  GetFixed64(input, &merged_weight);
+  GetFixed64(input, &total_observations);
+  GetFixed64(input, &merge_times);
+
+  return rocksdb::Status::OK();
 }

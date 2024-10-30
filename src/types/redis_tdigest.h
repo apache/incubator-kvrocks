@@ -4,6 +4,7 @@
 
 #include "rocksdb/db.h"
 #include "rocksdb/slice.h"
+#include "rocksdb/status.h"
 #include "storage/redis_db.h"
 #include "storage/redis_metadata.h"
 #include "storage/storage.h"
@@ -49,6 +50,7 @@ class TDigest : public SubKeyScanner {
   // rocksdb::Status Merge(engine::Context& context, const Slice& dest_digest_name, const std::vector<Slice>& sources,
   //                       const TDigestMergeOptions& options);
 
+  rocksdb::Status GetMetaData(engine::Context& context, const Slice& digest_name, TDigestMetadata* metadata);
  private:
   rocksdb::ColumnFamilyHandle* cf_handle_;
 };

@@ -351,4 +351,8 @@ class TDigestMetadata : public Metadata {
   explicit TDigestMetadata(bool generate_version = true) : Metadata(kRedisTDigest, generate_version) {}
   void Encode(std::string *dst) const override;
   rocksdb::Status Decode(Slice *input) override;
+
+  uint64_t TotalNodes() const { return merged_nodes + unmerged_nodes; }
+
+  double Delta() const { return 1. / static_cast<double>(compression); }
 };

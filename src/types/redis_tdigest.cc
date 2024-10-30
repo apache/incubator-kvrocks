@@ -1,5 +1,8 @@
 #include "redis_tdigest.h"
 
+#include "storage/redis_db.h"
+#include "storage/redis_metadata.h"
+
 namespace redis {
 rocksdb::Status TDigest::Create(engine::Context& context, const Slice& digest_name,
                                 const TDigestCreateOptions& options) {
@@ -15,5 +18,9 @@ rocksdb::Status TDigest::Create(engine::Context& context, const Slice& digest_na
 // rocksdb::Status TDigest::Info(engine::Context& context, const Slice& digest_name, TDigestInfoResult* result) {}
 // rocksdb::Status TDigest::Merge(engine::Context& context, const Slice& dest_digest_name,
 //                                const std::vector<Slice>& sources, const TDigestMergeOptions& options) {}
+
+rocksdb::Status TDigest::GetMetaData(engine::Context& context, const Slice& ns_key, TDigestMetadata* metadata) {
+  return Database::GetMetadata(context, {kRedisTDigest}, ns_key, metadata);
+}
 
 }  // namespace redis
