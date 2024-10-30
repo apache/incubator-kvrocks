@@ -1635,6 +1635,14 @@ class CommandXReadGroup : public Commander,
     redis::Stream stream_db(srv_->storage, conn_->GetNamespace());
 
     std::vector<StreamReadResult> results;
+
+    std::vector<std::string> lock_keys;
+    lock_keys.reserve(streams_.size());
+    for (auto &stream_name : streams_) {
+      auto ns_key = stream_db.AppendNamespacePrefix(stream_name);
+      lock_keys.emplace_back(std::move(ns_key));
+    }
+    MultiLockGuard guard(srv_->storage->GetLockManager(), lock_keys);
     engine::Context ctx(srv_->storage);
     for (size_t i = 0; i < streams_.size(); ++i) {
       redis::StreamRangeOptions options;

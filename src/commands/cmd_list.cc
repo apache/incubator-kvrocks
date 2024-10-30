@@ -313,6 +313,16 @@ class CommandBPop : public BlockingCommander {
     return s;
   }
 
+  std::vector<std::string> GetLockKeys() override {
+    std::vector<std::string> lock_keys;
+    lock_keys.reserve(keys_.size());
+    for (const auto &key : keys_) {
+      auto ns_key = ComposeNamespaceKey(conn_->GetNamespace(), key, srv_->storage->IsSlotIdEncoded());
+      lock_keys.emplace_back(std::move(ns_key));
+    }
+    return lock_keys;
+  }
+
   bool OnBlockingWrite() override {
     engine::Context ctx(srv_->storage);
     auto s = TryPopFromList(ctx);
@@ -434,6 +444,16 @@ class CommandBLMPop : public BlockingCommander {
     for (const auto &key : keys_) {
       srv_->UnblockOnKey(key, conn_);
     }
+  }
+
+  std::vector<std::string> GetLockKeys() override {
+    std::vector<std::string> lock_keys;
+    lock_keys.reserve(keys_.size());
+    for (const auto &key : keys_) {
+      auto ns_key = ComposeNamespaceKey(conn_->GetNamespace(), key, srv_->storage->IsSlotIdEncoded());
+      lock_keys.emplace_back(std::move(ns_key));
+    }
+    return lock_keys;
   }
 
   bool OnBlockingWrite() override {
@@ -766,6 +786,15 @@ class CommandBLMove : public BlockingCommander {
   void BlockKeys() override { srv_->BlockOnKey(args_[1], conn_); }
 
   void UnblockKeys() override { srv_->UnblockOnKey(args_[1], conn_); }
+
+  std::vector<std::string> GetLockKeys() override {
+    std::vector<std::string> lock_keys{
+        ComposeNamespaceKey(conn_->GetNamespace(), args_[1], srv_->storage->IsSlotIdEncoded())};
+    if (args_[1] != args_[2]) {
+      lock_keys.emplace_back(ComposeNamespaceKey(conn_->GetNamespace(), args_[2], srv_->storage->IsSlotIdEncoded()));
+    }
+    return lock_keys;
+  }
 
   bool OnBlockingWrite() override {
     redis::List list_db(srv_->storage, conn_->GetNamespace());

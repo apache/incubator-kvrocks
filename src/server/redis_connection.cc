@@ -502,7 +502,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       if (cmd_flags & kCmdWrite) {
         std::vector<std::string> lock_keys;
         attributes->ForEachKeyRange(
-            [&, this](const std::vector<std::string> &args, const CommandKeyRange &key_range) {
+            [&lock_keys, this](const std::vector<std::string> &args, const CommandKeyRange &key_range) {
               key_range.ForEachKey(
                   [&, this](const std::string &key) {
                     auto ns_key = ComposeNamespaceKey(ns_, key, srv_->storage->IsSlotIdEncoded());
