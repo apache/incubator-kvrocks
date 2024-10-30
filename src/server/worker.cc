@@ -22,6 +22,7 @@
 
 #include <event2/util.h>
 #include <glog/logging.h>
+#include <unistd.h>
 
 #include <stdexcept>
 #include <string>
@@ -30,7 +31,6 @@
 #include "io_util.h"
 #include "scope_exit.h"
 #include "thread_util.h"
-#include "time_util.h"
 
 #ifdef ENABLE_OPENSSL
 #include <event2/bufferevent_ssl.h>
@@ -44,7 +44,6 @@
 #include <sys/un.h>
 
 #include <algorithm>
-#include <list>
 #include <utility>
 
 #include "redis_connection.h"
@@ -59,17 +58,22 @@ Worker::Worker(Server *srv, Config *config) : srv(srv), base_(event_base_new()) 
   timeval tm = {10, 0};
   evtimer_add(timer_.get(), &tm);
 
-  uint32_t ports[3] = {config->port, config->tls_port, 0};
-  auto binds = config->binds;
+  if (config->socket_fd != -1) {
+    if (const Status s = listenFD(config->socket_fd, config->port, config->backlog); !s.IsOK()) {
+      LOG(ERROR) << "[worker] Failed to listen to socket with fd: " << config->socket_fd << ". Error: " << s.Msg();
+      exit(1);
+    }
+  } else {
+    const uint32_t ports[3] = {config->port, config->tls_port, 0};
 
-  for (uint32_t *port = ports; *port; ++port) {
-    for (const auto &bind : binds) {
-      Status s = listenTCP(bind, *port, config->backlog);
-      if (!s.IsOK()) {
-        LOG(ERROR) << "[worker] Failed to listen on: " << bind << ":" << *port << ". Error: " << s.Msg();
-        exit(1);
+    for (const uint32_t *port = ports; *port; ++port) {
+      for (const auto &bind : config->binds) {
+        if (const Status s = listenTCP(bind, *port, config->backlog); !s.IsOK()) {
+          LOG(ERROR) << "[worker] Failed to listen on: " << bind << ":" << *port << ". Error: " << s.Msg();
+          exit(1);
+        }
+        LOG(INFO) << "[worker] Listening on: " << bind << ":" << *port;
       }
-      LOG(INFO) << "[worker] Listening on: " << bind << ":" << *port;
     }
   }
   lua_ = lua::CreateState(srv);
@@ -214,6 +218,22 @@ void Worker::newUnixSocketConnection(evconnlistener *listener, evutil_socket_t f
   if (rate_limit_group_) {
     bufferevent_add_to_rate_limit_group(bev, rate_limit_group_);
   }
+}
+
+Status Worker::listenFD(int fd, uint32_t expected_port, int backlog) {
+  const uint32_t port = util::GetLocalPort(fd);
+  if (port != expected_port) {
+    return {Status::NotOK, "The port of the provided socket fd doesn't match the configured port"};
+  }
+  const int dup_fd = dup(fd);
+  if (dup_fd == -1) {
+    return {Status::NotOK, evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR())};
+  }
+  evconnlistener *lev =
+      NewEvconnlistener<&Worker::newTCPConnection>(base_, LEV_OPT_THREADSAFE | LEV_OPT_CLOSE_ON_FREE, backlog, dup_fd);
+  listen_events_.emplace_back(lev);
+  LOG(INFO) << "Listening on dup'ed fd: " << dup_fd;
+  return Status::OK();
 }
 
 Status Worker::listenTCP(const std::string &host, uint32_t port, int backlog) {

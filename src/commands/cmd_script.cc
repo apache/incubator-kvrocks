@@ -130,6 +130,6 @@ REDIS_REGISTER_COMMANDS(
     MakeCmdAttr<CommandEvalSHA>("evalsha", -3, "exclusive write no-script", GetScriptEvalKeyRange),
     MakeCmdAttr<CommandEvalRO>("eval_ro", -3, "read-only no-script ro-script", GetScriptEvalKeyRange),
     MakeCmdAttr<CommandEvalSHARO>("evalsha_ro", -3, "read-only no-script ro-script", GetScriptEvalKeyRange),
-    MakeCmdAttr<CommandScript>("script", -2, "exclusive no-script", 0, 0, 0), )
+    MakeCmdAttr<CommandScript>("script", -2, "exclusive no-script", NO_KEY), )
 
 }  // namespace redis

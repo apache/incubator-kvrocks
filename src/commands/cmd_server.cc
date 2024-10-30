@@ -23,6 +23,8 @@
 #include "commands/scan_base.h"
 #include "common/io_util.h"
 #include "common/rdb_stream.h"
+#include "common/string_util.h"
+#include "common/time_util.h"
 #include "config/config.h"
 #include "error_constants.h"
 #include "server/redis_connection.h"
@@ -30,8 +32,6 @@
 #include "server/server.h"
 #include "stats/disk_stats.h"
 #include "storage/rdb/rdb.h"
-#include "string_util.h"
-#include "time_util.h"
 
 namespace redis {
 
@@ -114,20 +114,15 @@ class CommandNamespace : public Commander {
 class CommandKeys : public Commander {
  public:
   Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
-    std::string prefix = args_[1];
+    const std::string &glob_pattern = args_[1];
     std::vector<std::string> keys;
     redis::Database redis(srv->storage, conn->GetNamespace());
 
-    rocksdb::Status s;
-    if (prefix == "*") {
-      s = redis.Keys(ctx, std::string(), &keys);
-    } else {
-      if (prefix[prefix.size() - 1] != '*') {
-        return {Status::RedisExecErr, "only keys prefix match was supported"};
-      }
-
-      s = redis.Keys(ctx, prefix.substr(0, prefix.size() - 1), &keys);
+    if (const Status s = util::ValidateGlob(glob_pattern); !s.IsOK()) {
+      return {Status::RedisParseErr, "Invalid glob pattern: " + s.Msg()};
     }
+    const auto [prefix, suffix_glob] = util::SplitGlob(glob_pattern);
+    const rocksdb::Status s = redis.Keys(ctx, prefix, suffix_glob, &keys);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
     }
@@ -681,18 +676,16 @@ class CommandCommand : public Commander {
           return {Status::RedisUnknownCmd, "Invalid command specified"};
         }
 
-        std::vector<int> keys_indexes;
-        auto s = CommandTable::GetKeysFromCommand(
-            cmd_iter->second, std::vector<std::string>(args_.begin() + 2, args_.end()), &keys_indexes);
-        if (!s.IsOK()) return s;
+        auto key_indexes = GET_OR_RET(CommandTable::GetKeysFromCommand(
+            cmd_iter->second, std::vector<std::string>(args_.begin() + 2, args_.end())));
 
-        if (keys_indexes.size() == 0) {
+        if (key_indexes.size() == 0) {
           return {Status::RedisExecErr, "Invalid arguments specified for command"};
         }
 
         std::vector<std::string> keys;
-        keys.reserve(keys_indexes.size());
-        for (const auto &key_index : keys_indexes) {
+        keys.reserve(key_indexes.size());
+        for (const auto &key_index : key_indexes) {
           keys.emplace_back(args_[key_index + 2]);
         }
         *output = conn->MultiBulkString(keys);
@@ -853,7 +846,7 @@ class CommandScan : public CommandScanBase {
     std::vector<std::string> keys;
     std::string end_key;
 
-    auto s = redis_db.Scan(ctx, key_name, limit_, prefix_, &keys, &end_key, type_);
+    const auto s = redis_db.Scan(ctx, key_name, limit_, prefix_, suffix_glob_, &keys, &end_key, type_);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
     }
@@ -1336,43 +1329,43 @@ class CommandPollUpdates : public Commander {
   Format format_ = Format::Raw;
 };
 
-REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only ok-loading", 0, 0, 0),
-                        MakeCmdAttr<CommandPing>("ping", -1, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandSelect>("select", 2, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandInfo>("info", -1, "read-only ok-loading", 0, 0, 0),
-                        MakeCmdAttr<CommandRole>("role", 1, "read-only ok-loading", 0, 0, 0),
-                        MakeCmdAttr<CommandConfig>("config", -2, "read-only", 0, 0, 0, GenerateConfigFlag),
-                        MakeCmdAttr<CommandNamespace>("namespace", -3, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandKeys>("keys", 2, "read-only slow", 0, 0, 0),
-                        MakeCmdAttr<CommandFlushDB>("flushdb", 1, "write no-dbsize-check", 0, 0, 0),
-                        MakeCmdAttr<CommandFlushAll>("flushall", 1, "write no-dbsize-check", 0, 0, 0),
-                        MakeCmdAttr<CommandDBSize>("dbsize", -1, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandSlowlog>("slowlog", -2, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandPerfLog>("perflog", -2, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandClient>("client", -2, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandMonitor>("monitor", 1, "read-only no-multi", 0, 0, 0),
-                        MakeCmdAttr<CommandShutdown>("shutdown", 1, "read-only no-multi no-script", 0, 0, 0),
-                        MakeCmdAttr<CommandQuit>("quit", 1, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandScan>("scan", -2, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandRandomKey>("randomkey", 1, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandDebug>("debug", -2, "read-only exclusive", 0, 0, 0),
-                        MakeCmdAttr<CommandCommand>("command", -1, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandEcho>("echo", 2, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandTime>("time", 1, "read-only ok-loading", 0, 0, 0),
-                        MakeCmdAttr<CommandDisk>("disk", 3, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandMemory>("memory", 3, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandHello>("hello", -1, "read-only ok-loading", 0, 0, 0),
+REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only ok-loading", NO_KEY),
+                        MakeCmdAttr<CommandPing>("ping", -1, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandSelect>("select", 2, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandInfo>("info", -1, "read-only ok-loading", NO_KEY),
+                        MakeCmdAttr<CommandRole>("role", 1, "read-only ok-loading", NO_KEY),
+                        MakeCmdAttr<CommandConfig>("config", -2, "read-only", NO_KEY, GenerateConfigFlag),
+                        MakeCmdAttr<CommandNamespace>("namespace", -3, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandKeys>("keys", 2, "read-only slow", NO_KEY),
+                        MakeCmdAttr<CommandFlushDB>("flushdb", 1, "write no-dbsize-check exclusive", NO_KEY),
+                        MakeCmdAttr<CommandFlushAll>("flushall", 1, "write no-dbsize-check exclusive", NO_KEY),
+                        MakeCmdAttr<CommandDBSize>("dbsize", -1, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandSlowlog>("slowlog", -2, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandPerfLog>("perflog", -2, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandClient>("client", -2, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandMonitor>("monitor", 1, "read-only no-multi", NO_KEY),
+                        MakeCmdAttr<CommandShutdown>("shutdown", 1, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandQuit>("quit", 1, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandScan>("scan", -2, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandRandomKey>("randomkey", 1, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandDebug>("debug", -2, "read-only exclusive", NO_KEY),
+                        MakeCmdAttr<CommandCommand>("command", -1, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandEcho>("echo", 2, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandTime>("time", 1, "read-only ok-loading", NO_KEY),
+                        MakeCmdAttr<CommandDisk>("disk", 3, "read-only", 2, 2, 1),
+                        MakeCmdAttr<CommandMemory>("memory", 3, "read-only", 2, 2, 1),
+                        MakeCmdAttr<CommandHello>("hello", -1, "read-only ok-loading", NO_KEY),
                         MakeCmdAttr<CommandRestore>("restore", -4, "write", 1, 1, 1),
 
-                        MakeCmdAttr<CommandCompact>("compact", 1, "read-only no-script", 0, 0, 0),
-                        MakeCmdAttr<CommandBGSave>("bgsave", 1, "read-only no-script", 0, 0, 0),
-                        MakeCmdAttr<CommandLastSave>("lastsave", 1, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandFlushBackup>("flushbackup", 1, "read-only no-script", 0, 0, 0),
-                        MakeCmdAttr<CommandSlaveOf>("slaveof", 3, "read-only exclusive no-script", 0, 0, 0),
-                        MakeCmdAttr<CommandStats>("stats", 1, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandRdb>("rdb", -3, "write exclusive", 0, 0, 0),
-                        MakeCmdAttr<CommandReset>("reset", 1, "ok-loading multi no-script pub-sub", 0, 0, 0),
-                        MakeCmdAttr<CommandApplyBatch>("applybatch", -2, "write no-multi", 0, 0, 0),
-                        MakeCmdAttr<CommandDump>("dump", 2, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandPollUpdates>("pollupdates", -2, "read-only", 0, 0, 0), )
+                        MakeCmdAttr<CommandCompact>("compact", 1, "read-only no-script", NO_KEY),
+                        MakeCmdAttr<CommandBGSave>("bgsave", 1, "read-only no-script", NO_KEY),
+                        MakeCmdAttr<CommandLastSave>("lastsave", 1, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandFlushBackup>("flushbackup", 1, "read-only no-script", NO_KEY),
+                        MakeCmdAttr<CommandSlaveOf>("slaveof", 3, "read-only exclusive no-script", NO_KEY),
+                        MakeCmdAttr<CommandStats>("stats", 1, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandRdb>("rdb", -3, "write exclusive", NO_KEY),
+                        MakeCmdAttr<CommandReset>("reset", 1, "ok-loading multi no-script pub-sub", NO_KEY),
+                        MakeCmdAttr<CommandApplyBatch>("applybatch", -2, "write no-multi", NO_KEY),
+                        MakeCmdAttr<CommandDump>("dump", 2, "read-only", 1, 1, 1),
+                        MakeCmdAttr<CommandPollUpdates>("pollupdates", -2, "read-only", NO_KEY), )
 }  // namespace redis

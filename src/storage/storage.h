@@ -94,6 +94,11 @@ inline const std::vector<CompressionOption> CompressionOptions = {
     {rocksdb::kZSTD, "zstd", "kZSTD"},
 };
 
+inline const std::vector<CompressionOption> WalCompressionOptions = {
+    {rocksdb::kNoCompression, "no", "kNoCompression"},
+    {rocksdb::kZSTD, "zstd", "kZSTD"},
+};
+
 struct CacheOption {
   BlockCacheType type;
   const std::string name;
@@ -381,11 +386,7 @@ class Storage {
 /// Context does not provide thread safety guarantees and is generally only passed as a parameter between APIs.
 struct Context {
   engine::Storage *storage = nullptr;
-  /// If is_txn_mode is true, snapshot should be specified instead of nullptr when used,
-  /// and should be consistent with snapshot in ReadOptions to avoid ambiguity.
-  /// Normally it will be fixed to the latest Snapshot when the Context is constructed.
-  /// If is_txn_mode is false, the snapshot is nullptr.
-  const rocksdb::Snapshot *snapshot = nullptr;
+
   std::unique_ptr<rocksdb::WriteBatchWithIndex> batch = nullptr;
 
   /// is_txn_mode is used to determine whether the current Context is in transactional mode,
@@ -398,30 +399,23 @@ struct Context {
 
   /// GetReadOptions returns a default ReadOptions, and if is_txn_mode = true, then its snapshot is specified by the
   /// Context
-  [[nodiscard]] rocksdb::ReadOptions GetReadOptions() const;
+  [[nodiscard]] rocksdb::ReadOptions GetReadOptions();
   /// DefaultScanOptions returns a DefaultScanOptions, and if is_txn_mode = true, then its snapshot is specified by the
   /// Context. Otherwise it is the same as Storage::DefaultScanOptions
-  [[nodiscard]] rocksdb::ReadOptions DefaultScanOptions() const;
+  [[nodiscard]] rocksdb::ReadOptions DefaultScanOptions();
   /// DefaultMultiGetOptions returns a DefaultMultiGetOptions, and if is_txn_mode = true, then its snapshot is specified
   /// by the Context. Otherwise it is the same as Storage::DefaultMultiGetOptions
-  [[nodiscard]] rocksdb::ReadOptions DefaultMultiGetOptions() const;
+  [[nodiscard]] rocksdb::ReadOptions DefaultMultiGetOptions();
 
   void RefreshLatestSnapshot();
 
   /// TODO: Change it to defer getting the context, and the snapshot is pinned after the first read operation
-  explicit Context(engine::Storage *storage) : storage(storage) {
-    auto guard = storage->ReadLockGuard();
-    if (!storage->GetConfig()->txn_context_enabled) {
-      is_txn_mode = false;
-      return;
-    }
-    snapshot = storage->GetDB()->GetSnapshot();  // NOLINT
-  }
+  explicit Context(engine::Storage *storage)
+      : storage(storage), is_txn_mode(storage->GetConfig()->txn_context_enabled) {}
   ~Context() {
     if (storage) {
-      auto guard = storage->WriteLockGuard();
-      if (storage->GetDB() && snapshot) {
-        storage->GetDB()->ReleaseSnapshot(snapshot);
+      if (snapshot_ && storage->GetDB()) {
+        storage->GetDB()->ReleaseSnapshot(snapshot_);
       }
     }
   }
@@ -430,22 +424,37 @@ struct Context {
   Context &operator=(Context &&ctx) noexcept {
     if (this != &ctx) {
       storage = ctx.storage;
-      snapshot = ctx.snapshot;
+      snapshot_ = ctx.snapshot_;
       batch = std::move(ctx.batch);
 
       ctx.storage = nullptr;
-      ctx.snapshot = nullptr;
+      ctx.snapshot_ = nullptr;
     }
     return *this;
   }
-  Context(Context &&ctx) noexcept : storage(ctx.storage), snapshot(ctx.snapshot), batch(std::move(ctx.batch)) {
+  Context(Context &&ctx) noexcept : storage(ctx.storage), batch(std::move(ctx.batch)), snapshot_(ctx.snapshot_) {
     ctx.storage = nullptr;
-    ctx.snapshot = nullptr;
+    ctx.snapshot_ = nullptr;
+  }
+
+  // GetSnapshot will create a snapshot first if it doesn't exist,
+  // and it's not a thread-safe operation.
+  const rocksdb::Snapshot *GetSnapshot() {
+    if (snapshot_ == nullptr) {
+      snapshot_ = storage->GetDB()->GetSnapshot();  // NOLINT
+    }
+    return snapshot_;
   }
 
  private:
   /// It is only used by NonTransactionContext
   explicit Context(engine::Storage *storage, bool txn_mode) : storage(storage), is_txn_mode(txn_mode) {}
+
+  /// If is_txn_mode is true, snapshot should be specified instead of nullptr when used,
+  /// and should be consistent with snapshot in ReadOptions to avoid ambiguity.
+  /// Normally it will be fixed to the latest Snapshot when the Context is constructed.
+  /// If is_txn_mode is false, the snapshot is nullptr.
+  const rocksdb::Snapshot *snapshot_ = nullptr;
 };
 
 }  // namespace engine

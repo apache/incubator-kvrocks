@@ -358,10 +358,10 @@ class CommandAsking : public Commander {
 };
 
 REDIS_REGISTER_COMMANDS(Cluster,
-                        MakeCmdAttr<CommandCluster>("cluster", -2, "cluster no-script", 0, 0, 0, GenerateClusterFlag),
-                        MakeCmdAttr<CommandClusterX>("clusterx", -2, "cluster no-script", 0, 0, 0, GenerateClusterFlag),
-                        MakeCmdAttr<CommandReadOnly>("readonly", 1, "cluster no-multi", 0, 0, 0),
-                        MakeCmdAttr<CommandReadWrite>("readwrite", 1, "cluster no-multi", 0, 0, 0),
-                        MakeCmdAttr<CommandAsking>("asking", 1, "cluster", 0, 0, 0), )
+                        MakeCmdAttr<CommandCluster>("cluster", -2, "cluster no-script", NO_KEY, GenerateClusterFlag),
+                        MakeCmdAttr<CommandClusterX>("clusterx", -2, "cluster no-script", NO_KEY, GenerateClusterFlag),
+                        MakeCmdAttr<CommandReadOnly>("readonly", 1, "cluster no-multi", NO_KEY),
+                        MakeCmdAttr<CommandReadWrite>("readwrite", 1, "cluster no-multi", NO_KEY),
+                        MakeCmdAttr<CommandAsking>("asking", 1, "cluster", NO_KEY), )
 
 }  // namespace redis

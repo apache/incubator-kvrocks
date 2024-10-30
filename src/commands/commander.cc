@@ -48,11 +48,12 @@ std::string CommandTable::GetCommandInfo(const CommandAttributes *command_attrib
   command.append(redis::BulkString(command_attributes->name));
   command.append(redis::Integer(command_attributes->arity));
   command_flags.append(redis::MultiLen(1));
-  command_flags.append(redis::BulkString(command_attributes->flags & kCmdWrite ? "write" : "readonly"));
+  command_flags.append(redis::BulkString(command_attributes->InitialFlags() & kCmdWrite ? "write" : "readonly"));
   command.append(command_flags);
-  command.append(redis::Integer(command_attributes->key_range.first_key));
-  command.append(redis::Integer(command_attributes->key_range.last_key));
-  command.append(redis::Integer(command_attributes->key_range.key_step));
+  auto key_range = command_attributes->InitialKeyRange().ValueOr({0, 0, 0});
+  command.append(redis::Integer(key_range.first_key));
+  command.append(redis::Integer(key_range.last_key));
+  command.append(redis::Integer(key_range.key_step));
   return command;
 }
 
@@ -79,40 +80,31 @@ void CommandTable::GetCommandsInfo(std::string *info, const std::vector<std::str
   }
 }
 
-void DumpKeyRange(std::vector<int> &keys_index, int argc, const CommandKeyRange &range) {
-  auto last = range.last_key;
-  if (last < 0) last = argc + last;
-
-  for (int i = range.first_key; i <= last; i += range.key_step) {
-    keys_index.emplace_back(i);
-  }
-}
-
-Status CommandTable::GetKeysFromCommand(const CommandAttributes *attributes, const std::vector<std::string> &cmd_tokens,
-                                        std::vector<int> *keys_index) {
-  if (attributes->key_range.first_key == 0) {
-    return {Status::NotOK, "The command has no key arguments"};
-  }
-
+StatusOr<std::vector<int>> CommandTable::GetKeysFromCommand(const CommandAttributes *attributes,
+                                                            const std::vector<std::string> &cmd_tokens) {
   int argc = static_cast<int>(cmd_tokens.size());
 
-  if ((attributes->arity > 0 && attributes->arity != argc) || argc < -attributes->arity) {
+  if (!attributes->CheckArity(argc)) {
     return {Status::NotOK, "Invalid number of arguments specified for command"};
   }
 
-  if (attributes->key_range.first_key > 0) {
-    DumpKeyRange(*keys_index, argc, attributes->key_range);
-  } else if (attributes->key_range.first_key == -1) {
-    DumpKeyRange(*keys_index, argc, attributes->key_range_gen(cmd_tokens));
-  } else if (attributes->key_range.first_key == -2) {
-    for (const auto &range : attributes->key_range_vec_gen(cmd_tokens)) {
-      DumpKeyRange(*keys_index, argc, range);
-    }
-  } else {
-    return {Status::NotOK, "The key range specification is invalid"};
+  Status status;
+  std::vector<int> key_indexes;
+
+  attributes->ForEachKeyRange(
+      [&](const std::vector<std::string> &, CommandKeyRange key_range) {
+        key_range.ForEachKeyIndex([&](int i) { key_indexes.push_back(i); }, cmd_tokens.size());
+      },
+      cmd_tokens,
+      [&](const auto &) {
+        status = {Status::NotOK, "The command has no key arguments"};
+      });
+
+  if (!status) {
+    return status;
   }
 
-  return Status::OK();
+  return key_indexes;
 }
 
 bool CommandTable::IsExists(const std::string &name) {

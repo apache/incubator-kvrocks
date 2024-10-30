@@ -509,15 +509,15 @@ class CommandFTTagVals : public Commander {
 };
 
 REDIS_REGISTER_COMMANDS(Search,
-                        MakeCmdAttr<CommandFTCreate>("ft.create", -2, "write exclusive no-multi no-script slow", 0, 0,
-                                                     0),
-                        MakeCmdAttr<CommandFTSearchSQL>("ft.searchsql", -2, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandFTSearch>("ft.search", -3, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandFTExplainSQL>("ft.explainsql", -2, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandFTExplain>("ft.explain", -3, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandFTInfo>("ft.info", 2, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandFTList>("ft._list", 1, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandFTDrop>("ft.dropindex", 2, "write exclusive no-multi no-script", 0, 0, 0),
-                        MakeCmdAttr<CommandFTTagVals>("ft.tagvals", 3, "read-only slow", 0, 0, 0));
+                        MakeCmdAttr<CommandFTCreate>("ft.create", -2, "write exclusive no-multi no-script slow",
+                                                     NO_KEY),
+                        MakeCmdAttr<CommandFTSearchSQL>("ft.searchsql", -2, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandFTSearch>("ft.search", -3, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandFTExplainSQL>("ft.explainsql", -2, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandFTExplain>("ft.explain", -3, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandFTInfo>("ft.info", 2, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandFTList>("ft._list", 1, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandFTDrop>("ft.dropindex", 2, "write exclusive no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandFTTagVals>("ft.tagvals", 3, "read-only slow", NO_KEY));
 
 }  // namespace redis

@@ -27,7 +27,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <iostream>
 #include <lua.hpp>
 #include <map>
 #include <memory>
@@ -36,9 +35,9 @@
 #include <utility>
 #include <vector>
 
+#include "config/config.h"
 #include "event_util.h"
 #include "redis_connection.h"
-#include "storage/storage.h"
 
 class Server;
 
@@ -79,6 +78,7 @@ class Worker : EventCallbackBase<Worker>, EvconnlistenerBase<Worker> {
   Server *srv;
 
  private:
+  Status listenFD(int fd, uint32_t expected_port, int backlog);
   Status listenTCP(const std::string &host, uint32_t port, int backlog);
   void newTCPConnection(evconnlistener *listener, evutil_socket_t fd, sockaddr *address, int socklen);
   void newUnixSocketConnection(evconnlistener *listener, evutil_socket_t fd, sockaddr *address, int socklen);

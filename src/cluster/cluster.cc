@@ -828,16 +828,16 @@ bool Cluster::IsWriteForbiddenSlot(int slot) const {
 
 Status Cluster::CanExecByMySelf(const redis::CommandAttributes *attributes, const std::vector<std::string> &cmd_tokens,
                                 redis::Connection *conn, lua::ScriptRunCtx *script_run_ctx) {
-  std::vector<int> keys_indexes;
+  std::vector<int> key_indexes;
 
-  // No keys
-  if (auto s = redis::CommandTable::GetKeysFromCommand(attributes, cmd_tokens, &keys_indexes); !s.IsOK())
-    return Status::OK();
+  auto s = redis::CommandTable::GetKeysFromCommand(attributes, cmd_tokens);
+  if (!s) return Status::OK();
+  key_indexes = *s;
 
-  if (keys_indexes.empty()) return Status::OK();
+  if (key_indexes.empty()) return Status::OK();
 
   int slot = -1;
-  for (auto i : keys_indexes) {
+  for (auto i : key_indexes) {
     if (i >= static_cast<int>(cmd_tokens.size())) break;
 
     int cur_slot = GetSlotIdFromKey(cmd_tokens[i]);
@@ -867,6 +867,8 @@ Status Cluster::CanExecByMySelf(const redis::CommandAttributes *attributes, cons
     cross_slot_ok = true;
   }
 
+  uint64_t flags = attributes->GenerateFlags(cmd_tokens);
+
   if (myself_ && myself_ == slots_nodes_[slot]) {
     // We use central controller to manage the topology of the cluster.
     // Server can't change the topology directly, so we record the migrated slots
@@ -876,7 +878,7 @@ Status Cluster::CanExecByMySelf(const redis::CommandAttributes *attributes, cons
     }
     // To keep data consistency, slot will be forbidden write while sending the last incremental data.
     // During this phase, the requests of the migrating slot has to be rejected.
-    if ((attributes->flags & redis::kCmdWrite) && IsWriteForbiddenSlot(slot)) {
+    if ((flags & redis::kCmdWrite) && IsWriteForbiddenSlot(slot)) {
       return {Status::RedisTryAgain, "Can't write to slot being migrated which is in write forbidden phase"};
     }
 
@@ -899,7 +901,7 @@ Status Cluster::CanExecByMySelf(const redis::CommandAttributes *attributes, cons
     return Status::OK();  // I'm serving the imported slot
   }
 
-  if (myself_ && myself_->role == kClusterSlave && !(attributes->flags & redis::kCmdWrite) &&
+  if (myself_ && myself_->role == kClusterSlave && !(flags & redis::kCmdWrite) &&
       nodes_.find(myself_->master_id) != nodes_.end() && nodes_[myself_->master_id] == slots_nodes_[slot] &&
       conn->IsFlagEnabled(redis::Connection::kReadOnly)) {
     return Status::OK();  // My master is serving this slot
