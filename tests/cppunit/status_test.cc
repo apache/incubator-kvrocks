@@ -226,3 +226,31 @@ TEST(StatusOr, Prefixed) {
   ASSERT_EQ(g(-2).Msg(), "oh: hi");
   ASSERT_EQ(*g(5), 36);
 }
+
+TEST(GetOrRet, RocksdbStatus) {
+  auto f = [](int x) -> Status {
+    if (x < 10) return {Status::NotOK};
+    return Status::OK();
+  };
+
+  auto g = [&f](int x) -> Status {
+    GET_OR_RET(f(x));
+    return Status::OK();
+  };
+
+  ASSERT_TRUE(g(10));
+  ASSERT_FALSE(g(1));
+
+  auto f2 = [](int x) -> rocksdb::Status {
+    if (x < 10) return rocksdb::Status::InvalidArgument("");
+    return rocksdb::Status::OK();
+  };
+
+  auto g2 = [&f2](int x) -> rocksdb::Status {
+    GET_OR_RET(f2(x));
+    return rocksdb::Status::OK();
+  };
+
+  ASSERT_TRUE(g2(10).ok());
+  ASSERT_FALSE(g2(1).ok());
+}

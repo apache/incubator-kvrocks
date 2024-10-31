@@ -75,7 +75,7 @@ struct CommandFunction : Commander {
       auto s = lua::FunctionDelete(ctx, srv, libname);
       if (!s) return s;
 
-      *output = SimpleString("OK");
+      *output = RESP_OK;
       return Status::OK();
     } else {
       return {Status::NotOK, "no such subcommand"};

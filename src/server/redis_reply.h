@@ -24,6 +24,7 @@
 
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "rocksdb/status.h"
@@ -39,7 +40,9 @@ namespace redis {
 enum class RESP { v2, v3 };
 
 void Reply(evbuffer *output, const std::string &data);
-std::string SimpleString(const std::string &data);
+std::string SimpleString(std::string_view data);
+
+static const inline std::string RESP_OK = RESP_PREFIX_SIMPLE_STRING "OK" CRLF;
 
 std::string Error(const Status &s);
 std::string StatusToRedisErrorMsg(const Status &s);

@@ -66,7 +66,7 @@ void SyncMigrateContext::TimerCB(int, [[maybe_unused]] int16_t events) {
 
 void SyncMigrateContext::OnWrite(bufferevent *bev) {
   if (migrate_result_) {
-    conn_->Reply(redis::SimpleString("OK"));
+    conn_->Reply(redis::RESP_OK);
   } else {
     conn_->Reply(redis::Error(migrate_result_));
   }

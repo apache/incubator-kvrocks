@@ -249,7 +249,7 @@ class CommandHMSet : public Commander {
     if (GetAttributes()->name == "hset") {
       *output = redis::Integer(ret);
     } else {
-      *output = redis::SimpleString("OK");
+      *output = redis::RESP_OK;
     }
     return Status::OK();
   }
