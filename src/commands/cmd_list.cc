@@ -313,14 +313,14 @@ class CommandBPop : public BlockingCommander {
     return s;
   }
 
-  std::vector<std::string> GetLockKeys() override {
+  MultiLockGuard GetLocks() override {
     std::vector<std::string> lock_keys;
     lock_keys.reserve(keys_.size());
     for (const auto &key : keys_) {
       auto ns_key = ComposeNamespaceKey(conn_->GetNamespace(), key, srv_->storage->IsSlotIdEncoded());
       lock_keys.emplace_back(std::move(ns_key));
     }
-    return lock_keys;
+    return MultiLockGuard(srv_->storage->GetLockManager(), lock_keys);
   }
 
   bool OnBlockingWrite() override {
@@ -446,14 +446,14 @@ class CommandBLMPop : public BlockingCommander {
     }
   }
 
-  std::vector<std::string> GetLockKeys() override {
+  MultiLockGuard GetLocks() override {
     std::vector<std::string> lock_keys;
     lock_keys.reserve(keys_.size());
     for (const auto &key : keys_) {
       auto ns_key = ComposeNamespaceKey(conn_->GetNamespace(), key, srv_->storage->IsSlotIdEncoded());
       lock_keys.emplace_back(std::move(ns_key));
     }
-    return lock_keys;
+    return MultiLockGuard(srv_->storage->GetLockManager(), lock_keys);
   }
 
   bool OnBlockingWrite() override {
@@ -787,13 +787,13 @@ class CommandBLMove : public BlockingCommander {
 
   void UnblockKeys() override { srv_->UnblockOnKey(args_[1], conn_); }
 
-  std::vector<std::string> GetLockKeys() override {
+  MultiLockGuard GetLocks() override {
     std::vector<std::string> lock_keys{
         ComposeNamespaceKey(conn_->GetNamespace(), args_[1], srv_->storage->IsSlotIdEncoded())};
     if (args_[1] != args_[2]) {
       lock_keys.emplace_back(ComposeNamespaceKey(conn_->GetNamespace(), args_[2], srv_->storage->IsSlotIdEncoded()));
     }
-    return lock_keys;
+    return MultiLockGuard(srv_->storage->GetLockManager(), lock_keys);
   }
 
   bool OnBlockingWrite() override {

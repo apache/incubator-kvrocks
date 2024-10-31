@@ -21,11 +21,9 @@
 #pragma once
 
 #include "commander.h"
+#include "common/lock_manager.h"
 #include "event_util.h"
 #include "server/redis_connection.h"
-#include "server/server.h"
-
-class MultiLockGuard;
 
 namespace redis {
 
@@ -47,9 +45,9 @@ class BlockingCommander : public Commander,
   // in other words, returning true indicates ending the blocking
   virtual bool OnBlockingWrite() = 0;
 
-  // method to get keys to be locked
+  // method to lock the keys of the BlockingCommander with MultiLockGuard
   // when OnWrite is triggered, BlockingCommander needs to relock the keys
-  virtual std::vector<std::string> GetLockKeys() = 0;
+  virtual MultiLockGuard GetLocks() = 0;
 
   // to start the blocking process
   // usually put to the end of the Execute method
@@ -70,7 +68,7 @@ class BlockingCommander : public Commander,
   }
 
   void OnWrite(bufferevent *bev) {
-    MultiLockGuard guard(conn_->GetServer()->storage->GetLockManager(), GetLockKeys());
+    auto guard = GetLocks();
     bool done = OnBlockingWrite();
 
     if (!done) {
