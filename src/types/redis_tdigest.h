@@ -25,7 +25,9 @@ struct CentroidWithKey {
   rocksdb::Slice key;
 };
 
-struct TDigestCreateOptions {};
+struct TDigestCreateOptions {
+  uint64_t compression;
+};
 
 struct TDigestMergeOptions {};
 
@@ -40,7 +42,8 @@ class TDigest : public SubKeyScanner {
   using Slice = rocksdb::Slice;
   explicit TDigest(engine::Storage* storage, const std::string& ns)
       : SubKeyScanner(storage, ns), cf_handle_(storage->GetCFHandle(ColumnFamilyID::TDigest)) {}
-  rocksdb::Status Create(engine::Context& context, const Slice& digest_name, const TDigestCreateOptions& options);
+  std::optional<rocksdb::Status> Create(engine::Context& context, const Slice& digest_name,
+                                        const TDigestCreateOptions& options);
   // rocksdb::Status Add(engine::Context& context, const Slice& digest_name, const std::vector<Centroid>& centroids);
   // rocksdb::Status Cdf(engine::Context& context, const Slice& digest_name, const std::vector<double>& numbers,
   //                     TDigestCDFResult* result);
@@ -51,6 +54,7 @@ class TDigest : public SubKeyScanner {
   //                       const TDigestMergeOptions& options);
 
   rocksdb::Status GetMetaData(engine::Context& context, const Slice& digest_name, TDigestMetadata* metadata);
+
  private:
   rocksdb::ColumnFamilyHandle* cf_handle_;
 };
