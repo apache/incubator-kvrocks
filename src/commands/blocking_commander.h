@@ -45,8 +45,8 @@ class BlockingCommander : public Commander,
   // in other words, returning true indicates ending the blocking
   virtual bool OnBlockingWrite() = 0;
 
-  // method to lock the keys of the BlockingCommander with MultiLockGuard
-  // when OnWrite is triggered, BlockingCommander needs to relock the keys
+  // GetLocks() locks the keys of the BlockingCommander with MultiLockGuard.
+  // When OnWrite() is triggered, BlockingCommander needs to relock the keys.
   virtual MultiLockGuard GetLocks() = 0;
 
   // to start the blocking process
@@ -68,8 +68,11 @@ class BlockingCommander : public Commander,
   }
 
   void OnWrite(bufferevent *bev) {
-    auto guard = GetLocks();
-    bool done = OnBlockingWrite();
+    bool done{false};
+    {
+      auto guard = GetLocks();
+      done = OnBlockingWrite();
+    }
 
     if (!done) {
       // The connection may be waked up but can't pop from the datatype.
