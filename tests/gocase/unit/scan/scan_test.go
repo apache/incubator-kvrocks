@@ -77,7 +77,6 @@ func ScanTest(t *testing.T, rdb *redis.Client, ctx context.Context) {
 		require.NoError(t, rdb.FlushDB(ctx).Err())
 		util.Populate(t, rdb, "", 1000, 10)
 		keys := scanAll(t, rdb)
-		keys = slices.Compact(keys)
 		require.Len(t, keys, 1000)
 	})
 
@@ -85,7 +84,6 @@ func ScanTest(t *testing.T, rdb *redis.Client, ctx context.Context) {
 		require.NoError(t, rdb.FlushDB(ctx).Err())
 		util.Populate(t, rdb, "", 1000, 10)
 		keys := scanAll(t, rdb, "count", 5)
-		keys = slices.Compact(keys)
 		require.Len(t, keys, 1000)
 	})
 
@@ -93,15 +91,46 @@ func ScanTest(t *testing.T, rdb *redis.Client, ctx context.Context) {
 		require.NoError(t, rdb.FlushDB(ctx).Err())
 		util.Populate(t, rdb, "key:", 1000, 10)
 		keys := scanAll(t, rdb, "match", "key:*")
-		keys = slices.Compact(keys)
 		require.Len(t, keys, 1000)
 	})
 
-	t.Run("SCAN MATCH invalid pattern", func(t *testing.T) {
+	t.Run("SCAN MATCH non-trivial pattern", func(t *testing.T) {
 		require.NoError(t, rdb.FlushDB(ctx).Err())
-		util.Populate(t, rdb, "*ab", 1000, 10)
-		// SCAN MATCH with invalid pattern should return an error
-		require.Error(t, rdb.Do(context.Background(), "SCAN", "match", "*ab*").Err())
+
+		for _, key := range []string{"aa", "aab", "aabb", "ab", "abb", "ba"} {
+			require.NoError(t, rdb.Set(ctx, key, "hello", 0).Err())
+		}
+
+		keys := scanAll(t, rdb, "match", "a*")
+		require.Equal(t, []string{"aa", "aab", "aabb", "ab", "abb"}, keys)
+
+		keys = scanAll(t, rdb, "match", "aa")
+		require.Equal(t, []string{"aa"}, keys)
+
+		keys = scanAll(t, rdb, "match", "aa*")
+		require.Equal(t, []string{"aa", "aab", "aabb"}, keys)
+
+		keys = scanAll(t, rdb, "match", "a?")
+		require.Equal(t, []string{"aa", "ab"}, keys)
+
+		keys = scanAll(t, rdb, "match", "a*?")
+		require.Equal(t, []string{"aa", "aab", "aabb", "ab", "abb"}, keys)
+
+		keys = scanAll(t, rdb, "match", "ab*")
+		require.Equal(t, []string{"ab", "abb"}, keys)
+
+		keys = scanAll(t, rdb, "match", "*ab")
+		require.Equal(t, []string{"aab", "ab"}, keys)
+
+		keys = scanAll(t, rdb, "match", "*ab*")
+		require.Equal(t, []string{"aab", "aabb", "ab", "abb"}, keys)
+
+		// Special case: using [b]* instead of b* forces the a full scan of the keyspace,
+		// matching every result with the pattern. We ask for exactly one key, but the
+		// first 5 keys don't match the pattern. This tests that SCAN returns a valid
+		// cursor even when the first [limit] keys don't satisfy the pattern.
+		keys = scanAll(t, rdb, "match", "[b]*", "count", "1")
+		require.Equal(t, []string{"ba"}, keys)
 	})
 
 	t.Run("SCAN guarantees check under write load", func(t *testing.T) {
@@ -226,6 +255,7 @@ func ScanTest(t *testing.T, rdb *redis.Client, ctx context.Context) {
 			require.NoError(t, rdb.SAdd(ctx, "set", elements...).Err())
 			keys, _, err := rdb.SScan(ctx, "set", 0, "", 10000).Result()
 			require.NoError(t, err)
+			slices.Sort(keys)
 			keys = slices.Compact(keys)
 			require.Len(t, keys, 100)
 		})
@@ -307,6 +337,11 @@ func ScanTest(t *testing.T, rdb *redis.Client, ctx context.Context) {
 		require.NoError(t, rdb.Do(ctx, "SCAN", "0", "match", "a*", "count", "1").Err())
 		util.ErrorRegexp(t, rdb.Do(ctx, "SCAN", "0", "count", "1", "match", "a*", "hello").Err(), ".*syntax error.*")
 		util.ErrorRegexp(t, rdb.Do(ctx, "SCAN", "0", "count", "1", "match", "a*", "hello", "hi").Err(), ".*syntax error.*")
+
+		util.ErrorRegexp(t, rdb.Do(ctx, "SCAN", "0", "match", "[").Err(), ".*Invalid glob pattern.*")
+		util.ErrorRegexp(t, rdb.Do(ctx, "SCAN", "0", "match", "\\").Err(), ".*Invalid glob pattern.*")
+		util.ErrorRegexp(t, rdb.Do(ctx, "SCAN", "0", "match", "[a").Err(), ".*Invalid glob pattern.*")
+		util.ErrorRegexp(t, rdb.Do(ctx, "SCAN", "0", "match", "[a-]").Err(), ".*Invalid glob pattern.*")
 	})
 
 	t.Run("SCAN with type args ", func(t *testing.T) {
@@ -406,6 +441,8 @@ func scanAll(t testing.TB, rdb *redis.Client, args ...interface{}) (keys []strin
 		keys = append(keys, keyList...)
 
 		if c == "0" {
+			slices.Sort(keys)
+			keys = slices.Compact(keys)
 			return
 		}
 	}

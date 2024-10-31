@@ -23,8 +23,10 @@
 #include "commander.h"
 #include "commands/command_parser.h"
 #include "error_constants.h"
+#include "glob.h"
 #include "parse_util.h"
 #include "server/server.h"
+#include "string_util.h"
 
 namespace redis {
 
@@ -44,14 +46,11 @@ class CommandScanBase : public Commander {
   Status ParseAdditionalFlags(Parser &parser) {
     while (parser.Good()) {
       if (parser.EatEqICase("match")) {
-        prefix_ = GET_OR_RET(parser.TakeStr());
-        // The match pattern should contain exactly one '*' at the end; remove the * to
-        // get the prefix to match.
-        if (!prefix_.empty() && prefix_.find('*') == prefix_.size() - 1) {
-          prefix_.pop_back();
-        } else {
-          return {Status::RedisParseErr, "currently only key prefix matching is supported"};
+        const std::string glob_pattern = GET_OR_RET(parser.TakeStr());
+        if (const Status s = util::ValidateGlob(glob_pattern); !s.IsOK()) {
+          return {Status::RedisParseErr, "Invalid glob pattern: " + s.Msg()};
         }
+        std::tie(prefix_, suffix_glob_) = util::SplitGlob(glob_pattern);
       } else if (parser.EatEqICase("count")) {
         limit_ = GET_OR_RET(parser.TakeInt());
         if (limit_ <= 0) {
@@ -100,6 +99,7 @@ class CommandScanBase : public Commander {
  protected:
   std::string cursor_;
   std::string prefix_;
+  std::string suffix_glob_ = "*";
   int limit_ = 20;
   RedisType type_ = kRedisNone;
 };

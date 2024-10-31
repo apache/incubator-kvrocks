@@ -904,7 +904,7 @@ Status Config::Load(const CLIOptions &opts) {
 void Config::Get(const std::string &key, std::vector<std::string> *values) const {
   values->clear();
   for (const auto &iter : fields_) {
-    if (util::StringMatch(key, iter.first, 1)) {
+    if (util::StringMatch(key, iter.first, true)) {
       if (iter.second->IsMultiConfig()) {
         for (const auto &p : util::Split(iter.second->ToString(), "\n")) {
           values->emplace_back(iter.first);

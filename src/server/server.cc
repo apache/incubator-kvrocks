@@ -38,7 +38,7 @@
 #include <utility>
 
 #include "commands/commander.h"
-#include "config.h"
+#include "common/string_util.h"
 #include "config/config.h"
 #include "fmt/format.h"
 #include "redis_connection.h"
@@ -46,7 +46,6 @@
 #include "storage/redis_db.h"
 #include "storage/scripting.h"
 #include "storage/storage.h"
-#include "string_util.h"
 #include "thread_util.h"
 #include "time_util.h"
 #include "version.h"
@@ -160,7 +159,7 @@ Status Server::Start() {
   if (!config_->cluster_enabled) {
     engine::Context no_txn_ctx = engine::Context::NoTransactionContext(storage);
     GET_OR_RET(index_mgr.Load(no_txn_ctx, kDefaultNamespace));
-    for (auto [_, ns] : namespace_.List()) {
+    for (const auto &[_, ns] : namespace_.List()) {
       GET_OR_RET(index_mgr.Load(no_txn_ctx, ns));
     }
   }
@@ -391,7 +390,7 @@ int Server::PublishMessage(const std::string &channel, const std::string &msg) {
   std::vector<std::string> patterns;
   std::vector<ConnContext> to_publish_patterns_conn_ctxs;
   for (const auto &iter : pubsub_patterns_) {
-    if (util::StringMatch(iter.first, channel, 0)) {
+    if (util::StringMatch(iter.first, channel, false)) {
       for (const auto &conn_ctx : iter.second) {
         to_publish_patterns_conn_ctxs.emplace_back(conn_ctx);
         patterns.emplace_back(iter.first);
@@ -463,7 +462,7 @@ void Server::GetChannelsByPattern(const std::string &pattern, std::vector<std::s
   std::lock_guard<std::mutex> guard(pubsub_channels_mu_);
 
   for (const auto &iter : pubsub_channels_) {
-    if (pattern.empty() || util::StringMatch(pattern, iter.first, 0)) {
+    if (pattern.empty() || util::StringMatch(pattern, iter.first, false)) {
       channels->emplace_back(iter.first);
     }
   }
@@ -549,7 +548,7 @@ void Server::GetSChannelsByPattern(const std::string &pattern, std::vector<std::
 
   for (const auto &shard_channels : pubsub_shard_channels_) {
     for (const auto &iter : shard_channels) {
-      if (pattern.empty() || util::StringMatch(pattern, iter.first, 0)) {
+      if (pattern.empty() || util::StringMatch(pattern, iter.first, false)) {
         channels->emplace_back(iter.first);
       }
     }

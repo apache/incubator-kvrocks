@@ -23,6 +23,8 @@
 #include "commands/scan_base.h"
 #include "common/io_util.h"
 #include "common/rdb_stream.h"
+#include "common/string_util.h"
+#include "common/time_util.h"
 #include "config/config.h"
 #include "error_constants.h"
 #include "server/redis_connection.h"
@@ -30,8 +32,6 @@
 #include "server/server.h"
 #include "stats/disk_stats.h"
 #include "storage/rdb/rdb.h"
-#include "string_util.h"
-#include "time_util.h"
 
 namespace redis {
 
@@ -114,15 +114,15 @@ class CommandNamespace : public Commander {
 class CommandKeys : public Commander {
  public:
   Status Execute(engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
-    const std::string &prefix = args_[1];
+    const std::string &glob_pattern = args_[1];
     std::vector<std::string> keys;
     redis::Database redis(srv->storage, conn->GetNamespace());
 
-    if (prefix.empty() || prefix.find('*') != prefix.size() - 1) {
-      return {Status::RedisExecErr, "only keys prefix match was supported"};
+    if (const Status s = util::ValidateGlob(glob_pattern); !s.IsOK()) {
+      return {Status::RedisParseErr, "Invalid glob pattern: " + s.Msg()};
     }
-
-    const rocksdb::Status s = redis.Keys(ctx, prefix.substr(0, prefix.size() - 1), &keys);
+    const auto [prefix, suffix_glob] = util::SplitGlob(glob_pattern);
+    const rocksdb::Status s = redis.Keys(ctx, prefix, suffix_glob, &keys);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
     }
@@ -846,7 +846,7 @@ class CommandScan : public CommandScanBase {
     std::vector<std::string> keys;
     std::string end_key;
 
-    auto s = redis_db.Scan(ctx, key_name, limit_, prefix_, &keys, &end_key, type_);
+    const auto s = redis_db.Scan(ctx, key_name, limit_, prefix_, suffix_glob_, &keys, &end_key, type_);
     if (!s.ok()) {
       return {Status::RedisExecErr, s.ToString()};
     }
