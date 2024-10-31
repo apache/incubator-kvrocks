@@ -83,7 +83,7 @@ class CommandScript : public Commander {
         LOG(ERROR) << "Failed to propagate script command: " << s.Msg();
         return s;
       }
-      *output = redis::SimpleString("OK");
+      *output = redis::RESP_OK;
     } else if (args_.size() >= 3 && subcommand_ == "exists") {
       *output = redis::MultiLen(args_.size() - 2);
       for (size_t j = 2; j < args_.size(); j++) {
