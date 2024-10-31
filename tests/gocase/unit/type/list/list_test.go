@@ -1460,6 +1460,9 @@ func testList(t *testing.T, configs util.KvrocksServerConfigs) {
 			defer func() { require.NoError(t, rd.Close()) }()
 			require.NoError(t, rdb.Del(ctx, key1, key2).Err())
 			require.NoError(t, rd.WriteArgs("blmpop", "1", "2", key1, key2, direction, "count", "2"))
+			// https://github.com/apache/kvrocks/issues/2617
+			// WriteArgs are required to be executed first
+			time.Sleep(100 * time.Millisecond)
 			require.NoError(t, rdb.RPush(ctx, key2, "one", "two").Err())
 			require.NoError(t, rdb.RPush(ctx, key1, "ONE", "TWO").Err())
 			if direction == "LEFT" {
