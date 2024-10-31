@@ -557,7 +557,7 @@ class CommandBZMPop : public BlockingCommander {
 
   std::string NoopReply(const Connection *conn) override { return conn->NilString(); }
 
-  std::vector <std::string> GetLockKeys() override {
+  std::vector<std::string> GetLockKeys() override {
     std::vector<std::string> lock_keys;
     lock_keys.reserve(keys_.size());
     for (const auto &key : keys_) {
