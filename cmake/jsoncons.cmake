@@ -20,8 +20,8 @@ include_guard()
 include(cmake/utils.cmake)
 
 FetchContent_DeclareGitHubWithMirror(jsoncons
-  danielaparker/jsoncons v0.177.0
-  MD5=393062889321f4f715a9302d8f49acf8
+  danielaparker/jsoncons v0.178.0
+  MD5=397410843b7c540e9dcee9b8b0c797a6
 )
 
 FetchContent_MakeAvailableWithArgs(jsoncons
