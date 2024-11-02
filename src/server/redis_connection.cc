@@ -429,7 +429,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
     if ((category == CommandCategory::Function || category == CommandCategory::Script) && (cmd_flags & kCmdReadOnly)) {
       // FIXME: since read-only script commands are not exclusive,
       // SetCurrentConnection here is weird and can cause many issues,
-      // we should pass the Connection direcly to the lua context instead
+      // we should pass the Connection directly to the lua context instead
       srv_->SetCurrentConnection(this);
     }
 
