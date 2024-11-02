@@ -1364,7 +1364,7 @@ REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only o
                         MakeCmdAttr<CommandSlaveOf>("slaveof", 3, "read-only exclusive no-script", NO_KEY),
                         MakeCmdAttr<CommandStats>("stats", 1, "read-only", NO_KEY),
                         MakeCmdAttr<CommandRdb>("rdb", -3, "write exclusive", NO_KEY),
-                        MakeCmdAttr<CommandReset>("reset", 1, "ok-loading multi no-script pub-sub", NO_KEY),
+                        MakeCmdAttr<CommandReset>("reset", 1, "ok-loading multi no-script", NO_KEY),
                         MakeCmdAttr<CommandApplyBatch>("applybatch", -2, "write no-multi", NO_KEY),
                         MakeCmdAttr<CommandDump>("dump", 2, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandPollUpdates>("pollupdates", -2, "read-only", NO_KEY), )
