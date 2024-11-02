@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM ubuntu:noble
 RUN apt update \
     && apt install -y \
         git build-essential cmake libtool python3 libssl-dev python3-pip \
