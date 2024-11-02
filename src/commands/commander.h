@@ -58,18 +58,15 @@ struct CommandAttributes;
 enum CommandFlags : uint64_t {
   kCmdWrite = 1ULL << 0,           // "write" flag
   kCmdReadOnly = 1ULL << 1,        // "read-only" flag
-  kCmdReplication = 1ULL << 2,     // "replication" flag
-  kCmdPubSub = 1ULL << 3,          // "pub-sub" flag
-  kCmdScript = 1ULL << 4,          // "script" flag
   kCmdLoading = 1ULL << 5,         // "ok-loading" flag
-  kCmdMulti = 1ULL << 6,           // "multi" flag
+  kCmdEndMulti = 1ULL << 6,        // "multi" flag, for ending a MULTI scope
   kCmdExclusive = 1ULL << 7,       // "exclusive" flag
   kCmdNoMulti = 1ULL << 8,         // "no-multi" flag
   kCmdNoScript = 1ULL << 9,        // "no-script" flag
-  kCmdROScript = 1ULL << 10,       // "ro-script" flag for read-only script commands
   kCmdCluster = 1ULL << 11,        // "cluster" flag
   kCmdNoDBSizeCheck = 1ULL << 12,  // "no-dbsize-check" flag
   kCmdSlow = 1ULL << 13,           // "slow" flag
+  kCmdBlocking = 1ULL << 14,       // "blocking" flag
 };
 
 enum class CommandCategory : uint8_t {
@@ -302,28 +299,24 @@ inline uint64_t ParseCommandFlags(const std::string &description, const std::str
       flags |= kCmdWrite;
     else if (flag == "read-only")
       flags |= kCmdReadOnly;
-    else if (flag == "replication")
-      flags |= kCmdReplication;
-    else if (flag == "pub-sub")
-      flags |= kCmdPubSub;
     else if (flag == "ok-loading")
       flags |= kCmdLoading;
     else if (flag == "exclusive")
       flags |= kCmdExclusive;
     else if (flag == "multi")
-      flags |= kCmdMulti;
+      flags |= kCmdEndMulti;
     else if (flag == "no-multi")
       flags |= kCmdNoMulti;
     else if (flag == "no-script")
       flags |= kCmdNoScript;
-    else if (flag == "ro-script")
-      flags |= kCmdROScript;
     else if (flag == "cluster")
       flags |= kCmdCluster;
     else if (flag == "no-dbsize-check")
       flags |= kCmdNoDBSizeCheck;
     else if (flag == "slow")
       flags |= kCmdSlow;
+    else if (flag == "blocking")
+      flags |= kCmdBlocking;
     else {
       std::cout << fmt::format("Encountered non-existent flag '{}' in command {} in command attribute parsing", flag,
                                cmd_name)
