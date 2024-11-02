@@ -417,20 +417,8 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       // No lock guard, because 'exec' command has acquired 'WorkExclusivityGuard'
     } else if (cmd_flags & kCmdExclusive) {
       exclusivity = srv_->WorkExclusivityGuard();
-
-      // When executing lua script commands that have "exclusive" attribute, we need to know current connection,
-      // but we should set current connection after acquiring the WorkExclusivityGuard to make it thread-safe
-      srv_->SetCurrentConnection(this);
     } else {
       concurrency = srv_->WorkConcurrencyGuard();
-    }
-
-    auto category = attributes->category;
-    if ((category == CommandCategory::Function || category == CommandCategory::Script) && (cmd_flags & kCmdReadOnly)) {
-      // FIXME: since read-only script commands are not exclusive,
-      // SetCurrentConnection here is weird and can cause many issues,
-      // we should pass the Connection directly to the lua context instead
-      srv_->SetCurrentConnection(this);
     }
 
     if (srv_->IsLoading() && !(cmd_flags & kCmdLoading)) {
