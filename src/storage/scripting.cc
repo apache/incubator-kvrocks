@@ -305,6 +305,12 @@ Status FunctionLoad(redis::Connection *conn, const std::string &script, bool nee
     if (!s) return s;
   }
 
+  ScriptRunCtx script_run_ctx;
+  script_run_ctx.conn = conn;
+  script_run_ctx.flags = read_only ? ScriptFlagType::kScriptNoWrites : 0;
+
+  SaveOnRegistry(lua, REGISTRY_SCRIPT_RUN_CTX_NAME, &script_run_ctx);
+
   lua_pushstring(lua, libname.c_str());
   lua_setglobal(lua, REDIS_FUNCTION_LIBNAME);
   auto libname_exit = MakeScopeExit([lua] {
@@ -330,6 +336,8 @@ Status FunctionLoad(redis::Connection *conn, const std::string &script, bool nee
     lua_pop(lua, 1);
     return {Status::NotOK, "Error while running new function lib: " + err_msg};
   }
+
+  RemoveFromRegistry(lua, REGISTRY_SCRIPT_RUN_CTX_NAME);
 
   if (!FunctionIsLibExist(conn, libname, false, read_only)) {
     return {Status::NotOK, "Please register some function in FUNCTION LOAD"};
