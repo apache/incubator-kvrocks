@@ -9,16 +9,18 @@
 #include "storage/redis_metadata.h"
 #include "storage/storage.h"
 
-namespace redis {
-struct Centroid {
-  double mean;
-  double weight = 1.0;
+#include "tdigest.h"
 
-  Centroid& operator+(const Centroid& _) {
-    // TODO: implement this
-    return *this;
-  }
-};
+namespace redis {
+// struct Centroid {
+//   double mean;
+//   double weight = 1.0;
+
+//   Centroid& operator+(const Centroid& _) {
+//     // TODO: implement this
+//     return *this;
+//   }
+// };
 
 struct CentroidWithKey {
   Centroid centroid;
@@ -57,6 +59,9 @@ class TDigest : public SubKeyScanner {
 
  private:
   rocksdb::ColumnFamilyHandle* cf_handle_;
+
+  rocksdb::Status dumpCentroidsAndBuffer(engine::Context& context, const std::string& ns_key, std::vector<Centroid>* centroids, std::vector<double>* buffer);
+  rocksdb::Status applyNewCentroidsAndCleanBuffer(engine::Context& context, ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch, const std::string& ns_key, const std::vector<Centroid>& centroids);
 };
 
 }  // namespace redis
