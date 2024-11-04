@@ -700,18 +700,21 @@ rocksdb::Status Storage::Write(engine::Context &ctx, const rocksdb::WriteOptions
 
 rocksdb::Status Storage::writeToDB(engine::Context &ctx, const rocksdb::WriteOptions &options,
                                    rocksdb::WriteBatch *updates) {
-  // Put replication id logdata at the end of write batch
-  if (replid_.length() == kReplIdLength) {
-    updates->PutLogData(ServerLogData(kReplIdLog, replid_).Encode());
-  }
-
   if (ctx.txn_context_enabled) {
     if (ctx.batch != nullptr) {
+      // Extract writes from the batch and append to the updates
       WriteBatchIndexer handle(ctx);
       auto s = updates->Iterate(&handle);
       if (!s.ok()) return s;
+      // cleanup the batch to avoid it
+      // being written to the db again
       ctx.batch = nullptr;
     }
+  }
+
+  // Put replication id logdata at the end of `updates`.
+  if (replid_.length() == kReplIdLength) {
+    updates->PutLogData(ServerLogData(kReplIdLog, replid_).Encode());
   }
 
   return db_->Write(options, updates);
@@ -869,8 +872,8 @@ Status Storage::BeginTxn() {
   // so it's fine to reset the global write batch without any lock.
   is_txn_mode_ = true;
   txn_write_batch_ =
-      std::make_unique<rocksdb::WriteBatchWithIndex>(rocksdb::BytewiseComparator() /*default backup_index_comparator */,
-                                                     0 /* default reserved_bytes*/, GetWriteBatchMaxBytes());
+      std::make_unique<rocksdb::WriteBatchWithIndex>(/*backup_index_comparator=*/rocksdb::BytewiseComparator(),
+                                                     /*reserved_bytes=*/0, GetWriteBatchMaxBytes());
   return Status::OK();
 }
 
