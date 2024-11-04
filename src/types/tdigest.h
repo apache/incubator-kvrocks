@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 
+#include "rocksdb/status.h"
 #include "status.h"
 
 struct Centroid {
@@ -33,20 +34,21 @@ class CentroidBuffer {
 
 class TDigest {
  public:
-  explicit TDigest(uint64_t compression, std::unique_ptr<CentroidBuffer> buffer,
-                   std::unique_ptr<CentroidBuffer> centroids)
-      : delta_(compression), buffer_(std::move(buffer)), centroids_(std::move(centroids)) {}
+  explicit TDigest(uint64_t delta);
+
+  TDigest(const TDigest&) = delete;
+  TDigest& operator=(const TDigest&) = delete;
+  TDigest(TDigest&& rhs) = default;
+  ~TDigest() = default;
 
   void Merge(const std::vector<TDigest>& others);
-  void Add(const std::vector<Centroid>& centroids);
-  double Quantile(double q) const;
+  void Add(std::vector<double> items);
+  void Reset(const std::vector<Centroid>& centroids);
+  std::vector<Centroid> DumpCentroids() const;
 
  private:
   class TDigestImpl;
-  const uint64_t delta_;
-  std::unique_ptr<TDigestImpl> tdigest_impl_;
-  std::unique_ptr<CentroidBuffer> buffer_;     // this can be random ordered.
-  std::unique_ptr<CentroidBuffer> centroids_;  // this should be sorted.
+  std::unique_ptr<TDigestImpl> impl_;
 };
 
 
