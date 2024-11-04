@@ -28,7 +28,7 @@ endmacro()
 function(FetchContent_MakeAvailableWithArgs dep)
   if(NOT ${dep}_POPULATED)
     message("Fetching ${dep}...")
-    FetchContent_Populate(${dep})
+    FetchContent_MakeAvailable(${dep})
 
     foreach(arg IN LISTS ARGN)
       parse_var(${arg} key value)
