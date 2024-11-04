@@ -366,6 +366,16 @@ class CommandBZPop : public BlockingCommander {
     conn_->Reply(output);
   }
 
+  MultiLockGuard GetLocks() override {
+    std::vector<std::string> lock_keys;
+    lock_keys.reserve(keys_.size());
+    for (const auto &key : keys_) {
+      auto ns_key = ComposeNamespaceKey(conn_->GetNamespace(), key, srv_->storage->IsSlotIdEncoded());
+      lock_keys.emplace_back(std::move(ns_key));
+    }
+    return MultiLockGuard(srv_->storage->GetLockManager(), lock_keys);
+  }
+
   bool OnBlockingWrite() override {
     std::string user_key;
     std::vector<MemberScore> member_scores;
@@ -547,6 +557,16 @@ class CommandBZMPop : public BlockingCommander {
   }
 
   std::string NoopReply(const Connection *conn) override { return conn->NilString(); }
+
+  MultiLockGuard GetLocks() override {
+    std::vector<std::string> lock_keys;
+    lock_keys.reserve(keys_.size());
+    for (const auto &key : keys_) {
+      auto ns_key = ComposeNamespaceKey(conn_->GetNamespace(), key, srv_->storage->IsSlotIdEncoded());
+      lock_keys.emplace_back(std::move(ns_key));
+    }
+    return MultiLockGuard(srv_->storage->GetLockManager(), lock_keys);
+  }
 
   bool OnBlockingWrite() override {
     std::string user_key;

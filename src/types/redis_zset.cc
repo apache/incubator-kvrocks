@@ -42,7 +42,6 @@ rocksdb::Status ZSet::Add(engine::Context &ctx, const Slice &user_key, ZAddFlags
 
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   ZSetMetadata metadata;
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok() && !s.IsNotFound()) return s;
@@ -159,7 +158,6 @@ rocksdb::Status ZSet::Pop(engine::Context &ctx, const Slice &user_key, int count
 
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   ZSetMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s.IsNotFound() ? rocksdb::Status::OK() : s;
@@ -224,8 +222,6 @@ rocksdb::Status ZSet::RangeByRank(engine::Context &ctx, const Slice &user_key, c
 
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  std::optional<LockGuard> lock_guard;
-  if (spec.with_deletion) lock_guard.emplace(storage_->GetLockManager(), ns_key);
   ZSetMetadata metadata(false);
 
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
@@ -306,8 +302,6 @@ rocksdb::Status ZSet::RangeByScore(engine::Context &ctx, const Slice &user_key, 
 
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  std::optional<LockGuard> lock_guard;
-  if (spec.with_deletion) lock_guard.emplace(storage_->GetLockManager(), ns_key);
   ZSetMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s.IsNotFound() ? rocksdb::Status::OK() : s;
@@ -429,10 +423,6 @@ rocksdb::Status ZSet::RangeByLex(engine::Context &ctx, const Slice &user_key, co
 
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  std::optional<LockGuard> lock_guard;
-  if (spec.with_deletion) {
-    lock_guard.emplace(storage_->GetLockManager(), ns_key);
-  }
   ZSetMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s.IsNotFound() ? rocksdb::Status::OK() : s;
@@ -526,7 +516,6 @@ rocksdb::Status ZSet::Remove(engine::Context &ctx, const Slice &user_key, const 
   *removed_cnt = 0;
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   ZSetMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s.IsNotFound() ? rocksdb::Status::OK() : s;
@@ -621,7 +610,6 @@ rocksdb::Status ZSet::Rank(engine::Context &ctx, const Slice &user_key, const Sl
 rocksdb::Status ZSet::Overwrite(engine::Context &ctx, const Slice &user_key, const MemberScores &mscores) {
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   ZSetMetadata metadata;
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisZSet);
@@ -658,14 +646,6 @@ rocksdb::Status ZSet::InterStore(engine::Context &ctx, const Slice &dst, const s
 
 rocksdb::Status ZSet::Inter(engine::Context &ctx, const std::vector<KeyWeight> &keys_weights,
                             AggregateMethod aggregate_method, std::vector<MemberScore> *members) {
-  std::vector<std::string> lock_keys;
-  lock_keys.reserve(keys_weights.size());
-  for (const auto &key_weight : keys_weights) {
-    std::string ns_key = AppendNamespacePrefix(key_weight.key);
-    lock_keys.emplace_back(std::move(ns_key));
-  }
-  MultiLockGuard guard(storage_->GetLockManager(), lock_keys);
-
   std::map<std::string, double> dst_zset;
   std::map<std::string, size_t> member_counters;
   std::vector<MemberScore> target_mscores;
@@ -723,14 +703,6 @@ rocksdb::Status ZSet::Inter(engine::Context &ctx, const std::vector<KeyWeight> &
 
 rocksdb::Status ZSet::InterCard(engine::Context &ctx, const std::vector<std::string> &user_keys, uint64_t limit,
                                 uint64_t *inter_cnt) {
-  std::vector<std::string> lock_keys;
-  lock_keys.reserve(user_keys.size());
-  for (const auto &user_key : user_keys) {
-    std::string ns_key = AppendNamespacePrefix(user_key);
-    lock_keys.emplace_back(std::move(ns_key));
-  }
-  MultiLockGuard guard(storage_->GetLockManager(), lock_keys);
-
   std::vector<MemberScores> mscores_list;
   mscores_list.reserve(user_keys.size());
   RangeScoreSpec spec;
@@ -780,14 +752,6 @@ rocksdb::Status ZSet::UnionStore(engine::Context &ctx, const Slice &dst, const s
 
 rocksdb::Status ZSet::Union(engine::Context &ctx, const std::vector<KeyWeight> &keys_weights,
                             AggregateMethod aggregate_method, std::vector<MemberScore> *members) {
-  std::vector<std::string> lock_keys;
-  lock_keys.reserve(keys_weights.size());
-  for (const auto &key_weight : keys_weights) {
-    std::string ns_key = AppendNamespacePrefix(key_weight.key);
-    lock_keys.emplace_back(std::move(ns_key));
-  }
-  MultiLockGuard guard(storage_->GetLockManager(), lock_keys);
-
   std::map<std::string, double> dst_zset;
   std::vector<MemberScore> target_mscores;
   uint64_t target_size = 0;

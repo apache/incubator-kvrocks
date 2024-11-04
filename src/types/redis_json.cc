@@ -124,8 +124,6 @@ rocksdb::Status Json::Set(engine::Context &ctx, const std::string &user_key, con
                           const std::string &value) {
   auto ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
-
   JsonMetadata metadata;
   JsonValue origin;
   auto s = read(ctx, ns_key, &metadata, &origin);
@@ -190,8 +188,6 @@ rocksdb::Status Json::ArrAppend(engine::Context &ctx, const std::string &user_ke
     append_values.emplace_back(std::move(value.value));
   }
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
-
   JsonMetadata metadata;
   JsonValue value;
   auto s = read(ctx, ns_key, &metadata, &value);
@@ -248,8 +244,6 @@ rocksdb::Status Json::Merge(engine::Context &ctx, const std::string &user_key, c
                             const std::string &merge_value, bool &result) {
   auto ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
-
   JsonMetadata metadata;
   JsonValue json_val;
 
@@ -278,8 +272,6 @@ rocksdb::Status Json::Merge(engine::Context &ctx, const std::string &user_key, c
 rocksdb::Status Json::Clear(engine::Context &ctx, const std::string &user_key, const std::string &path,
                             size_t *result) {
   auto ns_key = AppendNamespacePrefix(user_key);
-
-  LockGuard guard(storage_->GetLockManager(), ns_key);
 
   JsonValue json_val;
   JsonMetadata metadata;
@@ -327,8 +319,6 @@ rocksdb::Status Json::ArrInsert(engine::Context &ctx, const std::string &user_ke
     insert_values.emplace_back(std::move(value.value));
   }
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
-
   JsonMetadata metadata;
   JsonValue value;
   auto s = read(ctx, ns_key, &metadata, &value);
@@ -349,8 +339,6 @@ rocksdb::Status Json::Toggle(engine::Context &ctx, const std::string &user_key, 
                              Optionals<bool> *results) {
   auto ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
-
   JsonMetadata metadata;
   JsonValue origin;
   auto s = read(ctx, ns_key, &metadata, &origin);
@@ -366,8 +354,6 @@ rocksdb::Status Json::Toggle(engine::Context &ctx, const std::string &user_key, 
 rocksdb::Status Json::ArrPop(engine::Context &ctx, const std::string &user_key, const std::string &path, int64_t index,
                              std::vector<std::optional<JsonValue>> *results) {
   auto ns_key = AppendNamespacePrefix(user_key);
-
-  LockGuard guard(storage_->GetLockManager(), ns_key);
 
   JsonMetadata metadata;
   JsonValue json_val;
@@ -403,8 +389,6 @@ rocksdb::Status Json::ArrTrim(engine::Context &ctx, const std::string &user_key,
                               int64_t stop, Optionals<uint64_t> *results) {
   auto ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
-
   JsonMetadata metadata;
   JsonValue json_val;
   auto s = read(ctx, ns_key, &metadata, &json_val);
@@ -424,7 +408,7 @@ rocksdb::Status Json::Del(engine::Context &ctx, const std::string &user_key, con
   *result = 0;
 
   auto ns_key = AppendNamespacePrefix(user_key);
-  LockGuard guard(storage_->GetLockManager(), ns_key);
+
   JsonValue json_val;
   JsonMetadata metadata;
   auto s = read(ctx, ns_key, &metadata, &json_val);
@@ -472,8 +456,6 @@ rocksdb::Status Json::numop(engine::Context &ctx, JsonValue::NumOpEnum op, const
   JsonValue json_val;
   auto s = read(ctx, ns_key, &metadata, &json_val);
   if (!s.ok()) return s;
-
-  LockGuard guard(storage_->GetLockManager(), ns_key);
 
   auto res = json_val.NumOp(path, number, op, result);
   if (!res) {
@@ -571,7 +553,6 @@ rocksdb::Status Json::MSet(engine::Context &ctx, const std::vector<std::string> 
     std::string ns_key = AppendNamespacePrefix(user_key);
     ns_keys.emplace_back(std::move(ns_key));
   }
-  MultiLockGuard guard(storage_->GetLockManager(), ns_keys);
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisJson);
