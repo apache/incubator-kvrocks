@@ -53,10 +53,9 @@ Status HnswNode::PutMetadata(HnswNodeFieldMetadata* node_meta, const SearchKey& 
                              rocksdb::WriteBatchBase* batch) const {
   std::string updated_metadata;
   node_meta->Encode(&updated_metadata);
-  RETURN_IF_ERR_FROM_ROCKSDB(batch->Put(storage->GetCFHandle(ColumnFamilyID::Search),
-                                        search_key.ConstructHnswNode(level, key), updated_metadata),
-                             Status::NotOK, "", true /*with status string*/);
-  return Status::OK();
+  auto s = batch->Put(storage->GetCFHandle(ColumnFamilyID::Search),
+                                        search_key.ConstructHnswNode(level, key), updated_metadata);
+  RETURN_IF_ERR_FROM_ROCKSDB(s, Status::NotOK, s.ToString());
 }
 
 void HnswNode::DecodeNeighbours(engine::Context& ctx, const SearchKey& search_key) {
@@ -90,8 +89,8 @@ Status HnswNode::AddNeighbour(engine::Context& ctx, const NodeKey& neighbour_key
 Status HnswNode::RemoveNeighbour(engine::Context& ctx, const NodeKey& neighbour_key, const SearchKey& search_key,
                                  rocksdb::WriteBatchBase* batch) const {
   auto edge_index_key = search_key.ConstructHnswEdge(level, key, neighbour_key);
-  RETURN_IF_ERR_FROM_ROCKSDB(batch->Delete(ctx.storage->GetCFHandle(ColumnFamilyID::Search), edge_index_key),
-                             Status::NotOK, "failed to delete edge, {}", true /*with status string*/);
+  auto s = batch->Delete(ctx.storage->GetCFHandle(ColumnFamilyID::Search), edge_index_key);
+  RETURN_IF_ERR_FROM_ROCKSDB(s, Status::NotOK, fmt::format("failed to delete edge, {}", s.ToString()));
 
   HnswNodeFieldMetadata node_metadata = GET_OR_RET(DecodeMetadata(ctx, search_key));
   node_metadata.num_neighbours--;

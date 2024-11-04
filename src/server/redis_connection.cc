@@ -417,17 +417,8 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       // No lock guard, because 'exec' command has acquired 'WorkExclusivityGuard'
     } else if (cmd_flags & kCmdExclusive) {
       exclusivity = srv_->WorkExclusivityGuard();
-
-      // When executing lua script commands that have "exclusive" attribute, we need to know current connection,
-      // but we should set current connection after acquiring the WorkExclusivityGuard to make it thread-safe
-      srv_->SetCurrentConnection(this);
     } else {
       concurrency = srv_->WorkConcurrencyGuard();
-    }
-
-    if (cmd_flags & kCmdROScript) {
-      // if executing read only lua script commands, set current connection.
-      srv_->SetCurrentConnection(this);
     }
 
     if (srv_->IsLoading() && !(cmd_flags & kCmdLoading)) {
@@ -471,8 +462,8 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       DisableFlag(kAsking);
     }
 
-    // We don't execute commands, but queue them, ant then execute in EXEC command
-    if (is_multi_exec && !in_exec_ && !(cmd_flags & kCmdMulti)) {
+    // We don't execute commands, but queue them, and then execute in EXEC command
+    if (is_multi_exec && !in_exec_ && !(cmd_flags & kCmdEndMulti)) {
       multi_cmds_.emplace_back(cmd_tokens);
       Reply(redis::SimpleString("QUEUED"));
       continue;

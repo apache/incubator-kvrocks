@@ -29,6 +29,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "rocksdb/status.h"
 #include "type_util.h"
 
 class [[nodiscard]] Status {
@@ -100,7 +101,6 @@ class [[nodiscard]] Status {
 
   bool IsOK() const { return !impl_; }
   explicit operator bool() const { return IsOK(); }
-  inline bool ok() const { return IsOK(); }  // NOLINT
 
   Code GetCode() const { return impl_ ? impl_->code : cOK; }
 
@@ -370,28 +370,43 @@ struct [[nodiscard]] StatusOr {
   friend struct StatusOr;
 };
 
+template <typename T,
+          std::enable_if_t<IsStatusOr<RemoveCVRef<T>>::value || std::is_same_v<RemoveCVRef<T>, Status>, int> = 0>
+decltype(auto) StatusGetValue(T&& v) {
+  return std::forward<T>(v).GetValue();
+}
+
+template <typename T, std::enable_if_t<std::is_same_v<RemoveCVRef<T>, rocksdb::Status>, int> = 0>
+void StatusGetValue(T&&) {}
+
+template <typename T,
+          std::enable_if_t<IsStatusOr<RemoveCVRef<T>>::value || std::is_same_v<RemoveCVRef<T>, Status>, int> = 0>
+bool StatusIsOK(const T& v) {
+  return v.IsOK();
+}
+
+template <typename T, std::enable_if_t<std::is_same_v<RemoveCVRef<T>, rocksdb::Status>, int> = 0>
+bool StatusIsOK(const T& v) {
+  return v.ok();
+}
+
 // NOLINTNEXTLINE
-#define GET_OR_RET(...)                                         \
-  ({                                                            \
-    auto&& status = (__VA_ARGS__);                              \
-    if (!status) return std::forward<decltype(status)>(status); \
-    std::forward<decltype(status)>(status);                     \
-  }).GetValue()
+#define GET_OR_RET(...)                                                     \
+  StatusGetValue(({                                                         \
+    auto&& status = (__VA_ARGS__);                                          \
+    if (!StatusIsOK(status)) return std::forward<decltype(status)>(status); \
+    std::forward<decltype(status)>(status);                                 \
+  }))
 
-#define RETURN_IF_ERROR(expr)                                        \
-  ({                                                                 \
-    auto&& status = (expr);                                          \
-    if (!status.ok()) return std::forward<decltype(status)>(status); \
+#define RETURN_IF_ERROR(...)                                                \
+  ({                                                                        \
+    auto&& status = (__VA_ARGS__);                                          \
+    if (!StatusIsOK(status)) return std::forward<decltype(status)>(status); \
   })
 
-#define RETURN_IF_ERR_FROM_ROCKSDB(expr, error_code, format_str, with_status_string) \
-  ({                                                                                 \
-    auto&& status = (expr);                                                          \
-    if (!status.ok()) {                                                              \
-      if (with_status_string) {                                                      \
-        return {error_code, fmt::format(format_str, status.ToString())};             \
-      } else {                                                                       \
-        return {error_code, fmt::format(format_str)};                                \
-      }                                                                              \
-    }                                                                                \
+#define RETURN_IF_ERR_FROM_ROCKSDB(s, code, msg)    \
+  ({                                                \
+    if (!s.ok()) return Status(code, msg);          \
   })
+
+

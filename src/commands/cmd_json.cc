@@ -61,7 +61,7 @@ class CommandJsonSet : public Commander {
     auto s = json.Set(ctx, args_[1], args_[2], args_[3]);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
 
-    *output = redis::SimpleString("OK");
+    *output = redis::RESP_OK;
     return Status::OK();
   }
 };
@@ -337,7 +337,7 @@ class CommandJsonMerge : public Commander {
     if (!result) {
       *output = conn->NilString();
     } else {
-      *output = redis::SimpleString("OK");
+      *output = redis::RESP_OK;
     }
 
     return Status::OK();
@@ -648,7 +648,7 @@ class CommandJsonMSet : public Commander {
 
     if (auto s = json.MSet(ctx, user_keys, paths, values); !s.ok()) return {Status::RedisExecErr, s.ToString()};
 
-    *output = redis::SimpleString("OK");
+    *output = redis::RESP_OK;
     return Status::OK();
   }
 };

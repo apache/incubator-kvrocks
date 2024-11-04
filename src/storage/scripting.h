@@ -35,7 +35,6 @@ inline constexpr const char REDIS_LUA_FUNC_SHA_PREFIX[] = "f_";
 inline constexpr const char REDIS_LUA_FUNC_SHA_FLAGS[] = "f_{}_flags_";
 inline constexpr const char REDIS_LUA_REGISTER_FUNC_PREFIX[] = "__redis_registered_";
 inline constexpr const char REDIS_LUA_REGISTER_FUNC_FLAGS_PREFIX[] = "__redis_registered_flags_";
-inline constexpr const char REDIS_LUA_SERVER_PTR[] = "__server_ptr";
 inline constexpr const char REDIS_FUNCTION_LIBNAME[] = "REDIS_FUNCTION_LIBNAME";
 inline constexpr const char REDIS_FUNCTION_NEEDSTORE[] = "REDIS_FUNCTION_NEEDSTORE";
 inline constexpr const char REDIS_FUNCTION_LIBRARIES[] = "REDIS_FUNCTION_LIBRARIES";
@@ -43,9 +42,8 @@ inline constexpr const char REGISTRY_SCRIPT_RUN_CTX_NAME[] = "SCRIPT_RUN_CTX";
 
 namespace lua {
 
-lua_State *CreateState(Server *srv);
+lua_State *CreateState();
 void DestroyState(lua_State *lua);
-Server *GetServer(lua_State *lua);
 
 void LoadFuncs(lua_State *lua);
 void LoadLibraries(lua_State *lua);
@@ -150,6 +148,8 @@ struct ScriptRunCtx {
   // and is used to detect whether there is cross-slot access
   // between multiple commands in a script or function.
   int current_slot = -1;
+  // the current connection
+  redis::Connection *conn = nullptr;
 };
 
 /// SaveOnRegistry saves user-defined data to lua REGISTRY

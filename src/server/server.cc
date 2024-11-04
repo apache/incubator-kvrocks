@@ -102,7 +102,7 @@ Server::Server(engine::Storage *storage, Config *config)
   AdjustOpenFilesLimit();
   slow_log_.SetMaxEntries(config->slowlog_max_len);
   perf_log_.SetMaxEntries(config->profiling_sample_record_max_len);
-  lua_ = lua::CreateState(this);
+  lua_ = lua::CreateState();
 }
 
 Server::~Server() {
@@ -1764,7 +1764,7 @@ Status Server::FunctionSetLib(const std::string &func, const std::string &lib) c
 }
 
 void Server::ScriptReset() {
-  auto lua = lua_.exchange(lua::CreateState(this));
+  auto lua = lua_.exchange(lua::CreateState());
   lua::DestroyState(lua);
 }
 

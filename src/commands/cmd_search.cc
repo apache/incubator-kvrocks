@@ -185,7 +185,7 @@ class CommandFTCreate : public Commander {
 
     GET_OR_RET(srv->index_mgr.Create(ctx, std::move(index_info_)));
 
-    output->append(redis::SimpleString("OK"));
+    output->append(redis::RESP_OK);
     return Status::OK();
   };
 
@@ -488,7 +488,7 @@ class CommandFTDrop : public Commander {
 
     GET_OR_RET(srv->index_mgr.Drop(ctx, index_name, conn->GetNamespace()));
 
-    output->append(SimpleString("OK"));
+    output->append(redis::RESP_OK);
 
     return Status::OK();
   };

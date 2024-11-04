@@ -252,15 +252,14 @@ class CommandPubSub : public Commander {
   std::string subcommand_;
 };
 
-REDIS_REGISTER_COMMANDS(
-    Pubsub, MakeCmdAttr<CommandPublish>("publish", 3, "read-only pub-sub", NO_KEY),
-    MakeCmdAttr<CommandMPublish>("mpublish", -3, "read-only pub-sub", NO_KEY),
-    MakeCmdAttr<CommandSubscribe>("subscribe", -2, "read-only pub-sub no-multi no-script", NO_KEY),
-    MakeCmdAttr<CommandUnSubscribe>("unsubscribe", -1, "read-only pub-sub no-multi no-script", NO_KEY),
-    MakeCmdAttr<CommandPSubscribe>("psubscribe", -2, "read-only pub-sub no-multi no-script", NO_KEY),
-    MakeCmdAttr<CommandPUnSubscribe>("punsubscribe", -1, "read-only pub-sub no-multi no-script", NO_KEY),
-    MakeCmdAttr<CommandSSubscribe>("ssubscribe", -2, "read-only pub-sub no-multi no-script", NO_KEY),
-    MakeCmdAttr<CommandSUnSubscribe>("sunsubscribe", -1, "read-only pub-sub no-multi no-script", NO_KEY),
-    MakeCmdAttr<CommandPubSub>("pubsub", -2, "read-only pub-sub no-script", NO_KEY), )
+REDIS_REGISTER_COMMANDS(Pubsub, MakeCmdAttr<CommandPublish>("publish", 3, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandMPublish>("mpublish", -3, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandSubscribe>("subscribe", -2, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandUnSubscribe>("unsubscribe", -1, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandPSubscribe>("psubscribe", -2, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandPUnSubscribe>("punsubscribe", -1, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandSSubscribe>("ssubscribe", -2, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandSUnSubscribe>("sunsubscribe", -1, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandPubSub>("pubsub", -2, "read-only no-script", NO_KEY), )
 
 }  // namespace redis

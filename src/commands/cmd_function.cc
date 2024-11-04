@@ -75,7 +75,7 @@ struct CommandFunction : Commander {
       auto s = lua::FunctionDelete(ctx, srv, libname);
       if (!s) return s;
 
-      *output = SimpleString("OK");
+      *output = RESP_OK;
       return Status::OK();
     } else {
       return {Status::NotOK, "no such subcommand"};
@@ -109,9 +109,10 @@ uint64_t GenerateFunctionFlags(uint64_t flags, const std::vector<std::string> &a
   return flags;
 }
 
-REDIS_REGISTER_COMMANDS(
-    Function, MakeCmdAttr<CommandFunction>("function", -2, "exclusive no-script", NO_KEY, GenerateFunctionFlags),
-    MakeCmdAttr<CommandFCall<>>("fcall", -3, "exclusive write no-script", GetScriptEvalKeyRange),
-    MakeCmdAttr<CommandFCall<true>>("fcall_ro", -3, "read-only ro-script no-script", GetScriptEvalKeyRange));
+REDIS_REGISTER_COMMANDS(Function,
+                        MakeCmdAttr<CommandFunction>("function", -2, "exclusive no-script", NO_KEY,
+                                                     GenerateFunctionFlags),
+                        MakeCmdAttr<CommandFCall<>>("fcall", -3, "exclusive write no-script", GetScriptEvalKeyRange),
+                        MakeCmdAttr<CommandFCall<true>>("fcall_ro", -3, "read-only no-script", GetScriptEvalKeyRange));
 
 }  // namespace redis

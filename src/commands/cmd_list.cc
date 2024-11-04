@@ -625,7 +625,7 @@ class CommandLSet : public Commander {
       return {Status::RedisExecErr, errNoSuchKey};
     }
 
-    *output = redis::SimpleString("OK");
+    *output = redis::RESP_OK;
     return Status::OK();
   }
 
@@ -656,7 +656,7 @@ class CommandLTrim : public Commander {
       return {Status::RedisExecErr, s.ToString()};
     }
 
-    *output = redis::SimpleString("OK");
+    *output = redis::RESP_OK;
     return Status::OK();
   }
 
@@ -865,14 +865,15 @@ class CommandLPos : public Commander {
   PosSpec spec_;
 };
 
-REDIS_REGISTER_COMMANDS(List, MakeCmdAttr<CommandBLPop>("blpop", -3, "write no-script", 1, -2, 1),
-                        MakeCmdAttr<CommandBRPop>("brpop", -3, "write no-script", 1, -2, 1),
-                        MakeCmdAttr<CommandBLMPop>("blmpop", -5, "write no-script", CommandBLMPop::keyRangeGen),
+REDIS_REGISTER_COMMANDS(List, MakeCmdAttr<CommandBLPop>("blpop", -3, "write no-script blocking", 1, -2, 1),
+                        MakeCmdAttr<CommandBRPop>("brpop", -3, "write no-script blocking", 1, -2, 1),
+                        MakeCmdAttr<CommandBLMPop>("blmpop", -5, "write no-script blocking",
+                                                   CommandBLMPop::keyRangeGen),
                         MakeCmdAttr<CommandLIndex>("lindex", 3, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandLInsert>("linsert", 5, "write slow", 1, 1, 1),
                         MakeCmdAttr<CommandLLen>("llen", 2, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandLMove>("lmove", 5, "write", 1, 2, 1),
-                        MakeCmdAttr<CommandBLMove>("blmove", 6, "write", 1, 2, 1),
+                        MakeCmdAttr<CommandBLMove>("blmove", 6, "write blocking", 1, 2, 1),
                         MakeCmdAttr<CommandLPop>("lpop", -2, "write", 1, 1, 1),  //
                         MakeCmdAttr<CommandLPos>("lpos", -3, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandLPush>("lpush", -3, "write", 1, 1, 1),

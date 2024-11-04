@@ -83,7 +83,7 @@ class CommandScript : public Commander {
         LOG(ERROR) << "Failed to propagate script command: " << s.Msg();
         return s;
       }
-      *output = redis::SimpleString("OK");
+      *output = redis::RESP_OK;
     } else if (args_.size() >= 3 && subcommand_ == "exists") {
       *output = redis::MultiLen(args_.size() - 2);
       for (size_t j = 2; j < args_.size(); j++) {
@@ -125,11 +125,11 @@ uint64_t GenerateScriptFlags(uint64_t flags, const std::vector<std::string> &arg
   return flags;
 }
 
-REDIS_REGISTER_COMMANDS(
-    Script, MakeCmdAttr<CommandEval>("eval", -3, "exclusive write no-script", GetScriptEvalKeyRange),
-    MakeCmdAttr<CommandEvalSHA>("evalsha", -3, "exclusive write no-script", GetScriptEvalKeyRange),
-    MakeCmdAttr<CommandEvalRO>("eval_ro", -3, "read-only no-script ro-script", GetScriptEvalKeyRange),
-    MakeCmdAttr<CommandEvalSHARO>("evalsha_ro", -3, "read-only no-script ro-script", GetScriptEvalKeyRange),
-    MakeCmdAttr<CommandScript>("script", -2, "exclusive no-script", NO_KEY), )
+REDIS_REGISTER_COMMANDS(Script,
+                        MakeCmdAttr<CommandEval>("eval", -3, "exclusive write no-script", GetScriptEvalKeyRange),
+                        MakeCmdAttr<CommandEvalSHA>("evalsha", -3, "exclusive write no-script", GetScriptEvalKeyRange),
+                        MakeCmdAttr<CommandEvalRO>("eval_ro", -3, "read-only no-script", GetScriptEvalKeyRange),
+                        MakeCmdAttr<CommandEvalSHARO>("evalsha_ro", -3, "read-only no-script", GetScriptEvalKeyRange),
+                        MakeCmdAttr<CommandScript>("script", -2, "exclusive no-script", NO_KEY), )
 
 }  // namespace redis
