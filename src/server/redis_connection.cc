@@ -464,7 +464,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
 
     // We don't execute commands, but queue them, and then execute in EXEC command
     if (is_multi_exec && !in_exec_ && !(cmd_flags & kCmdEndMulti)) {
-      multi_cmds_.emplace_back(cmd_tokens);
+      multi_cmds_.emplace_back(std::move(cmd_tokens));
       Reply(redis::SimpleString("QUEUED"));
       continue;
     }
