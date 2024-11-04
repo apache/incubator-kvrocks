@@ -285,9 +285,6 @@ class Server {
   Status ExecPropagatedCommand(const std::vector<std::string> &tokens);
   Status ExecPropagateScriptCommand(const std::vector<std::string> &tokens);
 
-  void SetCurrentConnection(redis::Connection *conn) { curr_connection_ = conn; }
-  redis::Connection *GetCurrentConnection() { return curr_connection_; }
-
   LogCollector<PerfEntry> *GetPerfLog() { return &perf_log_; }
   LogCollector<SlowEntry> *GetSlowLog() { return &slow_log_; }
   void SlowlogPushEntryIfNeeded(const std::vector<std::string> *args, uint64_t duration, const redis::Connection *conn);
@@ -342,8 +339,6 @@ class Server {
   std::mutex last_random_key_cursor_mu_;
 
   std::atomic<lua_State *> lua_;
-
-  redis::Connection *curr_connection_ = nullptr;
 
   // client counters
   std::atomic<uint64_t> client_id_{1};
