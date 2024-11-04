@@ -112,7 +112,7 @@ rocksdb::Status Database::Expire(engine::Context &ctx, const Slice &user_key, ui
 
   std::string value;
   Metadata metadata(kRedisNone, false);
-  LockGuard guard(storage_->GetLockManager(), ns_key);
+
   rocksdb::Status s = storage_->Get(ctx, ctx.GetReadOptions(), metadata_cf_handle_, ns_key, &value);
   if (!s.ok()) return s;
 
@@ -150,7 +150,7 @@ rocksdb::Status Database::Del(engine::Context &ctx, const Slice &user_key) {
   std::string ns_key = AppendNamespacePrefix(user_key);
 
   std::string value;
-  LockGuard guard(storage_->GetLockManager(), ns_key);
+
   rocksdb::Status s = storage_->Get(ctx, ctx.GetReadOptions(), metadata_cf_handle_, ns_key, &value);
   if (!s.ok()) return s;
   Metadata metadata(kRedisNone, false);
@@ -165,13 +165,12 @@ rocksdb::Status Database::Del(engine::Context &ctx, const Slice &user_key) {
 rocksdb::Status Database::MDel(engine::Context &ctx, const std::vector<Slice> &keys, uint64_t *deleted_cnt) {
   *deleted_cnt = 0;
 
-  std::vector<std::string> lock_keys;
-  lock_keys.reserve(keys.size());
+  std::vector<std::string> ns_keys;
+  ns_keys.reserve(keys.size());
   for (const auto &key : keys) {
     std::string ns_key = AppendNamespacePrefix(key);
-    lock_keys.emplace_back(std::move(ns_key));
+    ns_keys.emplace_back(std::move(ns_key));
   }
-  MultiLockGuard guard(storage_->GetLockManager(), lock_keys);
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisNone);
@@ -181,8 +180,8 @@ rocksdb::Status Database::MDel(engine::Context &ctx, const std::vector<Slice> &k
   }
 
   std::vector<Slice> slice_keys;
-  slice_keys.reserve(lock_keys.size());
-  for (const auto &ns_key : lock_keys) {
+  slice_keys.reserve(ns_keys.size());
+  for (const auto &ns_key : ns_keys) {
     slice_keys.emplace_back(ns_key);
   }
 
@@ -202,7 +201,7 @@ rocksdb::Status Database::MDel(engine::Context &ctx, const std::vector<Slice> &k
     if (!s.ok()) continue;
     if (metadata.Expired()) continue;
 
-    s = batch->Delete(metadata_cf_handle_, lock_keys[i]);
+    s = batch->Delete(metadata_cf_handle_, ns_keys[i]);
     if (!s.ok()) return s;
     *deleted_cnt += 1;
   }
@@ -652,9 +651,6 @@ rocksdb::Status Database::typeInternal(engine::Context &ctx, const Slice &key, R
 
 rocksdb::Status Database::Copy(engine::Context &ctx, const std::string &key, const std::string &new_key, bool nx,
                                bool delete_old, CopyResult *res) {
-  std::vector<std::string> lock_keys = {key, new_key};
-  MultiLockGuard guard(storage_->GetLockManager(), lock_keys);
-
   RedisType type = kRedisNone;
   auto s = typeInternal(ctx, key, &type);
   if (!s.ok()) return s;

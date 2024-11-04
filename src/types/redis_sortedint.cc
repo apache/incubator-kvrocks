@@ -38,7 +38,6 @@ rocksdb::Status Sortedint::Add(engine::Context &ctx, const Slice &user_key, cons
 
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   SortedintMetadata metadata;
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok() && !s.IsNotFound()) return s;
@@ -75,7 +74,6 @@ rocksdb::Status Sortedint::Remove(engine::Context &ctx, const Slice &user_key, c
 
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   SortedintMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s.IsNotFound() ? rocksdb::Status::OK() : s;

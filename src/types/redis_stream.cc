@@ -96,7 +96,6 @@ rocksdb::Status Stream::Add(engine::Context &ctx, const Slice &stream_name, cons
 
   std::string ns_key = AppendNamespacePrefix(stream_name);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   StreamMetadata metadata;
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok() && !s.IsNotFound()) return s;
@@ -333,7 +332,6 @@ rocksdb::Status Stream::DeletePelEntries(engine::Context &ctx, const Slice &stre
 
   std::string ns_key = AppendNamespacePrefix(stream_name);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   StreamMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) {
@@ -400,7 +398,7 @@ rocksdb::Status Stream::ClaimPelEntries(engine::Context &ctx, const Slice &strea
                                         const std::vector<StreamEntryID> &entry_ids, const StreamClaimOptions &options,
                                         StreamClaimResult *result) {
   std::string ns_key = AppendNamespacePrefix(stream_name);
-  LockGuard guard(storage_->GetLockManager(), ns_key);
+
   StreamMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s;
@@ -536,7 +534,6 @@ rocksdb::Status Stream::AutoClaim(engine::Context &ctx, const Slice &stream_name
   std::string ns_key = AppendNamespacePrefix(stream_name);
   StreamMetadata metadata(false);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   auto s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) {  // not found will be caught by outside with no such key or consumer group
     return s;
@@ -692,7 +689,6 @@ rocksdb::Status Stream::CreateGroup(engine::Context &ctx, const Slice &stream_na
   }
   std::string ns_key = AppendNamespacePrefix(stream_name);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   StreamMetadata metadata;
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok() && !s.IsNotFound()) {
@@ -745,7 +741,6 @@ rocksdb::Status Stream::DestroyGroup(engine::Context &ctx, const Slice &stream_n
   *delete_cnt = 0;
   std::string ns_key = AppendNamespacePrefix(stream_name);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   StreamMetadata metadata;
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok() && !s.IsNotFound()) {
@@ -849,14 +844,14 @@ rocksdb::Status Stream::createConsumerWithoutLock(engine::Context &ctx, const Sl
 rocksdb::Status Stream::CreateConsumer(engine::Context &ctx, const Slice &stream_name, const std::string &group_name,
                                        const std::string &consumer_name, int *created_number) {
   std::string ns_key = AppendNamespacePrefix(stream_name);
-  LockGuard guard(storage_->GetLockManager(), ns_key);
+
   return createConsumerWithoutLock(ctx, stream_name, group_name, consumer_name, created_number);
 }
 
 rocksdb::Status Stream::DestroyConsumer(engine::Context &ctx, const Slice &stream_name, const std::string &group_name,
                                         const std::string &consumer_name, uint64_t &deleted_pel) {
   std::string ns_key = AppendNamespacePrefix(stream_name);
-  LockGuard guard(storage_->GetLockManager(), ns_key);
+
   StreamMetadata metadata;
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok() && !s.IsNotFound()) {
@@ -923,7 +918,7 @@ rocksdb::Status Stream::DestroyConsumer(engine::Context &ctx, const Slice &strea
 rocksdb::Status Stream::GroupSetId(engine::Context &ctx, const Slice &stream_name, const std::string &group_name,
                                    const StreamXGroupCreateOptions &options) {
   std::string ns_key = AppendNamespacePrefix(stream_name);
-  LockGuard guard(storage_->GetLockManager(), ns_key);
+
   StreamMetadata metadata;
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok() && !s.IsNotFound()) {
@@ -965,7 +960,6 @@ rocksdb::Status Stream::DeleteEntries(engine::Context &ctx, const Slice &stream_
 
   std::string ns_key = AppendNamespacePrefix(stream_name);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   StreamMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) {
@@ -1211,7 +1205,6 @@ rocksdb::Status Stream::GetStreamInfo(engine::Context &ctx, const rocksdb::Slice
                                       uint64_t count, StreamInfo *info) {
   std::string ns_key = AppendNamespacePrefix(stream_name);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   StreamMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s;
@@ -1452,7 +1445,6 @@ rocksdb::Status Stream::RangeWithPending(engine::Context &ctx, const Slice &stre
   }
 
   std::string ns_key = AppendNamespacePrefix(stream_name);
-  LockGuard guard(storage_->GetLockManager(), ns_key);
 
   StreamMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
@@ -1582,8 +1574,6 @@ rocksdb::Status Stream::Trim(engine::Context &ctx, const Slice &stream_name, con
 
   std::string ns_key = AppendNamespacePrefix(stream_name);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
-
   StreamMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) {
@@ -1695,8 +1685,6 @@ rocksdb::Status Stream::SetId(engine::Context &ctx, const Slice &stream_name, co
   }
 
   std::string ns_key = AppendNamespacePrefix(stream_name);
-
-  LockGuard guard(storage_->GetLockManager(), ns_key);
 
   StreamMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
