@@ -23,7 +23,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/apache/kvrocks/tests/gocase/util"
 	"github.com/stretchr/testify/require"
@@ -42,8 +41,6 @@ func TestRegression(t *testing.T) {
 
 	proto := "*3\r\n$5\r\nBLPOP\r\n$6\r\nhandle\r\n$1\r\n0\r\n"
 	require.NoError(t, c.Write(fmt.Sprintf("%s%s", proto, proto)))
-	// TODO: Remove time.Sleep after fix issue #2473
-	time.Sleep(100 * time.Millisecond)
 	resList := []string{"*2", "$6", "handle", "$1", "a"}
 
 	v := rdb.RPush(ctx, "handle", "a")

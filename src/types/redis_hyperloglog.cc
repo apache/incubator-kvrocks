@@ -112,7 +112,6 @@ rocksdb::Status HyperLogLog::Add(engine::Context &ctx, const Slice &user_key,
   *ret = 0;
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   HyperLogLogMetadata metadata{};
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok() && !s.IsNotFound()) {
@@ -238,7 +237,6 @@ rocksdb::Status HyperLogLog::Merge(engine::Context &ctx, const Slice &dest_user_
   }
 
   std::string dest_key = AppendNamespacePrefix(dest_user_key);
-  LockGuard guard(storage_->GetLockManager(), dest_key);
   std::vector<std::string> registers;
   HyperLogLogMetadata metadata;
 

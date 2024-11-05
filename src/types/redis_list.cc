@@ -63,7 +63,7 @@ rocksdb::Status List::push(engine::Context &ctx, const Slice &user_key, const st
   WriteBatchLogData log_data(kRedisList, {std::to_string(cmd)});
   auto s = batch->PutLogData(log_data.Encode());
   if (!s.ok()) return s;
-  LockGuard guard(storage_->GetLockManager(), ns_key);
+
   s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok() && !(create_if_missing && s.IsNotFound())) {
     return s.IsNotFound() ? rocksdb::Status::OK() : s;
@@ -108,7 +108,6 @@ rocksdb::Status List::PopMulti(engine::Context &ctx, const rocksdb::Slice &user_
 
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   ListMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s;
@@ -177,7 +176,6 @@ rocksdb::Status List::Rem(engine::Context &ctx, const Slice &user_key, int count
 
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   ListMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s;
@@ -271,7 +269,6 @@ rocksdb::Status List::Insert(engine::Context &ctx, const Slice &user_key, const 
   *new_size = 0;
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   ListMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s;
@@ -462,7 +459,6 @@ rocksdb::Status List::Pos(engine::Context &ctx, const Slice &user_key, const Sli
 rocksdb::Status List::Set(engine::Context &ctx, const Slice &user_key, int index, Slice elem) {
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   ListMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s;
@@ -501,7 +497,6 @@ rocksdb::Status List::lmoveOnSingleList(engine::Context &ctx, const rocksdb::Sli
                                         std::string *elem) {
   std::string ns_key = AppendNamespacePrefix(src);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   ListMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) {
@@ -567,8 +562,6 @@ rocksdb::Status List::lmoveOnTwoLists(engine::Context &ctx, const rocksdb::Slice
   std::string src_ns_key = AppendNamespacePrefix(src);
   std::string dst_ns_key = AppendNamespacePrefix(dst);
 
-  std::vector<std::string> lock_keys{src_ns_key, dst_ns_key};
-  MultiLockGuard guard(storage_->GetLockManager(), lock_keys);
   ListMetadata src_metadata(false);
   auto s = GetMetadata(ctx, src_ns_key, &src_metadata);
   if (!s.ok()) {
@@ -636,7 +629,6 @@ rocksdb::Status List::Trim(engine::Context &ctx, const Slice &user_key, int star
   uint32_t trim_cnt = 0;
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   ListMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s.IsNotFound() ? rocksdb::Status::OK() : s;
