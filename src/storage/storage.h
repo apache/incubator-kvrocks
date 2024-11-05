@@ -28,7 +28,6 @@
 #include <rocksdb/utilities/write_batch_with_index.h>
 
 #include <atomic>
-#include <cinttypes>
 #include <cstddef>
 #include <memory>
 #include <shared_mutex>

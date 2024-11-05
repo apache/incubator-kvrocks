@@ -171,9 +171,7 @@ int main(int argc, char *argv[]) {
 #endif
 
   engine::Storage storage(&config);
-  const bool read_only = config.snapshot_dir != "";
-  const DBOpenMode open_mode = read_only ? kDBOpenModeForReadOnly : kDBOpenModeDefault;
-  s = storage.Open(open_mode);
+  s = storage.Open(kDBOpenModeDefault);
 
   if (!s.IsOK()) {
     LOG(ERROR) << "Failed to open: " << s.Msg();
