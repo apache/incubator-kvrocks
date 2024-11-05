@@ -398,12 +398,14 @@ bool StatusIsOK(const T& v) {
     std::forward<decltype(status)>(status);                                 \
   }))
 
+// NOLINTNEXTLINE
 #define RETURN_IF_ERROR(...)                                                \
   ({                                                                        \
     auto&& status = (__VA_ARGS__);                                          \
     if (!StatusIsOK(status)) return std::forward<decltype(status)>(status); \
   })
 
+// NOLINTNEXTLINE
 #define RETURN_IF_ERR_FROM_ROCKSDB(s, code, msg)    \
   ({                                                \
     if (!s.ok()) return Status(code, msg);          \
