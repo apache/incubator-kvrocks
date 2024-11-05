@@ -37,7 +37,6 @@ rocksdb::Status Set::GetMetadata(engine::Context &ctx, const Slice &ns_key, SetM
 rocksdb::Status Set::Overwrite(engine::Context &ctx, Slice user_key, const std::vector<std::string> &members) {
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   SetMetadata metadata;
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisSet);
@@ -62,7 +61,6 @@ rocksdb::Status Set::Add(engine::Context &ctx, const Slice &user_key, const std:
 
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   SetMetadata metadata;
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok() && !s.IsNotFound()) return s;
@@ -100,7 +98,6 @@ rocksdb::Status Set::Remove(engine::Context &ctx, const Slice &user_key, const s
 
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   SetMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s.IsNotFound() ? rocksdb::Status::OK() : s;
@@ -218,9 +215,6 @@ rocksdb::Status Set::Take(engine::Context &ctx, const Slice &user_key, std::vect
 
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  std::optional<LockGuard> lock_guard;
-  if (pop) lock_guard.emplace(storage_->GetLockManager(), ns_key);
-
   SetMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s.IsNotFound() ? rocksdb::Status::OK() : s;
@@ -290,14 +284,6 @@ rocksdb::Status Set::Scan(engine::Context &ctx, const Slice &user_key, const std
  * DIFF key1 key2 key3 = {b,d}
  */
 rocksdb::Status Set::Diff(engine::Context &ctx, const std::vector<Slice> &keys, std::vector<std::string> *members) {
-  std::vector<std::string> lock_keys;
-  lock_keys.reserve(keys.size());
-  for (const auto key : keys) {
-    std::string ns_key = AppendNamespacePrefix(key);
-    lock_keys.emplace_back(std::move(ns_key));
-  }
-  MultiLockGuard guard(storage_->GetLockManager(), lock_keys);
-
   members->clear();
   std::vector<std::string> source_members;
   auto s = Members(ctx, keys[0], &source_members);
@@ -329,14 +315,6 @@ rocksdb::Status Set::Diff(engine::Context &ctx, const std::vector<Slice> &keys, 
  * UNION key1 key2 key3 = {a,b,c,d,e}
  */
 rocksdb::Status Set::Union(engine::Context &ctx, const std::vector<Slice> &keys, std::vector<std::string> *members) {
-  std::vector<std::string> lock_keys;
-  lock_keys.reserve(keys.size());
-  for (const auto key : keys) {
-    std::string ns_key = AppendNamespacePrefix(key);
-    lock_keys.emplace_back(std::move(ns_key));
-  }
-  MultiLockGuard guard(storage_->GetLockManager(), lock_keys);
-
   members->clear();
 
   std::map<std::string, bool> union_members;
@@ -363,14 +341,6 @@ rocksdb::Status Set::Union(engine::Context &ctx, const std::vector<Slice> &keys,
  * INTER key1 key2 key3 = {c}
  */
 rocksdb::Status Set::Inter(engine::Context &ctx, const std::vector<Slice> &keys, std::vector<std::string> *members) {
-  std::vector<std::string> lock_keys;
-  lock_keys.reserve(keys.size());
-  for (const auto key : keys) {
-    std::string ns_key = AppendNamespacePrefix(key);
-    lock_keys.emplace_back(std::move(ns_key));
-  }
-  MultiLockGuard guard(storage_->GetLockManager(), lock_keys);
-
   members->clear();
 
   std::map<std::string, size_t> member_counters;

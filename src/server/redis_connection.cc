@@ -489,9 +489,24 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
 
     SetLastCmd(cmd_name);
     {
+      std::optional<MultiLockGuard> guard;
+      if (cmd_flags & kCmdWrite) {
+        std::vector<std::string> lock_keys;
+        attributes->ForEachKeyRange(
+            [&lock_keys, this](const std::vector<std::string> &args, const CommandKeyRange &key_range) {
+              key_range.ForEachKey(
+                  [&, this](const std::string &key) {
+                    auto ns_key = ComposeNamespaceKey(ns_, key, srv_->storage->IsSlotIdEncoded());
+                    lock_keys.emplace_back(std::move(ns_key));
+                  },
+                  args);
+            },
+            cmd_tokens);
+
+        guard.emplace(srv_->storage->GetLockManager(), lock_keys);
+      }
       engine::Context ctx(srv_->storage);
 
-      // TODO: transaction support for index recording
       std::vector<GlobalIndexer::RecordResult> index_records;
       if (!srv_->index_mgr.index_map.empty() && IsCmdForIndexing(cmd_flags, attributes->category) &&
           !config->cluster_enabled) {
@@ -512,7 +527,6 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       }
 
       s = ExecuteCommand(ctx, cmd_name, cmd_tokens, current_cmd.get(), &reply);
-      // TODO: transaction support for index updating
       for (const auto &record : index_records) {
         auto s = GlobalIndexer::Update(ctx, record);
         if (!s.IsOK() && !s.Is<Status::TypeMismatched>()) {
