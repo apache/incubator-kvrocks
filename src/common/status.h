@@ -406,9 +406,7 @@ bool StatusIsOK(const T& v) {
   })
 
 // NOLINTNEXTLINE
-#define RETURN_IF_ERR_FROM_ROCKSDB(s, code, msg)    \
-  ({                                                \
-    if (!s.ok()) return Status(code, msg);          \
+#define RETURN_IF_ERR_FROM_ROCKSDB(s, code, msg) \
+  ({                                             \
+    if (!s.ok()) return Status(code, msg);       \
   })
-
-

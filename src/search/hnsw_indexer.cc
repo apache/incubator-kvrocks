@@ -53,8 +53,8 @@ Status HnswNode::PutMetadata(HnswNodeFieldMetadata* node_meta, const SearchKey& 
                              rocksdb::WriteBatchBase* batch) const {
   std::string updated_metadata;
   node_meta->Encode(&updated_metadata);
-  auto s = batch->Put(storage->GetCFHandle(ColumnFamilyID::Search),
-                                        search_key.ConstructHnswNode(level, key), updated_metadata);
+  auto s = batch->Put(storage->GetCFHandle(ColumnFamilyID::Search), search_key.ConstructHnswNode(level, key),
+                      updated_metadata);
   RETURN_IF_ERR_FROM_ROCKSDB(s, Status::NotOK, s.ToString());
 }
 
