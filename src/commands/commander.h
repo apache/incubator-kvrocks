@@ -56,20 +56,30 @@ class Connection;
 struct CommandAttributes;
 
 enum CommandFlags : uint64_t {
-  kCmdWrite = 1ULL << 0,           // "write" flag
-  kCmdReadOnly = 1ULL << 1,        // "read-only" flag
-  kCmdReplication = 1ULL << 2,     // "replication" flag
-  kCmdPubSub = 1ULL << 3,          // "pub-sub" flag
-  kCmdScript = 1ULL << 4,          // "script" flag
-  kCmdLoading = 1ULL << 5,         // "ok-loading" flag
-  kCmdMulti = 1ULL << 6,           // "multi" flag
-  kCmdExclusive = 1ULL << 7,       // "exclusive" flag
-  kCmdNoMulti = 1ULL << 8,         // "no-multi" flag
-  kCmdNoScript = 1ULL << 9,        // "no-script" flag
-  kCmdROScript = 1ULL << 10,       // "ro-script" flag for read-only script commands
-  kCmdCluster = 1ULL << 11,        // "cluster" flag
-  kCmdNoDBSizeCheck = 1ULL << 12,  // "no-dbsize-check" flag
-  kCmdSlow = 1ULL << 13,           // "slow" flag
+  // "write" flag, for any command that performs rocksdb writing ops
+  kCmdWrite = 1ULL << 0,
+  // "read-only" flag, for any command that performs rocksdb reading ops
+  // and doesn't perform rocksdb writing ops
+  kCmdReadOnly = 1ULL << 1,
+  // "ok-loading" flag, for any command that can be executed while
+  // the db is in loading phase
+  kCmdLoading = 1ULL << 5,
+  // "multi" flag, for commands that can end a MULTI scope
+  kCmdEndMulti = 1ULL << 6,
+  // "exclusive" flag, for commands that should be executed execlusive globally
+  kCmdExclusive = 1ULL << 7,
+  // "no-multi" flag, for commands that cannot be executed in MULTI scope
+  kCmdNoMulti = 1ULL << 8,
+  // "no-script" flag, for commands that cannot be executed in scripting
+  kCmdNoScript = 1ULL << 9,
+  // "no-dbsize-check" flag, for commands that can ignore the db size checking
+  kCmdNoDBSizeCheck = 1ULL << 12,
+  // "slow" flag, for commands that run slowly,
+  // usually with a non-constant number of rocksdb ops
+  kCmdSlow = 1ULL << 13,
+  // "blocking" flag, for commands that don't perform db ops immediately,
+  // but block and wait for some event to happen before performing db ops
+  kCmdBlocking = 1ULL << 14,
 };
 
 enum class CommandCategory : uint8_t {
@@ -302,28 +312,22 @@ inline uint64_t ParseCommandFlags(const std::string &description, const std::str
       flags |= kCmdWrite;
     else if (flag == "read-only")
       flags |= kCmdReadOnly;
-    else if (flag == "replication")
-      flags |= kCmdReplication;
-    else if (flag == "pub-sub")
-      flags |= kCmdPubSub;
     else if (flag == "ok-loading")
       flags |= kCmdLoading;
     else if (flag == "exclusive")
       flags |= kCmdExclusive;
     else if (flag == "multi")
-      flags |= kCmdMulti;
+      flags |= kCmdEndMulti;
     else if (flag == "no-multi")
       flags |= kCmdNoMulti;
     else if (flag == "no-script")
       flags |= kCmdNoScript;
-    else if (flag == "ro-script")
-      flags |= kCmdROScript;
-    else if (flag == "cluster")
-      flags |= kCmdCluster;
     else if (flag == "no-dbsize-check")
       flags |= kCmdNoDBSizeCheck;
     else if (flag == "slow")
       flags |= kCmdSlow;
+    else if (flag == "blocking")
+      flags |= kCmdBlocking;
     else {
       std::cout << fmt::format("Encountered non-existent flag '{}' in command {} in command attribute parsing", flag,
                                cmd_name)

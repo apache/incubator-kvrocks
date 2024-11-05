@@ -27,6 +27,7 @@ import (
 
 	"github.com/apache/kvrocks/tests/gocase/util"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 )
 
 func TestKeyspace(t *testing.T) {
@@ -65,10 +66,6 @@ func TestKeyspace(t *testing.T) {
 		require.Equal(t, []string{"foo_a", "foo_b", "foo_c"}, keys)
 	})
 
-	t.Run("KEYS with invalid pattern", func(t *testing.T) {
-		require.Error(t, rdb.Keys(ctx, "*ab*").Err())
-	})
-
 	t.Run("KEYS to get all keys", func(t *testing.T) {
 		keys := rdb.Keys(ctx, "*").Val()
 		sort.Slice(keys, func(i, j int) bool {
@@ -77,10 +74,56 @@ func TestKeyspace(t *testing.T) {
 		require.Equal(t, []string{"foo_a", "foo_b", "foo_c", "key_x", "key_y", "key_z"}, keys)
 	})
 
+	t.Run("KEYS with invalid patterns", func(t *testing.T) {
+		require.Error(t, rdb.Keys(ctx, "[").Err())
+		require.Error(t, rdb.Keys(ctx, "\\").Err())
+		require.Error(t, rdb.Keys(ctx, "[a-]").Err())
+		require.Error(t, rdb.Keys(ctx, "[a").Err())
+	})
+
 	t.Run("DBSize", func(t *testing.T) {
 		require.NoError(t, rdb.Do(ctx, "dbsize", "scan").Err())
 		time.Sleep(100 * time.Millisecond)
 		require.EqualValues(t, 6, rdb.Do(ctx, "dbsize").Val())
+	})
+
+	t.Run("KEYS with non-trivial patterns", func(t *testing.T) {
+		require.NoError(t, rdb.FlushDB(ctx).Err())
+		for _, key := range []string{"aa", "aab", "aabb", "ab", "abb"} {
+			require.NoError(t, rdb.Set(ctx, key, "hello", 0).Err())
+		}
+
+		keys := rdb.Keys(ctx, "a*").Val()
+		slices.Sort(keys)
+		require.Equal(t, []string{"aa", "aab", "aabb", "ab", "abb"}, keys)
+
+		keys = rdb.Keys(ctx, "aa").Val()
+		slices.Sort(keys)
+		require.Equal(t, []string{"aa"}, keys)
+
+		keys = rdb.Keys(ctx, "aa*").Val()
+		slices.Sort(keys)
+		require.Equal(t, []string{"aa", "aab", "aabb"}, keys)
+
+		keys = rdb.Keys(ctx, "a?").Val()
+		slices.Sort(keys)
+		require.Equal(t, []string{"aa", "ab"}, keys)
+
+		keys = rdb.Keys(ctx, "a*?").Val()
+		slices.Sort(keys)
+		require.Equal(t, []string{"aa", "aab", "aabb", "ab", "abb"}, keys)
+
+		keys = rdb.Keys(ctx, "ab*").Val()
+		slices.Sort(keys)
+		require.Equal(t, []string{"ab", "abb"}, keys)
+
+		keys = rdb.Keys(ctx, "*ab").Val()
+		slices.Sort(keys)
+		require.Equal(t, []string{"aab", "ab"}, keys)
+
+		keys = rdb.Keys(ctx, "*ab*").Val()
+		slices.Sort(keys)
+		require.Equal(t, []string{"aab", "aabb", "ab", "abb"}, keys)
 	})
 
 	t.Run("DEL all keys", func(t *testing.T) {

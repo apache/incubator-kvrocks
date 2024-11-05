@@ -366,6 +366,16 @@ class CommandBZPop : public BlockingCommander {
     conn_->Reply(output);
   }
 
+  MultiLockGuard GetLocks() override {
+    std::vector<std::string> lock_keys;
+    lock_keys.reserve(keys_.size());
+    for (const auto &key : keys_) {
+      auto ns_key = ComposeNamespaceKey(conn_->GetNamespace(), key, srv_->storage->IsSlotIdEncoded());
+      lock_keys.emplace_back(std::move(ns_key));
+    }
+    return MultiLockGuard(srv_->storage->GetLockManager(), lock_keys);
+  }
+
   bool OnBlockingWrite() override {
     std::string user_key;
     std::vector<MemberScore> member_scores;
@@ -547,6 +557,16 @@ class CommandBZMPop : public BlockingCommander {
   }
 
   std::string NoopReply(const Connection *conn) override { return conn->NilString(); }
+
+  MultiLockGuard GetLocks() override {
+    std::vector<std::string> lock_keys;
+    lock_keys.reserve(keys_.size());
+    for (const auto &key : keys_) {
+      auto ns_key = ComposeNamespaceKey(conn_->GetNamespace(), key, srv_->storage->IsSlotIdEncoded());
+      lock_keys.emplace_back(std::move(ns_key));
+    }
+    return MultiLockGuard(srv_->storage->GetLockManager(), lock_keys);
+  }
 
   bool OnBlockingWrite() override {
     std::string user_key;
@@ -1549,10 +1569,10 @@ REDIS_REGISTER_COMMANDS(ZSet, MakeCmdAttr<CommandZAdd>("zadd", -4, "write", 1, 1
                         MakeCmdAttr<CommandZLexCount>("zlexcount", 4, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandZPopMax>("zpopmax", -2, "write", 1, 1, 1),
                         MakeCmdAttr<CommandZPopMin>("zpopmin", -2, "write", 1, 1, 1),
-                        MakeCmdAttr<CommandBZPopMax>("bzpopmax", -3, "write", 1, -2, 1),
-                        MakeCmdAttr<CommandBZPopMin>("bzpopmin", -3, "write", 1, -2, 1),
+                        MakeCmdAttr<CommandBZPopMax>("bzpopmax", -3, "write blocking", 1, -2, 1),
+                        MakeCmdAttr<CommandBZPopMin>("bzpopmin", -3, "write blocking", 1, -2, 1),
                         MakeCmdAttr<CommandZMPop>("zmpop", -4, "write", CommandZMPop::Range),
-                        MakeCmdAttr<CommandBZMPop>("bzmpop", -5, "write", CommandBZMPop::Range),
+                        MakeCmdAttr<CommandBZMPop>("bzmpop", -5, "write blocking", CommandBZMPop::Range),
                         MakeCmdAttr<CommandZRangeStore>("zrangestore", -5, "write", 1, 1, 1),
                         MakeCmdAttr<CommandZRange>("zrange", -4, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandZRevRange>("zrevrange", -4, "read-only", 1, 1, 1),

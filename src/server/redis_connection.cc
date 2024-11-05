@@ -417,17 +417,8 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       // No lock guard, because 'exec' command has acquired 'WorkExclusivityGuard'
     } else if (cmd_flags & kCmdExclusive) {
       exclusivity = srv_->WorkExclusivityGuard();
-
-      // When executing lua script commands that have "exclusive" attribute, we need to know current connection,
-      // but we should set current connection after acquiring the WorkExclusivityGuard to make it thread-safe
-      srv_->SetCurrentConnection(this);
     } else {
       concurrency = srv_->WorkConcurrencyGuard();
-    }
-
-    if (cmd_flags & kCmdROScript) {
-      // if executing read only lua script commands, set current connection.
-      srv_->SetCurrentConnection(this);
     }
 
     if (srv_->IsLoading() && !(cmd_flags & kCmdLoading)) {
@@ -471,8 +462,8 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       DisableFlag(kAsking);
     }
 
-    // We don't execute commands, but queue them, ant then execute in EXEC command
-    if (is_multi_exec && !in_exec_ && !(cmd_flags & kCmdMulti)) {
+    // We don't execute commands, but queue them, and then execute in EXEC command
+    if (is_multi_exec && !in_exec_ && !(cmd_flags & kCmdEndMulti)) {
       multi_cmds_.emplace_back(cmd_tokens);
       Reply(redis::SimpleString("QUEUED"));
       continue;
@@ -498,9 +489,24 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
 
     SetLastCmd(cmd_name);
     {
+      std::optional<MultiLockGuard> guard;
+      if (cmd_flags & kCmdWrite) {
+        std::vector<std::string> lock_keys;
+        attributes->ForEachKeyRange(
+            [&lock_keys, this](const std::vector<std::string> &args, const CommandKeyRange &key_range) {
+              key_range.ForEachKey(
+                  [&, this](const std::string &key) {
+                    auto ns_key = ComposeNamespaceKey(ns_, key, srv_->storage->IsSlotIdEncoded());
+                    lock_keys.emplace_back(std::move(ns_key));
+                  },
+                  args);
+            },
+            cmd_tokens);
+
+        guard.emplace(srv_->storage->GetLockManager(), lock_keys);
+      }
       engine::Context ctx(srv_->storage);
 
-      // TODO: transaction support for index recording
       std::vector<GlobalIndexer::RecordResult> index_records;
       if (!srv_->index_mgr.index_map.empty() && IsCmdForIndexing(cmd_flags, attributes->category) &&
           !config->cluster_enabled) {
@@ -521,7 +527,6 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       }
 
       s = ExecuteCommand(ctx, cmd_name, cmd_tokens, current_cmd.get(), &reply);
-      // TODO: transaction support for index updating
       for (const auto &record : index_records) {
         auto s = GlobalIndexer::Update(ctx, record);
         if (!s.IsOK() && !s.Is<Status::TypeMismatched>()) {

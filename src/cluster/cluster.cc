@@ -75,9 +75,7 @@ Status Cluster::SetNodeId(const std::string &node_id) {
   }
 
   // Set replication relationship
-  if (myself_) return SetMasterSlaveRepl();
-
-  return Status::OK();
+  return SetMasterSlaveRepl();
 }
 
 // The reason why the new version MUST be +1 of current version is that,
@@ -204,11 +202,8 @@ Status Cluster::SetClusterNodes(const std::string &nodes_str, int64_t version, b
   }
 
   // Set replication relationship
-  if (myself_) {
-    s = SetMasterSlaveRepl();
-    if (!s.IsOK()) {
-      return s.Prefixed("failed to set master-replica replication");
-    }
+  if (auto s = SetMasterSlaveRepl(); !s.IsOK()) {
+    return s.Prefixed("failed to set master-replica replication");
   }
 
   // Clear data of migrated slots
@@ -234,7 +229,13 @@ Status Cluster::SetClusterNodes(const std::string &nodes_str, int64_t version, b
 Status Cluster::SetMasterSlaveRepl() {
   if (!srv_) return Status::OK();
 
-  if (!myself_) return Status::OK();
+  // If the node is not in the cluster topology, remove the master replication if it's a replica.
+  if (!myself_) {
+    if (auto s = srv_->RemoveMaster(); !s.IsOK()) {
+      return s.Prefixed("failed to remove master");
+    }
+    return Status::OK();
+  }
 
   if (myself_->role == kClusterMaster) {
     // Master mode

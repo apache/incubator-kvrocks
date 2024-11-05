@@ -20,7 +20,6 @@
 
 #pragma once
 
-#include <map>
 #include <optional>
 #include <string>
 #include <utility>
@@ -29,7 +28,6 @@
 
 #include "cluster/cluster_defs.h"
 #include "redis_metadata.h"
-#include "server/redis_reply.h"
 #include "storage.h"
 
 namespace redis {
@@ -119,11 +117,12 @@ class Database {
   [[nodiscard]] rocksdb::Status FlushDB(engine::Context &ctx);
   [[nodiscard]] rocksdb::Status FlushAll(engine::Context &ctx);
   [[nodiscard]] rocksdb::Status GetKeyNumStats(engine::Context &ctx, const std::string &prefix, KeyNumStats *stats);
-  [[nodiscard]] rocksdb::Status Keys(engine::Context &ctx, const std::string &prefix,
+  [[nodiscard]] rocksdb::Status Keys(engine::Context &ctx, const std::string &prefix, const std::string &suffix_glob,
                                      std::vector<std::string> *keys = nullptr, KeyNumStats *stats = nullptr);
   [[nodiscard]] rocksdb::Status Scan(engine::Context &ctx, const std::string &cursor, uint64_t limit,
-                                     const std::string &prefix, std::vector<std::string> *keys,
-                                     std::string *end_cursor = nullptr, RedisType type = kRedisNone);
+                                     const std::string &prefix, const std::string &suffix_glob,
+                                     std::vector<std::string> *keys, std::string *end_cursor = nullptr,
+                                     RedisType type = kRedisNone);
   [[nodiscard]] rocksdb::Status RandomKey(engine::Context &ctx, const std::string &cursor, std::string *key);
   std::string AppendNamespacePrefix(const Slice &user_key);
   [[nodiscard]] rocksdb::Status ClearKeysOfSlotRange(engine::Context &ctx, const rocksdb::Slice &ns,

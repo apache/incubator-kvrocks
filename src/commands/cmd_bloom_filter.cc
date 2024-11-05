@@ -94,7 +94,7 @@ class CommandBFReserve : public Commander {
     auto s = bloomfilter_db.Reserve(ctx, args_[1], capacity_, error_rate_, expansion_);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
 
-    *output = redis::SimpleString("OK");
+    *output = redis::RESP_OK;
     return Status::OK();
   }
 

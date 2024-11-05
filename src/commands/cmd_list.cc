@@ -313,6 +313,16 @@ class CommandBPop : public BlockingCommander {
     return s;
   }
 
+  MultiLockGuard GetLocks() override {
+    std::vector<std::string> lock_keys;
+    lock_keys.reserve(keys_.size());
+    for (const auto &key : keys_) {
+      auto ns_key = ComposeNamespaceKey(conn_->GetNamespace(), key, srv_->storage->IsSlotIdEncoded());
+      lock_keys.emplace_back(std::move(ns_key));
+    }
+    return MultiLockGuard(srv_->storage->GetLockManager(), lock_keys);
+  }
+
   bool OnBlockingWrite() override {
     engine::Context ctx(srv_->storage);
     auto s = TryPopFromList(ctx);
@@ -434,6 +444,16 @@ class CommandBLMPop : public BlockingCommander {
     for (const auto &key : keys_) {
       srv_->UnblockOnKey(key, conn_);
     }
+  }
+
+  MultiLockGuard GetLocks() override {
+    std::vector<std::string> lock_keys;
+    lock_keys.reserve(keys_.size());
+    for (const auto &key : keys_) {
+      auto ns_key = ComposeNamespaceKey(conn_->GetNamespace(), key, srv_->storage->IsSlotIdEncoded());
+      lock_keys.emplace_back(std::move(ns_key));
+    }
+    return MultiLockGuard(srv_->storage->GetLockManager(), lock_keys);
   }
 
   bool OnBlockingWrite() override {
@@ -625,7 +645,7 @@ class CommandLSet : public Commander {
       return {Status::RedisExecErr, errNoSuchKey};
     }
 
-    *output = redis::SimpleString("OK");
+    *output = redis::RESP_OK;
     return Status::OK();
   }
 
@@ -656,7 +676,7 @@ class CommandLTrim : public Commander {
       return {Status::RedisExecErr, s.ToString()};
     }
 
-    *output = redis::SimpleString("OK");
+    *output = redis::RESP_OK;
     return Status::OK();
   }
 
@@ -767,6 +787,15 @@ class CommandBLMove : public BlockingCommander {
 
   void UnblockKeys() override { srv_->UnblockOnKey(args_[1], conn_); }
 
+  MultiLockGuard GetLocks() override {
+    std::vector<std::string> lock_keys{
+        ComposeNamespaceKey(conn_->GetNamespace(), args_[1], srv_->storage->IsSlotIdEncoded())};
+    if (args_[1] != args_[2]) {
+      lock_keys.emplace_back(ComposeNamespaceKey(conn_->GetNamespace(), args_[2], srv_->storage->IsSlotIdEncoded()));
+    }
+    return MultiLockGuard(srv_->storage->GetLockManager(), lock_keys);
+  }
+
   bool OnBlockingWrite() override {
     redis::List list_db(srv_->storage, conn_->GetNamespace());
     std::string elem;
@@ -865,14 +894,15 @@ class CommandLPos : public Commander {
   PosSpec spec_;
 };
 
-REDIS_REGISTER_COMMANDS(List, MakeCmdAttr<CommandBLPop>("blpop", -3, "write no-script", 1, -2, 1),
-                        MakeCmdAttr<CommandBRPop>("brpop", -3, "write no-script", 1, -2, 1),
-                        MakeCmdAttr<CommandBLMPop>("blmpop", -5, "write no-script", CommandBLMPop::keyRangeGen),
+REDIS_REGISTER_COMMANDS(List, MakeCmdAttr<CommandBLPop>("blpop", -3, "write no-script blocking", 1, -2, 1),
+                        MakeCmdAttr<CommandBRPop>("brpop", -3, "write no-script blocking", 1, -2, 1),
+                        MakeCmdAttr<CommandBLMPop>("blmpop", -5, "write no-script blocking",
+                                                   CommandBLMPop::keyRangeGen),
                         MakeCmdAttr<CommandLIndex>("lindex", 3, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandLInsert>("linsert", 5, "write slow", 1, 1, 1),
                         MakeCmdAttr<CommandLLen>("llen", 2, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandLMove>("lmove", 5, "write", 1, 2, 1),
-                        MakeCmdAttr<CommandBLMove>("blmove", 6, "write", 1, 2, 1),
+                        MakeCmdAttr<CommandBLMove>("blmove", 6, "write blocking", 1, 2, 1),
                         MakeCmdAttr<CommandLPop>("lpop", -2, "write", 1, 1, 1),  //
                         MakeCmdAttr<CommandLPos>("lpos", -3, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandLPush>("lpush", -3, "write", 1, 1, 1),

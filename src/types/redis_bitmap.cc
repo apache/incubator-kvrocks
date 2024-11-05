@@ -184,7 +184,6 @@ rocksdb::Status Bitmap::SetBit(engine::Context &ctx, const Slice &user_key, uint
   std::string raw_value;
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   BitmapMetadata metadata;
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata, &raw_value);
   if (!s.ok() && !s.IsNotFound()) return s;
@@ -461,7 +460,6 @@ rocksdb::Status Bitmap::BitOp(engine::Context &ctx, BitOpFlags op_flag, const st
                               const Slice &user_key, const std::vector<Slice> &op_keys, int64_t *len) {
   std::string raw_value;
   std::string ns_key = AppendNamespacePrefix(user_key);
-  LockGuard guard(storage_->GetLockManager(), ns_key);
 
   std::vector<std::pair<std::string, BitmapMetadata>> meta_pairs;
   uint64_t max_bitmap_size = 0;
@@ -824,15 +822,9 @@ template <bool ReadOnly>
 rocksdb::Status Bitmap::bitfield(engine::Context &ctx, const Slice &user_key, const std::vector<BitfieldOperation> &ops,
                                  std::vector<std::optional<BitfieldValue>> *rets) {
   std::string ns_key = AppendNamespacePrefix(user_key);
-
-  std::optional<LockGuard> guard;
-  if constexpr (!ReadOnly) {
-    guard = LockGuard(storage_->GetLockManager(), ns_key);
-  }
-
   BitmapMetadata metadata;
   std::string raw_value;
-  // TODO(mwish): maintain snapshot for read-only bitfield.
+
   auto s = GetMetadata(ctx, ns_key, &metadata, &raw_value);
   if (!s.ok() && !s.IsNotFound()) {
     return s;

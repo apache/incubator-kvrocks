@@ -57,14 +57,11 @@ enum {
 
 namespace lua {
 
-lua_State *CreateState(Server *srv) {
+lua_State *CreateState() {
   lua_State *lua = lua_open();
   LoadLibraries(lua);
   RemoveUnsupportedFunctions(lua);
   LoadFuncs(lua);
-
-  lua_pushlightuserdata(lua, srv);
-  lua_setglobal(lua, REDIS_LUA_SERVER_PTR);
 
   EnableGlobalsProtection(lua);
   return lua;
@@ -273,7 +270,10 @@ int RedisRegisterFunction(lua_State *lua) {
   }
 
   // store the map from function name to library name
-  auto s = GetServer(lua)->FunctionSetLib(name, libname);
+  auto *script_run_ctx = GetFromRegistry<ScriptRunCtx>(lua, REGISTRY_SCRIPT_RUN_CTX_NAME);
+  CHECK_NOTNULL(script_run_ctx);
+
+  auto s = script_run_ctx->conn->GetServer()->FunctionSetLib(name, libname);
   if (!s) {
     lua_pushstring(lua, "redis.register_function() failed to store informantion.");
     return lua_error(lua);
@@ -305,6 +305,12 @@ Status FunctionLoad(redis::Connection *conn, const std::string &script, bool nee
     if (!s) return s;
   }
 
+  ScriptRunCtx script_run_ctx;
+  script_run_ctx.conn = conn;
+  script_run_ctx.flags = read_only ? ScriptFlagType::kScriptNoWrites : 0;
+
+  SaveOnRegistry(lua, REGISTRY_SCRIPT_RUN_CTX_NAME, &script_run_ctx);
+
   lua_pushstring(lua, libname.c_str());
   lua_setglobal(lua, REDIS_FUNCTION_LIBNAME);
   auto libname_exit = MakeScopeExit([lua] {
@@ -330,6 +336,8 @@ Status FunctionLoad(redis::Connection *conn, const std::string &script, bool nee
     lua_pop(lua, 1);
     return {Status::NotOK, "Error while running new function lib: " + err_msg};
   }
+
+  RemoveFromRegistry(lua, REGISTRY_SCRIPT_RUN_CTX_NAME);
 
   if (!FunctionIsLibExist(conn, libname, false, read_only)) {
     return {Status::NotOK, "Please register some function in FUNCTION LOAD"};
@@ -396,6 +404,7 @@ Status FunctionCall(redis::Connection *conn, const std::string &name, const std:
   }
 
   ScriptRunCtx script_run_ctx;
+  script_run_ctx.conn = conn;
   script_run_ctx.flags = read_only ? ScriptFlagType::kScriptNoWrites : 0;
   lua_getglobal(lua, (REDIS_LUA_REGISTER_FUNC_FLAGS_PREFIX + name).c_str());
   if (!lua_isnil(lua, -1)) {
@@ -642,6 +651,7 @@ Status EvalGenericCommand(redis::Connection *conn, const std::string &body_or_sh
   }
 
   ScriptRunCtx current_script_run_ctx;
+  current_script_run_ctx.conn = conn;
   current_script_run_ctx.flags = read_only ? ScriptFlagType::kScriptNoWrites : 0;
   lua_getglobal(lua, fmt::format(REDIS_LUA_FUNC_SHA_FLAGS, funcname + 2).c_str());
   if (!lua_isnil(lua, -1)) {
@@ -709,14 +719,6 @@ int RedisCallCommand(lua_State *lua) { return RedisGenericCommand(lua, 1); }
 
 int RedisPCallCommand(lua_State *lua) { return RedisGenericCommand(lua, 0); }
 
-Server *GetServer(lua_State *lua) {
-  lua_getglobal(lua, REDIS_LUA_SERVER_PTR);
-  auto srv = reinterpret_cast<Server *>(lua_touserdata(lua, -1));
-  lua_pop(lua, 1);
-
-  return srv;
-}
-
 // TODO: we do not want to repeat same logic as Connection::ExecuteCommands,
 // so the function need to be refactored
 int RedisGenericCommand(lua_State *lua, int raise_error) {
@@ -772,10 +774,10 @@ int RedisGenericCommand(lua_State *lua, int raise_error) {
 
   std::string cmd_name = attributes->name;
 
-  auto srv = GetServer(lua);
+  auto *conn = script_run_ctx->conn;
+  auto *srv = conn->GetServer();
   Config *config = srv->GetConfig();
 
-  redis::Connection *conn = srv->GetCurrentConnection();
   if (config->cluster_enabled) {
     if (script_run_ctx->flags & ScriptFlagType::kScriptNoCluster) {
       PushError(lua, "Can not run script on cluster, 'no-cluster' flag is set");
@@ -901,8 +903,10 @@ int RedisReturnSingleFieldTable(lua_State *lua, const char *field) {
 }
 
 int RedisSetResp(lua_State *lua) {
-  auto srv = GetServer(lua);
-  auto conn = srv->GetCurrentConnection();
+  auto *script_run_ctx = GetFromRegistry<ScriptRunCtx>(lua, REGISTRY_SCRIPT_RUN_CTX_NAME);
+  CHECK_NOTNULL(script_run_ctx);
+  auto *conn = script_run_ctx->conn;
+  auto *srv = conn->GetServer();
 
   if (lua_gettop(lua) != 1) {
     PushError(lua, "redis.setresp() requires one argument.");

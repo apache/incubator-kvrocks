@@ -58,7 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check typos
-        uses: crate-ci/typos@v1.25.0
+        uses: crate-ci/typos@v1.27.0
         with:
           config: .github/config/typos.toml
 
@@ -258,7 +258,7 @@ jobs:
         if: ${{ matrix.sonarcloud }}
 
       - name: Install sonar-scanner and build-wrapper
-        uses: SonarSource/sonarcloud-github-c-cpp@v2
+        uses: SonarSource/sonarcloud-github-c-cpp@v3
         if: ${{ matrix.sonarcloud }}
 
       - name: Build Kvrocks

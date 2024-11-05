@@ -21,6 +21,7 @@
 #pragma once
 
 #include "commander.h"
+#include "common/lock_manager.h"
 #include "event_util.h"
 #include "server/redis_connection.h"
 
@@ -44,6 +45,10 @@ class BlockingCommander : public Commander,
   // in other words, returning true indicates ending the blocking
   virtual bool OnBlockingWrite() = 0;
 
+  // GetLocks() locks the keys of the BlockingCommander with MultiLockGuard.
+  // When OnWrite() is triggered, BlockingCommander needs to relock the keys.
+  virtual MultiLockGuard GetLocks() = 0;
+
   // to start the blocking process
   // usually put to the end of the Execute method
   Status StartBlocking(int64_t timeout, std::string *output) {
@@ -63,7 +68,11 @@ class BlockingCommander : public Commander,
   }
 
   void OnWrite(bufferevent *bev) {
-    bool done = OnBlockingWrite();
+    bool done{false};
+    {
+      auto guard = GetLocks();
+      done = OnBlockingWrite();
+    }
 
     if (!done) {
       // The connection may be waked up but can't pop from the datatype.

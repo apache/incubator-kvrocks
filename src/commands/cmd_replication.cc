@@ -194,7 +194,7 @@ class CommandReplConf : public Commander {
     if (!ip_address_.empty()) {
       conn->SetAnnounceIP(ip_address_);
     }
-    *output = redis::SimpleString("OK");
+    *output = redis::RESP_OK;
     return Status::OK();
   }
 
@@ -344,11 +344,10 @@ class CommandDBName : public Commander {
   }
 };
 
-REDIS_REGISTER_COMMANDS(
-    Replication, MakeCmdAttr<CommandReplConf>("replconf", -3, "read-only replication no-script", NO_KEY),
-    MakeCmdAttr<CommandPSync>("psync", -2, "read-only replication no-multi no-script", NO_KEY),
-    MakeCmdAttr<CommandFetchMeta>("_fetch_meta", 1, "read-only replication no-multi no-script", NO_KEY),
-    MakeCmdAttr<CommandFetchFile>("_fetch_file", 2, "read-only replication no-multi no-script", NO_KEY),
-    MakeCmdAttr<CommandDBName>("_db_name", 1, "read-only replication no-multi", NO_KEY), )
+REDIS_REGISTER_COMMANDS(Replication, MakeCmdAttr<CommandReplConf>("replconf", -3, "read-only no-script", NO_KEY),
+                        MakeCmdAttr<CommandPSync>("psync", -2, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandFetchMeta>("_fetch_meta", 1, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandFetchFile>("_fetch_file", 2, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandDBName>("_db_name", 1, "read-only no-multi", NO_KEY), )
 
 }  // namespace redis

@@ -76,7 +76,7 @@ Worker::Worker(Server *srv, Config *config) : srv(srv), base_(event_base_new()) 
       }
     }
   }
-  lua_ = lua::CreateState(srv);
+  lua_ = lua::CreateState();
 }
 
 Worker::~Worker() {

@@ -21,16 +21,15 @@
 #include "redis_db.h"
 
 #include <ctime>
-#include <map>
 #include <utility>
 
 #include "cluster/redis_slot.h"
 #include "common/scope_exit.h"
+#include "common/string_util.h"
 #include "db_util.h"
 #include "parse_util.h"
 #include "rocksdb/iterator.h"
 #include "rocksdb/status.h"
-#include "server/server.h"
 #include "storage/iterator.h"
 #include "storage/redis_metadata.h"
 #include "storage/storage.h"
@@ -113,7 +112,7 @@ rocksdb::Status Database::Expire(engine::Context &ctx, const Slice &user_key, ui
 
   std::string value;
   Metadata metadata(kRedisNone, false);
-  LockGuard guard(storage_->GetLockManager(), ns_key);
+
   rocksdb::Status s = storage_->Get(ctx, ctx.GetReadOptions(), metadata_cf_handle_, ns_key, &value);
   if (!s.ok()) return s;
 
@@ -151,7 +150,7 @@ rocksdb::Status Database::Del(engine::Context &ctx, const Slice &user_key) {
   std::string ns_key = AppendNamespacePrefix(user_key);
 
   std::string value;
-  LockGuard guard(storage_->GetLockManager(), ns_key);
+
   rocksdb::Status s = storage_->Get(ctx, ctx.GetReadOptions(), metadata_cf_handle_, ns_key, &value);
   if (!s.ok()) return s;
   Metadata metadata(kRedisNone, false);
@@ -166,13 +165,12 @@ rocksdb::Status Database::Del(engine::Context &ctx, const Slice &user_key) {
 rocksdb::Status Database::MDel(engine::Context &ctx, const std::vector<Slice> &keys, uint64_t *deleted_cnt) {
   *deleted_cnt = 0;
 
-  std::vector<std::string> lock_keys;
-  lock_keys.reserve(keys.size());
+  std::vector<std::string> ns_keys;
+  ns_keys.reserve(keys.size());
   for (const auto &key : keys) {
     std::string ns_key = AppendNamespacePrefix(key);
-    lock_keys.emplace_back(std::move(ns_key));
+    ns_keys.emplace_back(std::move(ns_key));
   }
-  MultiLockGuard guard(storage_->GetLockManager(), lock_keys);
 
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisNone);
@@ -182,8 +180,8 @@ rocksdb::Status Database::MDel(engine::Context &ctx, const std::vector<Slice> &k
   }
 
   std::vector<Slice> slice_keys;
-  slice_keys.reserve(lock_keys.size());
-  for (const auto &ns_key : lock_keys) {
+  slice_keys.reserve(ns_keys.size());
+  for (const auto &ns_key : ns_keys) {
     slice_keys.emplace_back(ns_key);
   }
 
@@ -203,7 +201,7 @@ rocksdb::Status Database::MDel(engine::Context &ctx, const std::vector<Slice> &k
     if (!s.ok()) continue;
     if (metadata.Expired()) continue;
 
-    s = batch->Delete(metadata_cf_handle_, lock_keys[i]);
+    s = batch->Delete(metadata_cf_handle_, ns_keys[i]);
     if (!s.ok()) return s;
     *deleted_cnt += 1;
   }
@@ -249,11 +247,11 @@ rocksdb::Status Database::GetExpireTime(engine::Context &ctx, const Slice &user_
 }
 
 rocksdb::Status Database::GetKeyNumStats(engine::Context &ctx, const std::string &prefix, KeyNumStats *stats) {
-  return Keys(ctx, prefix, nullptr, stats);
+  return Keys(ctx, prefix, "*", nullptr, stats);
 }
 
-rocksdb::Status Database::Keys(engine::Context &ctx, const std::string &prefix, std::vector<std::string> *keys,
-                               KeyNumStats *stats) {
+rocksdb::Status Database::Keys(engine::Context &ctx, const std::string &prefix, const std::string &suffix_glob,
+                               std::vector<std::string> *keys, KeyNumStats *stats) {
   uint16_t slot_id = 0;
   std::string ns_prefix;
   if (namespace_ != kDefaultNamespace || keys != nullptr) {
@@ -277,6 +275,10 @@ rocksdb::Status Database::Keys(engine::Context &ctx, const std::string &prefix, 
       if (!ns_prefix.empty() && !iter->key().starts_with(ns_prefix)) {
         break;
       }
+      auto [_, user_key] = ExtractNamespaceKey(iter->key(), storage_->IsSlotIdEncoded());
+      if (!util::StringMatch(suffix_glob, user_key.ToString().substr(prefix.size()))) {
+        continue;
+      }
       Metadata metadata(kRedisNone, false);
       auto s = metadata.Decode(iter->value());
       if (!s.ok()) continue;
@@ -293,7 +295,6 @@ rocksdb::Status Database::Keys(engine::Context &ctx, const std::string &prefix, 
         }
       }
       if (keys) {
-        auto [_, user_key] = ExtractNamespaceKey(iter->key(), storage_->IsSlotIdEncoded());
         keys->emplace_back(user_key.ToString());
       }
     }
@@ -319,8 +320,8 @@ rocksdb::Status Database::Keys(engine::Context &ctx, const std::string &prefix, 
 }
 
 rocksdb::Status Database::Scan(engine::Context &ctx, const std::string &cursor, uint64_t limit,
-                               const std::string &prefix, std::vector<std::string> *keys, std::string *end_cursor,
-                               RedisType type) {
+                               const std::string &prefix, const std::string &suffix_glob,
+                               std::vector<std::string> *keys, std::string *end_cursor, RedisType type) {
   end_cursor->clear();
   uint64_t cnt = 0;
   uint16_t slot_start = 0;
@@ -366,6 +367,10 @@ rocksdb::Status Database::Scan(engine::Context &ctx, const std::string &cursor, 
 
       if (metadata.Expired()) continue;
       std::tie(std::ignore, user_key) = ExtractNamespaceKey<std::string>(iter->key(), storage_->IsSlotIdEncoded());
+
+      if (!util::StringMatch(suffix_glob, user_key.substr(prefix.size()))) {
+        continue;
+      }
       keys->emplace_back(user_key);
       cnt++;
     }
@@ -395,7 +400,7 @@ rocksdb::Status Database::Scan(engine::Context &ctx, const std::string &cursor, 
         if (iter->Valid()) {
           std::tie(std::ignore, user_key) = ExtractNamespaceKey<std::string>(iter->key(), storage_->IsSlotIdEncoded());
           auto res = std::mismatch(prefix.begin(), prefix.end(), user_key.begin());
-          if (res.first == prefix.end()) {
+          if (res.first == prefix.end() && util::StringMatch(suffix_glob, user_key.substr(prefix.size()))) {
             keys->emplace_back(user_key);
           }
 
@@ -420,13 +425,13 @@ rocksdb::Status Database::RandomKey(engine::Context &ctx, const std::string &cur
 
   std::string end_cursor;
   std::vector<std::string> keys;
-  auto s = Scan(ctx, cursor, RANDOM_KEY_SCAN_LIMIT, "", &keys, &end_cursor);
+  auto s = Scan(ctx, cursor, RANDOM_KEY_SCAN_LIMIT, "", "*", &keys, &end_cursor);
   if (!s.ok()) {
     return s;
   }
   if (keys.empty() && !cursor.empty()) {
     // if reach the end, restart from beginning
-    s = Scan(ctx, "", RANDOM_KEY_SCAN_LIMIT, "", &keys, &end_cursor);
+    s = Scan(ctx, "", RANDOM_KEY_SCAN_LIMIT, "", "*", &keys, &end_cursor);
     if (!s.ok()) {
       return s;
     }
@@ -646,9 +651,6 @@ rocksdb::Status Database::typeInternal(engine::Context &ctx, const Slice &key, R
 
 rocksdb::Status Database::Copy(engine::Context &ctx, const std::string &key, const std::string &new_key, bool nx,
                                bool delete_old, CopyResult *res) {
-  std::vector<std::string> lock_keys = {key, new_key};
-  MultiLockGuard guard(storage_->GetLockManager(), lock_keys);
-
   RedisType type = kRedisNone;
   auto s = typeInternal(ctx, key, &type);
   if (!s.ok()) return s;
