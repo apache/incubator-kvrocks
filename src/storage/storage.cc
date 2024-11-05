@@ -868,9 +868,11 @@ Status Storage::BeginTxn() {
   // The EXEC command is exclusive and shouldn't have multi transaction at the same time,
   // so it's fine to reset the global write batch without any lock.
   is_txn_mode_ = true;
-  txn_write_batch_ =
-      std::make_unique<rocksdb::WriteBatchWithIndex>(rocksdb::BytewiseComparator() /*default backup_index_comparator */,
-                                                     0 /* default reserved_bytes*/, GetWriteBatchMaxBytes());
+  // Set overwrite_key to false to avoid overwriting the existing key in case
+  // like downstream would parse the replication log etc.
+  txn_write_batch_ = std::make_unique<rocksdb::WriteBatchWithIndex>(
+      /*backup_index_comparator=*/rocksdb::BytewiseComparator(),
+      /*reserved_bytes=*/0, /*overwrite_key=*/false, /*max_bytes=*/GetWriteBatchMaxBytes());
   return Status::OK();
 }
 
