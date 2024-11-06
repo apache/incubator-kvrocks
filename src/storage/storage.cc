@@ -302,7 +302,7 @@ Status Storage::Open(DBOpenMode mode) {
   // If a snapshot directory was specified, create a snapshot and open the database
   // there in read-only mode.
   if (config_->snapshot_dir != "") {
-    if (const auto s = CreateSnapshot(*config_); !s.IsOK()) {
+    if (auto s = CreateSnapshot(*config_); !s.IsOK()) {
       return s;
     }
     LOG(INFO) << "Starting server in read-only mode with snapshot dir: " << config_->snapshot_dir;
