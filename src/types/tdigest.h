@@ -17,39 +17,8 @@ struct Centroid {
   }
 };
 
-class CentroidBuffer {
- public:
-  class CentroidBufferIterator {
-   public:
-    virtual bool Next() = 0;
-    virtual StatusOr<Centroid> Get() const = 0;
-    virtual bool Valid() const = 0;
-    virtual bool Merge(const Centroid& other) = 0;
-  };
-  virtual CentroidBufferIterator Begin() const = 0;
-  virtual CentroidBufferIterator End() const = 0;
-  virtual StatusOr<uint64_t> Size() const = 0;
-  virtual CentroidBufferIterator Add(const Centroid& centroid) = 0;
-};
-
-class TDigest {
- public:
-  explicit TDigest(uint64_t delta);
-
-  TDigest(const TDigest&) = delete;
-  TDigest& operator=(const TDigest&) = delete;
-  TDigest(TDigest&& rhs) = default;
-  ~TDigest() = default;
-
-  void Merge(const std::vector<TDigest>& others);
-  void Add(std::vector<double> items);
-  void Reset(const std::vector<Centroid>& centroids);
-  std::vector<Centroid> DumpCentroids() const;
-
- private:
-  class TDigestImpl;
-  std::unique_ptr<TDigestImpl> impl_;
-};
+std::vector<Centroid> TDigestMerge(const std::vector<std::vector<Centroid>> &centroids_list);
+std::vector<Centroid> TDigestMerge(const std::vector<double>& buffer, const std::vector<std::vector<Centroid>>& centroid_list);
 
 
 template <typename TD, typename Lerp>

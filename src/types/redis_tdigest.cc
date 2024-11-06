@@ -1,8 +1,11 @@
 #include "redis_tdigest.h"
 
+#include <iterator>
+
 #include "rocksdb/status.h"
 #include "storage/redis_db.h"
 #include "storage/redis_metadata.h"
+#include "types/tdigest.h"
 
 namespace redis {
 using rocksdb::Status;
@@ -44,8 +47,65 @@ std::optional<Status> TDigest::Create(engine::Context& context, const Slice& dig
 
   return storage_->Write(context, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
 }
-// rocksdb::Status TDigest::Add(engine::Context& context, const Slice& digest_name,
-//                              const std::vector<Centroid>& centroids) {}
+rocksdb::Status TDigest::Add(engine::Context& context, const Slice& digest_name, const std::vector<double>& inputs) {
+  auto ns_key = AppendNamespacePrefix(digest_name);
+  LockGuard guard(storage_->GetLockManager(), ns_key);
+
+  TDigestMetadata metadata;
+  auto status = GetMetaData(context, ns_key, &metadata);
+  if (!status.ok()) {
+    return status;
+  }
+
+  auto batch = storage_->GetWriteBatchBase();
+  WriteBatchLogData log_data(kRedisTDigest);
+  status = batch->PutLogData(log_data.Encode());
+  if (!status.ok()) {
+    return status;
+  }
+
+  metadata.total_observations += inputs.size();
+  metadata.total_weight += inputs.size();
+
+  if (metadata.unmerged_nodes + inputs.size() <= metadata.capcacity) {
+    status = appendBuffer(context, batch, ns_key, inputs);
+    if (!status.ok()) {
+      return status;
+    }
+    metadata.unmerged_nodes += inputs.size();
+  } else {
+    std::vector<Centroid> centroids;
+    std::vector<double> buffer;
+    centroids.reserve(metadata.merged_nodes);
+    buffer.reserve(metadata.unmerged_nodes + inputs.size());
+    status = dumpCentroidsAndBuffer(context, ns_key, &centroids, &buffer);
+    if (!status.ok()) {
+      return status;
+    }
+
+    std::copy(inputs.begin(), inputs.end(), std::back_inserter(buffer));
+
+    auto merged_centroids = TDigestMerge(buffer, {centroids});
+
+    status = applyNewCentroidsAndCleanBuffer(context, batch, ns_key, merged_centroids);
+    if (!status.ok()) {
+      return status;
+    }
+
+    metadata.merge_times++;
+    metadata.merged_nodes = merged_centroids.size();
+    metadata.unmerged_nodes = 0;
+  }
+
+  std::string metadata_bytes;
+  metadata.Encode(&metadata_bytes);
+  status = batch->Put(cf_handle_, ns_key, metadata_bytes);
+  if (!status.ok()) {
+    return status;
+  }
+
+  return storage_->Write(context, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
+}
 // rocksdb::Status TDigest::Cdf(engine::Context& context, const Slice& digest_name, const std::vector<double>& numbers,
 //                              TDigestCDFResult* result) {}
 // rocksdb::Status TDigest::Quantile(engine::Context& context, const Slice& digest_name,

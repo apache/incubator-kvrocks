@@ -33,7 +33,24 @@ struct ScalerK1 {
 };
 }  // namespace
 
-using Iterator = std::unique_ptr<CentroidBuffer::CentroidBufferIterator>;
+class TDigest {
+ public:
+  explicit TDigest(uint64_t delta);
+
+  TDigest(const TDigest&) = delete;
+  TDigest& operator=(const TDigest&) = delete;
+  TDigest(TDigest&& rhs) = default;
+  ~TDigest() = default;
+
+  void Merge(const std::vector<TDigest>& others);
+  void Add(std::vector<double> items);
+  void Reset(const std::vector<Centroid>& centroids);
+  std::vector<Centroid> DumpCentroids() const;
+
+ private:
+  class TDigestImpl;
+  std::unique_ptr<TDigestImpl> impl_;
+};
 
 template <typename T = ScalerK1>
 class TDigestMerger : private T {
@@ -309,14 +326,14 @@ class TDigest::TDigestImpl {
   int current_;
 };
 
-TDigest::TDigest(uint64_t delta) : impl_(std::make_unique<TDigestImpl>(delta)) {
-  Reset({});
-}
+TDigest::TDigest(uint64_t delta) : impl_(std::make_unique<TDigestImpl>(delta)) { Reset({}); }
 
-void TDigest::Merge(const std::vector<TDigest>& others) {
+void TDigest::Merge(const std::vector<TDigest>& others) {}
 
-}
+void TDigest::Reset(const std::vector<Centroid>& centroids) { impl_->Reset(); }
 
-void TDigest::Reset(const std::vector<Centroid>& centroids) {
-  impl_->Reset();
+std::vector<Centroid> TDigestMerge(const std::vector<std::vector<Centroid>>& centroids_list) { return {}; }
+std::vector<Centroid> TDigestMerge(const std::vector<double>& buffer,
+                                   const std::vector<std::vector<Centroid>>& centroid_list) {
+  return {};
 }

@@ -46,7 +46,7 @@ class TDigest : public SubKeyScanner {
       : SubKeyScanner(storage, ns), cf_handle_(storage->GetCFHandle(ColumnFamilyID::TDigest)) {}
   std::optional<rocksdb::Status> Create(engine::Context& context, const Slice& digest_name,
                                         const TDigestCreateOptions& options);
-  // rocksdb::Status Add(engine::Context& context, const Slice& digest_name, const std::vector<Centroid>& centroids);
+  rocksdb::Status Add(engine::Context& context, const Slice& digest_name, const std::vector<double>& inputs);
   // rocksdb::Status Cdf(engine::Context& context, const Slice& digest_name, const std::vector<double>& numbers,
   //                     TDigestCDFResult* result);
   // rocksdb::Status Quantile(engine::Context& context, const Slice& digest_name, const std::vector<double>& numbers,
@@ -59,6 +59,8 @@ class TDigest : public SubKeyScanner {
 
  private:
   rocksdb::ColumnFamilyHandle* cf_handle_;
+
+  rocksdb::Status appendBuffer(engine::Context& context, ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch, const std::string& ns_key, const std::vector<double>& inputs);
 
   rocksdb::Status dumpCentroidsAndBuffer(engine::Context& context, const std::string& ns_key, std::vector<Centroid>* centroids, std::vector<double>* buffer);
   rocksdb::Status applyNewCentroidsAndCleanBuffer(engine::Context& context, ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch, const std::string& ns_key, const std::vector<Centroid>& centroids);
