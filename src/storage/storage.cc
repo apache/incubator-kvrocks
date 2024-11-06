@@ -84,7 +84,7 @@ static Status CreateSnapshot(Config &config) {
   const auto checkpoint_dir_guard =
       MakeScopeExit([&config, &old_checkpoint_dir] { config.checkpoint_dir = old_checkpoint_dir; });
 
-  // Since .Open() will call `CreateSnapshot` if `snapshot_dir` is set, we need to 
+  // Since .Open() will call `CreateSnapshot` if `snapshot_dir` is set, we need to
   // clear it, and reset it after the snapshot is created to preserve symmetry.
   const std::string snapshot_dir = std::exchange(config.snapshot_dir, "");
   const auto snapshot_dir_guard = MakeScopeExit([&config, &snapshot_dir] { config.snapshot_dir = snapshot_dir; });
