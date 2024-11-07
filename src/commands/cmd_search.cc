@@ -333,7 +333,7 @@ static StatusOr<std::unique_ptr<kqir::Node>> ParseRediSearchQuery(const std::vec
 
   kqir::ParamMap param_map;
   while (parser.Good()) {
-    if (parser.EatEqICase("RETURNS")) {
+    if (parser.EatEqICase("RETURN")) {
       auto count = GET_OR_RET(parser.TakeInt<size_t>());
 
       for (size_t i = 0; i < count; ++i) {

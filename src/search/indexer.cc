@@ -280,9 +280,13 @@ Status IndexUpdater::UpdateNumericIndex(engine::Context &ctx, std::string_view k
 
 Status IndexUpdater::UpdateHnswVectorIndex(engine::Context &ctx, std::string_view key, const kqir::Value &original,
                                            const kqir::Value &current, const SearchKey &search_key,
-                                           HnswVectorFieldMetadata *vector) const {
+                                           HnswVectorFieldMetadata *vector) {
   CHECK(original.IsNull() || original.Is<kqir::NumericArray>());
   CHECK(current.IsNull() || current.Is<kqir::NumericArray>());
+
+  // TODO: we can remove the lock if we solve the race problem
+  // inside the HNSW indexer, refer to #2481 and #2489
+  std::unique_lock lock(update_mutex);
 
   auto storage = indexer->storage;
   auto hnsw = HnswIndex(search_key, vector, storage);
@@ -305,7 +309,7 @@ Status IndexUpdater::UpdateHnswVectorIndex(engine::Context &ctx, std::string_vie
 }
 
 Status IndexUpdater::UpdateIndex(engine::Context &ctx, const std::string &field, std::string_view key,
-                                 const kqir::Value &original, const kqir::Value &current) const {
+                                 const kqir::Value &original, const kqir::Value &current) {
   if (original == current) {
     // the value of this field is unchanged, no need to update
     return Status::OK();
@@ -331,7 +335,7 @@ Status IndexUpdater::UpdateIndex(engine::Context &ctx, const std::string &field,
   return Status::OK();
 }
 
-Status IndexUpdater::Update(engine::Context &ctx, const FieldValues &original, std::string_view key) const {
+Status IndexUpdater::Update(engine::Context &ctx, const FieldValues &original, std::string_view key) {
   auto current = GET_OR_RET(Record(ctx, key));
 
   for (const auto &[field, i] : info->fields) {
@@ -354,7 +358,7 @@ Status IndexUpdater::Update(engine::Context &ctx, const FieldValues &original, s
   return Status::OK();
 }
 
-Status IndexUpdater::Build(engine::Context &ctx) const {
+Status IndexUpdater::Build(engine::Context &ctx) {
   auto storage = indexer->storage;
   util::UniqueIterator iter(ctx, ctx.DefaultScanOptions(), ColumnFamilyID::Metadata);
 
@@ -380,26 +384,27 @@ Status IndexUpdater::Build(engine::Context &ctx) const {
   return Status::OK();
 }
 
-void GlobalIndexer::Add(IndexUpdater updater) {
-  updater.indexer = this;
-  for (const auto &prefix : updater.info->prefixes) {
-    prefix_map.insert(ComposeNamespaceKey(updater.info->ns, prefix, false), updater);
+void GlobalIndexer::Add(std::unique_ptr<IndexUpdater> updater) {
+  updater->indexer = this;
+  for (const auto &prefix : updater->info->prefixes) {
+    prefix_map.insert(ComposeNamespaceKey(updater->info->ns, prefix, false), updater.get());
   }
-  updater_list.push_back(updater);
+  updater_list.push_back(std::move(updater));
 }
 
 void GlobalIndexer::Remove(const kqir::IndexInfo *index) {
   for (auto iter = prefix_map.begin(); iter != prefix_map.end();) {
-    if (iter->info == index) {
+    if ((*iter)->info == index) {
       iter = prefix_map.erase(iter);
     } else {
       ++iter;
     }
   }
 
-  updater_list.erase(std::remove_if(updater_list.begin(), updater_list.end(),
-                                    [index](IndexUpdater updater) { return updater.info == index; }),
-                     updater_list.end());
+  updater_list.erase(
+      std::remove_if(updater_list.begin(), updater_list.end(),
+                     [index](const std::unique_ptr<IndexUpdater> &updater) { return updater->info == index; }),
+      updater_list.end());
 }
 
 StatusOr<GlobalIndexer::RecordResult> GlobalIndexer::Record(engine::Context &ctx, std::string_view key,
@@ -411,14 +416,14 @@ StatusOr<GlobalIndexer::RecordResult> GlobalIndexer::Record(engine::Context &ctx
   auto iter = prefix_map.longest_prefix(ComposeNamespaceKey(ns, key, false));
   if (iter != prefix_map.end()) {
     auto updater = iter.value();
-    return RecordResult{updater, std::string(key.begin(), key.end()), GET_OR_RET(updater.Record(ctx, key))};
+    return RecordResult{updater, std::string(key.begin(), key.end()), GET_OR_RET(updater->Record(ctx, key))};
   }
 
   return {Status::NoPrefixMatched};
 }
 
 Status GlobalIndexer::Update(engine::Context &ctx, const RecordResult &original) {
-  return original.updater.Update(ctx, original.fields, original.key);
+  return original.updater->Update(ctx, original.fields, original.key);
 }
 
 }  // namespace redis

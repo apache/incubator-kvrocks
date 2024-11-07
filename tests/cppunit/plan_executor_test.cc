@@ -386,7 +386,7 @@ std::vector<std::unique_ptr<ScopedUpdate>> ScopedUpdates(engine::Context& ctx, r
 
 TEST_F(PlanExecutorTestC, NumericFieldScan) {
   redis::GlobalIndexer indexer(storage_.get());
-  indexer.Add(redis::IndexUpdater(IndexI()));
+  indexer.Add(std::make_unique<redis::IndexUpdater>(IndexI()));
 
   {
     engine::Context ctx(storage_.get());
@@ -428,7 +428,7 @@ TEST_F(PlanExecutorTestC, NumericFieldScan) {
 
 TEST_F(PlanExecutorTestC, TagFieldScan) {
   redis::GlobalIndexer indexer(storage_.get());
-  indexer.Add(redis::IndexUpdater(IndexI()));
+  indexer.Add(std::make_unique<redis::IndexUpdater>(IndexI()));
 
   {
     engine::Context ctx(storage_.get());
@@ -467,7 +467,7 @@ TEST_F(PlanExecutorTestC, TagFieldScan) {
 
 TEST_F(PlanExecutorTestC, HnswVectorFieldScans) {
   redis::GlobalIndexer indexer(storage_.get());
-  indexer.Add(redis::IndexUpdater(IndexI()));
+  indexer.Add(std::make_unique<redis::IndexUpdater>(IndexI()));
 
   {
     auto updates = ScopedUpdates(*ctx_, indexer,
