@@ -171,8 +171,7 @@ int main(int argc, char *argv[]) {
 #endif
 
   engine::Storage storage(&config);
-  s = storage.Open(kDBOpenModeDefault);
-
+  s = storage.Open();
   if (!s.IsOK()) {
     LOG(ERROR) << "Failed to open: " << s.Msg();
     return 1;
