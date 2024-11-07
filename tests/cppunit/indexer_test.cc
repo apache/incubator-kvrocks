@@ -48,7 +48,7 @@ struct IndexerTest : TestBase {
 
     map.emplace("hashtest", std::move(hash_info));
 
-    redis::IndexUpdater hash_updater{map.at("hashtest").get()};
+    auto hash_updater = std::make_unique<redis::IndexUpdater>(map.at("hashtest").get());
 
     redis::IndexMetadata json_field_meta;
     json_field_meta.on_data_type = redis::IndexOnDataType::JSON;
@@ -65,7 +65,7 @@ struct IndexerTest : TestBase {
 
     map.emplace("jsontest", std::move(json_info));
 
-    redis::IndexUpdater json_updater{map.at("jsontest").get()};
+    auto json_updater = std::make_unique<redis::IndexUpdater>(map.at("jsontest").get());
 
     indexer.Add(std::move(hash_updater));
     indexer.Add(std::move(json_updater));
@@ -87,7 +87,7 @@ TEST_F(IndexerTest, HashTag) {
   {
     auto s = indexer.Record(*ctx_, key1, ns);
     ASSERT_EQ(s.Msg(), Status::ok_msg);
-    ASSERT_EQ(s->updater.info->name, idxname);
+    ASSERT_EQ(s->updater->info->name, idxname);
     ASSERT_TRUE(s->fields.empty());
 
     uint64_t cnt = 0;
@@ -120,7 +120,7 @@ TEST_F(IndexerTest, HashTag) {
   {
     auto s = indexer.Record(*ctx_, key1, ns);
     ASSERT_TRUE(s);
-    ASSERT_EQ(s->updater.info->name, idxname);
+    ASSERT_EQ(s->updater->info->name, idxname);
     ASSERT_EQ(s->fields.size(), 1);
     ASSERT_EQ(s->fields["x"], T("food,kitChen,Beauty"));
 
@@ -178,7 +178,7 @@ TEST_F(IndexerTest, JsonTag) {
   {
     auto s = indexer.Record(*ctx_, key1, ns);
     ASSERT_TRUE(s);
-    ASSERT_EQ(s->updater.info->name, idxname);
+    ASSERT_EQ(s->updater->info->name, idxname);
     ASSERT_TRUE(s->fields.empty());
 
     auto s_set = db.Set(*ctx_, key1, "$", R"({"x": "food,kitChen,Beauty"})");
@@ -210,7 +210,7 @@ TEST_F(IndexerTest, JsonTag) {
   {
     auto s = indexer.Record(*ctx_, key1, ns);
     ASSERT_TRUE(s);
-    ASSERT_EQ(s->updater.info->name, idxname);
+    ASSERT_EQ(s->updater->info->name, idxname);
     ASSERT_EQ(s->fields.size(), 1);
     ASSERT_EQ(s->fields["$.x"], T("food,kitChen,Beauty"));
 
@@ -262,7 +262,7 @@ TEST_F(IndexerTest, JsonTagBuildIndex) {
     auto s_set = db.Set(*ctx_, key1, "$", R"({"x": "food,kitChen,Beauty"})");
     ASSERT_TRUE(s_set.ok());
 
-    auto s2 = indexer.updater_list[1].Build(*ctx_);
+    auto s2 = indexer.updater_list[1]->Build(*ctx_);
     ASSERT_EQ(s2.Msg(), Status::ok_msg);
 
     auto key = redis::SearchKey(ns, idxname, "$.x").ConstructTagFieldData("food", key1);
@@ -301,7 +301,7 @@ TEST_F(IndexerTest, JsonHnswVector) {
   {
     auto s = indexer.Record(*ctx_, key3, ns);
     ASSERT_TRUE(s);
-    ASSERT_EQ(s->updater.info->name, idxname);
+    ASSERT_EQ(s->updater->info->name, idxname);
     ASSERT_TRUE(s->fields.empty());
 
     auto s_set = db.Set(*ctx_, key3, "$", R"({"z": [1,2,3]})");

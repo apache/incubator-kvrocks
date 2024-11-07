@@ -124,8 +124,8 @@ struct IndexManager {
         info->Add(kqir::FieldInfo(field_name.ToString(), std::move(field_meta)));
       }
 
-      IndexUpdater updater(info.get());
-      indexer->Add(updater);
+      auto updater = std::make_unique<IndexUpdater>(info.get());
+      indexer->Add(std::move(updater));
       index_map.Insert(std::move(info));
     }
 
@@ -180,12 +180,12 @@ struct IndexManager {
       return {Status::NotOK, fmt::format("failed to write index metadata: {}", s.ToString())};
     }
 
-    IndexUpdater updater(info.get());
-    indexer->Add(updater);
+    auto updater = std::make_unique<IndexUpdater>(info.get());
+    indexer->Add(std::move(updater));
     index_map.Insert(std::move(info));
 
-    for (auto updater : indexer->updater_list) {
-      GET_OR_RET(updater.Build(ctx));
+    for (const auto &updater : indexer->updater_list) {
+      GET_OR_RET(updater->Build(ctx));
     }
 
     return Status::OK();
