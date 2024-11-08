@@ -4,6 +4,7 @@
 #include <queue>
 
 #include "fmt/format.h"
+#include "status.h"
 
 namespace {
 
@@ -45,7 +46,7 @@ class TDigest {
   void Merge(const std::vector<TDigest>& others);
   void Add(std::vector<double> items);
   void Reset(const std::vector<Centroid>& centroids);
-  std::vector<Centroid> DumpCentroids() const;
+  CentroidsWithDelta DumpCentroids() const;
 
  private:
   class TDigestImpl;
@@ -121,6 +122,16 @@ class TDigest::TDigestImpl {
 
   void Reset() {
     tdigests_[0].resize(0);
+    tdigests_[1].resize(0);
+    current_ = 0;
+    total_weight_ = 0;
+    min_ = std::numeric_limits<double>::max();
+    max_ = std::numeric_limits<double>::lowest();
+    merger_.Reset(0, nullptr);
+  }
+
+  void Reset(const std::vector<Centroid>& centroids) {
+    tdigests_[0] = centroids;
     tdigests_[1].resize(0);
     current_ = 0;
     total_weight_ = 0;
@@ -330,10 +341,32 @@ TDigest::TDigest(uint64_t delta) : impl_(std::make_unique<TDigestImpl>(delta)) {
 
 void TDigest::Merge(const std::vector<TDigest>& others) {}
 
-void TDigest::Reset(const std::vector<Centroid>& centroids) { impl_->Reset(); }
+void TDigest::Reset(const std::vector<Centroid>& centroids) { impl_->Reset(centroids); }
 
-std::vector<Centroid> TDigestMerge(const std::vector<std::vector<Centroid>>& centroids_list) { return {}; }
-std::vector<Centroid> TDigestMerge(const std::vector<double>& buffer,
-                                   const std::vector<std::vector<Centroid>>& centroid_list) {
+StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<CentroidsWithDelta>& centroids_list) {
+  if (centroids_list.empty()) {
+    return Status{Status::InvalidArgument, "centroids_list is empty"};
+  }
+  if (centroids_list.size() == 1) {
+    return centroids_list.front();
+  }
+
+  TDigest digest{centroids_list.front().delta};
+  digest.Reset(centroids_list.front().centroids);
+
+  std::vector<TDigest> others;
+  others.reserve(centroids_list.size() - 1);
+
+  for (size_t i = 1; i < centroids_list.size(); ++i) {
+    TDigest d{centroids_list[i].delta};
+    digest.Reset(centroids_list[i].centroids);
+    others.emplace_back(std::move(d));
+  }
+
+  digest.Merge(others);
+
+  return digest.DumpCentroids();
+}
+StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<double>& buffer, const CentroidsWithDelta& centroid_list) {
   return {};
 }
