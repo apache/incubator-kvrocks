@@ -31,6 +31,9 @@ PopulateCases = [
         [('set', 'foo', 1), True],
         [('setex', 'foo_ex', 3600, 1), True],
     ]),
+    ('json', [
+        [('JSON.SET', 'jfoo', '$', '{"a":1,"b":2}'), True],
+    ]),
     ('zset', [
         [('zadd', 'zfoo', 1, 'a', 2, 'b', 3, 'c'), 3]
     ]),

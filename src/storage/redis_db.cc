@@ -47,20 +47,9 @@ Database::Database(engine::Storage *storage, std::string ns)
       metadata_cf_handle_(storage->GetCFHandle(ColumnFamilyID::Metadata)),
       namespace_(std::move(ns)) {}
 
-// Some data types may support reading multiple types of metadata.
-// For example, bitmap supports reading string metadata and bitmap metadata.
 rocksdb::Status Database::ParseMetadata(RedisTypes types, Slice *bytes, Metadata *metadata) {
   std::string old_metadata;
   metadata->Encode(&old_metadata);
-
-  bool is_keyspace_hit = false;
-  ScopeExit se([this, &is_keyspace_hit] {
-    if (is_keyspace_hit) {
-      storage_->RecordStat(engine::StatType::KeyspaceHits, 1);
-    } else {
-      storage_->RecordStat(engine::StatType::KeyspaceMisses, 1);
-    }
-  });
 
   auto s = metadata->Decode(bytes);
   // delay InvalidArgument error check after type match check
@@ -85,7 +74,14 @@ rocksdb::Status Database::ParseMetadata(RedisTypes types, Slice *bytes, Metadata
     auto _ [[maybe_unused]] = metadata->Decode(old_metadata);
     return rocksdb::Status::NotFound("no element found");
   }
-  is_keyspace_hit = true;
+  return s;
+}
+
+// Some data types may support reading multiple types of metadata.
+// For example, bitmap supports reading string metadata and bitmap metadata.
+rocksdb::Status Database::ParseMetadataWithStats(RedisTypes types, Slice *bytes, Metadata *metadata) {
+  auto s = ParseMetadata(types, bytes, metadata);
+  storage_->RecordStat(s.ok() ? engine::StatType::KeyspaceHits : engine::StatType::KeyspaceHits, 1);
   return s;
 }
 
@@ -100,7 +96,7 @@ rocksdb::Status Database::GetMetadata(engine::Context &ctx, RedisTypes types, co
   auto s = GetRawMetadata(ctx, ns_key, raw_value);
   *rest = *raw_value;
   if (!s.ok()) return s;
-  return ParseMetadata(types, rest, metadata);
+  return ParseMetadataWithStats(types, rest, metadata);
 }
 
 rocksdb::Status Database::GetRawMetadata(engine::Context &ctx, const Slice &ns_key, std::string *bytes) {

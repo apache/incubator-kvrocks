@@ -69,6 +69,18 @@ rocksdb::Status WriteBatchExtractor::PutCF(uint32_t column_family_id, const Slic
         command_args = {"PEXPIREAT", user_key, std::to_string(metadata.expire)};
         resp_commands_[ns].emplace_back(redis::ArrayOfBulkStrings(command_args));
       }
+    } else if (metadata.Type() == kRedisJson) {
+      JsonValue json_value;
+      s = redis::Json::FromString(value.ToString(), &json_value);
+      if (!s.ok()) return s;
+      auto json_bytes = json_value.Dump();
+      if (!json_bytes) return rocksdb::Status::Corruption(json_bytes.Msg());
+      command_args = {"JSON.SET", user_key, "$", json_bytes.GetValue()};
+      resp_commands_[ns].emplace_back(redis::ArrayOfBulkStrings(command_args));
+      if (metadata.expire > 0) {
+        command_args = {"PEXPIREAT", user_key, std::to_string(metadata.expire)};
+        resp_commands_[ns].emplace_back(redis::ArrayOfBulkStrings(command_args));
+      }
     } else if (metadata.expire > 0) {
       auto args = log_data_.GetArguments();
       if (args->size() > 0) {
