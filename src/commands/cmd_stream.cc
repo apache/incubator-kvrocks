@@ -1892,12 +1892,12 @@ REDIS_REGISTER_COMMANDS(Stream, MakeCmdAttr<CommandXAck>("xack", -4, "write no-d
                         MakeCmdAttr<CommandAutoClaim>("xautoclaim", -6, "write", 1, 1, 1),
                         MakeCmdAttr<CommandXGroup>("xgroup", -4, "write", 2, 2, 1),
                         MakeCmdAttr<CommandXLen>("xlen", -2, "read-only", 1, 1, 1),
-                        MakeCmdAttr<CommandXInfo>("xinfo", -2, "read-only", NO_KEY),
+                        MakeCmdAttr<CommandXInfo>("xinfo", -2, "read-only", -1, -1, 1),
                         MakeCmdAttr<CommandXPending>("xpending", -3, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandXRange>("xrange", -4, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandXRevRange>("xrevrange", -2, "read-only", 1, 1, 1),
-                        MakeCmdAttr<CommandXRead>("xread", -4, "read-only blocking", NO_KEY),
-                        MakeCmdAttr<CommandXReadGroup>("xreadgroup", -7, "write blocking", NO_KEY),
+                        MakeCmdAttr<CommandXRead>("xread", -4, "read-only blocking", -1, -1, 1),
+                        MakeCmdAttr<CommandXReadGroup>("xreadgroup", -7, "write blocking", -1, -1, 1),
                         MakeCmdAttr<CommandXTrim>("xtrim", -4, "write no-dbsize-check", 1, 1, 1),
                         MakeCmdAttr<CommandXSetId>("xsetid", -3, "write", 1, 1, 1))
 
