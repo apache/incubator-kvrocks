@@ -60,11 +60,6 @@ class RedisComparator:
         dst_data = self.dst_cli.getbit(key, pos)
         return src_data, dst_data
 
-    def _compare_json_data(self, key):
-        src_data = self.src_cli.json_get(key, '$')
-        dst_data = self.dst_cli.json_get(key, '$')
-        return src_data, dst_data
-
     def _compare_data(self, keys : list, data_type):
         if data_type == "string":
             return self._compare_string_data(keys[0])
@@ -78,8 +73,6 @@ class RedisComparator:
             return self._compare_zset_data(keys[0])
         elif data_type == 'bitmap':
             return self._compare_bitmap_data(keys[0], keys[1])
-        elif data_type == 'json':
-            return self._compare_json_data(keys[0])
         elif data_type == 'none':
             return self.src_cli.type(keys[0]), 'none'
         else:

@@ -750,7 +750,7 @@ Status SlotMigrator::migrateSimpleKey(const rocksdb::Slice &key, const Metadata 
   } else if (metadata.Type() == kRedisJson) {
     // kRedisJson
     JsonValue json_value;
-    if (auto s = redis::Json::FromString(bytes, &json_value); !s.ok()) {
+    if (auto s = redis::Json::FromRawString(bytes, &json_value); !s.ok()) {
       return {Status::NotOK, s.ToString()};
     }
     auto json_bytes = GET_OR_RET(json_value.Dump());

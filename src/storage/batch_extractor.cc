@@ -71,7 +71,7 @@ rocksdb::Status WriteBatchExtractor::PutCF(uint32_t column_family_id, const Slic
       }
     } else if (metadata.Type() == kRedisJson) {
       JsonValue json_value;
-      s = redis::Json::FromString(value.ToString(), &json_value);
+      s = redis::Json::FromRawString(value.ToString(), &json_value);
       if (!s.ok()) return s;
       auto json_bytes = json_value.Dump();
       if (!json_bytes) return rocksdb::Status::Corruption(json_bytes.Msg());
