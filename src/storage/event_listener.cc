@@ -43,9 +43,13 @@ std::string FileCreatedReason2String(const rocksdb::TableFileCreationReason reas
 }
 
 std::string StallConditionType2String(const rocksdb::WriteStallCondition type) {
-  std::vector<std::string> stall_condition_strings = {"normal", "delay", "stop"};
-  if (static_cast<size_t>(type) < stall_condition_strings.size()) {
-    return stall_condition_strings[static_cast<size_t>(type)];
+  switch (type) {
+    case rocksdb::WriteStallCondition::kDelayed:
+      return "delay";
+    case rocksdb::WriteStallCondition::kStopped:
+      return "stop";
+    case rocksdb::WriteStallCondition::kNormal:
+      return "normal";
   }
   return "unknown";
 }
