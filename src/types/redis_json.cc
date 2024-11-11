@@ -674,7 +674,7 @@ rocksdb::Status Json::Resp(engine::Context &ctx, const std::string &user_key, co
   return rocksdb::Status::OK();
 }
 
-rocksdb::Status Json::FromRawString(const std::string &value, JsonValue *result) {
+rocksdb::Status Json::FromRawString(std::string_view value, JsonValue *result) {
   Slice rest = value;
   JsonMetadata metadata;
   auto s = ParseMetadata({kRedisJson}, &rest, &metadata);

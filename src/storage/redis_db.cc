@@ -81,7 +81,7 @@ rocksdb::Status Database::ParseMetadata(RedisTypes types, Slice *bytes, Metadata
 // For example, bitmap supports reading string metadata and bitmap metadata.
 rocksdb::Status Database::ParseMetadataWithStats(RedisTypes types, Slice *bytes, Metadata *metadata) {
   auto s = ParseMetadata(types, bytes, metadata);
-  storage_->RecordStat(s.ok() ? engine::StatType::KeyspaceHits : engine::StatType::KeyspaceHits, 1);
+  storage_->RecordStat(s.ok() ? engine::StatType::KeyspaceHits : engine::StatType::KeyspaceMisses, 1);
   return s;
 }
 
