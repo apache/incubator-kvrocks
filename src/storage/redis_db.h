@@ -75,7 +75,9 @@ class Database {
   explicit Database(engine::Storage *storage, std::string ns = "");
   /// Parsing metadata with type of `types` from bytes, the metadata is a base class of all metadata.
   /// When parsing, the bytes will be consumed.
-  [[nodiscard]] rocksdb::Status ParseMetadata(RedisTypes types, Slice *bytes, Metadata *metadata);
+  [[nodiscard]] rocksdb::Status ParseMetadataWithStats(RedisTypes types, Slice *bytes, Metadata *metadata);
+  // ParseMetadata behaves the same as ParseMetadataWithStats, but without recording stats.
+  [[nodiscard]] static rocksdb::Status ParseMetadata(RedisTypes types, Slice *bytes, Metadata *metadata);
   /// GetMetadata is a helper function to get metadata from the database. It will read the "raw metadata"
   /// from underlying storage, and then parse the raw metadata to the specified metadata type.
   ///
