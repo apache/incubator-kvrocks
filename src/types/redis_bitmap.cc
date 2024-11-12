@@ -101,7 +101,7 @@ rocksdb::Status Bitmap::GetMetadata(engine::Context &ctx, const Slice &ns_key, B
   if (!s.ok()) return s;
 
   Slice slice = *raw_value;
-  return ParseMetadata({kRedisBitmap, kRedisString}, &slice, metadata);
+  return ParseMetadataWithStats({kRedisBitmap, kRedisString}, &slice, metadata);
 }
 
 rocksdb::Status Bitmap::GetBit(engine::Context &ctx, const Slice &user_key, uint32_t bit_offset, bool *bit) {
