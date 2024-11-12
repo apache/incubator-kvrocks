@@ -38,7 +38,7 @@ namespace {
 CommandKeyRange ParseStreamReadRange(const std::vector<std::string> &args) {
   // assert here we must have a stream in args since it has been parsed.
   auto stream_keyword_iter =
-      std::find_if(args.cbegin(), args.cend(), [](const std::string &arg) { return util::ToLower(arg) == "streams"; });
+      std::find_if(args.cbegin(), args.cend(), [](const std::string &arg) { return util::EqualICase(arg, "streams"); });
   int stream_pos = static_cast<int>(std::distance(args.cbegin(), stream_keyword_iter));
   int stream_size = static_cast<int>(args.size() - stream_pos) / 2;
 
