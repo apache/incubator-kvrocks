@@ -252,10 +252,6 @@ class Storage {
   rocksdb::ReadOptions DefaultScanOptions() const;
   rocksdb::ReadOptions DefaultMultiGetOptions() const;
 
-  /// Write writes the batch to the storage.
-  ///
-  /// If `ctx` is in transactional mode, the batch in `ctx` will be added to the transactional
-  /// write batch.
   [[nodiscard]] rocksdb::Status Write(engine::Context &ctx, const rocksdb::WriteOptions &options,
                                       rocksdb::WriteBatch *updates);
   [[nodiscard]] rocksdb::Status Delete(engine::Context &ctx, const rocksdb::WriteOptions &options,
