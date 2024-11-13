@@ -35,10 +35,10 @@
 namespace redis {
 namespace {
 // for XRead and XReadGroup stream range parse.
-CommandKeyRange ParseStreamReadRange(const std::vector<std::string> &args) {
+CommandKeyRange ParseStreamReadRange(const std::vector<std::string> &args, uint32_t start_offset) {
   // assert here we must have a stream in args since it has been parsed.
-  auto stream_keyword_iter =
-      std::find_if(args.cbegin(), args.cend(), [](const std::string &arg) { return util::EqualICase(arg, "streams"); });
+  auto stream_keyword_iter = std::find_if(std::next(args.cbegin(), start_offset), args.cend(),
+                                          [](const std::string &arg) { return util::EqualICase(arg, "streams"); });
   int stream_pos = static_cast<int>(std::distance(args.cbegin(), stream_keyword_iter));
   int stream_size = static_cast<int>(args.size() - stream_pos) / 2;
 
@@ -1420,7 +1420,9 @@ class CommandXRead : public Commander,
     bufferevent_enable(bev, EV_READ);
   }
 
-  static const inline CommandKeyRangeGen keyRangeGen = ParseStreamReadRange;
+  static const inline CommandKeyRangeGen keyRangeGen = [](const std::vector<std::string> &args) {
+    return ParseStreamReadRange(args, 0);
+  };
 
  private:
   std::vector<std::string> streams_;
@@ -1733,7 +1735,9 @@ class CommandXReadGroup : public Commander,
     bufferevent_enable(bev, EV_READ);
   }
 
-  static const inline CommandKeyRangeGen keyRangeGen = ParseStreamReadRange;
+  static const inline CommandKeyRangeGen keyRangeGen = [](const std::vector<std::string> &args) {
+    return ParseStreamReadRange(args, 4);
+  };
 
  private:
   std::vector<std::string> streams_;
