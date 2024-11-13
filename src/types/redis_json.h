@@ -82,6 +82,7 @@ class Json : public Database {
 
   rocksdb::Status Resp(engine::Context &ctx, const std::string &user_key, const std::string &path,
                        std::vector<std::string> *results, RESP resp);
+  static rocksdb::Status FromRawString(std::string_view value, JsonValue *result);
 
  private:
   rocksdb::Status write(engine::Context &ctx, Slice ns_key, JsonMetadata *metadata, const JsonValue &json_val);

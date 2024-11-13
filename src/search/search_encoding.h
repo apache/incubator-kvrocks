@@ -85,11 +85,33 @@ enum class VectorType : uint8_t {
   FLOAT64 = 1,
 };
 
+inline const char *VectorTypeToString(VectorType type) {
+  switch (type) {
+    case VectorType::FLOAT64:
+      return "FLOAT64";
+  }
+
+  return "unknown";
+}
+
 enum class DistanceMetric : uint8_t {
   L2 = 0,
   IP = 1,
   COSINE = 2,
 };
+
+inline const char *DistanceMetricToString(DistanceMetric dm) {
+  switch (dm) {
+    case DistanceMetric::L2:
+      return "L2";
+    case DistanceMetric::IP:
+      return "IP";
+    case DistanceMetric::COSINE:
+      return "COSINE";
+  }
+
+  return "unknown";
+}
 
 enum class HnswLevelType : uint8_t {
   NODE = 1,

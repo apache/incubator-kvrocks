@@ -535,7 +535,7 @@ func TestSlotMigrateDataType(t *testing.T) {
 
 		testSlot += 1
 		keys := make(map[string]string, 0)
-		for _, typ := range []string{"string", "expired_string", "list", "hash", "set", "zset", "bitmap", "sortint", "stream"} {
+		for _, typ := range []string{"string", "expired_string", "list", "hash", "set", "zset", "bitmap", "sortint", "stream", "json"} {
 			keys[typ] = fmt.Sprintf("%s_{%s}", typ, util.SlotTable[testSlot])
 			require.NoError(t, rdb0.Del(ctx, keys[typ]).Err())
 		}
@@ -590,8 +590,9 @@ func TestSlotMigrateDataType(t *testing.T) {
 			}).Err())
 		}
 		require.NoError(t, rdb0.Expire(ctx, keys["stream"], 10*time.Second).Err())
+		require.NoError(t, rdb0.JSONSet(ctx, keys["json"], "$", `{"a": 1, "b": "hello"}`).Err())
 		// check source data existence
-		for _, typ := range []string{"string", "list", "hash", "set", "zset", "bitmap", "sortint", "stream"} {
+		for _, typ := range []string{"string", "list", "hash", "set", "zset", "bitmap", "sortint", "stream", "json"} {
 			require.EqualValues(t, 1, rdb0.Exists(ctx, keys[typ]).Val())
 		}
 		// get source data
@@ -653,6 +654,8 @@ func TestSlotMigrateDataType(t *testing.T) {
 		require.EqualValues(t, 19, streamInfo.EntriesAdded)
 		require.EqualValues(t, "0-0", streamInfo.MaxDeletedEntryID)
 		require.EqualValues(t, 19, streamInfo.Length)
+		// type json
+		require.Equal(t, `{"a":1,"b":"hello"}`, rdb1.JSONGet(ctx, keys["json"]).Val())
 		// topology is changed on source server
 		for _, typ := range []string{"string", "list", "hash", "set", "zset", "bitmap", "sortint", "stream"} {
 			require.ErrorContains(t, rdb0.Exists(ctx, keys[typ]).Err(), "MOVED")
