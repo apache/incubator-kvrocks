@@ -47,7 +47,7 @@ std::vector<rocksdb::Status> String::getRawValues(engine::Context &ctx, const st
     (*raw_values)[i].assign(pin_values[i].data(), pin_values[i].size());
     Metadata metadata(kRedisNone, false);
     Slice slice = (*raw_values)[i];
-    auto s = ParseMetadata({kRedisString}, &slice, &metadata);
+    auto s = ParseMetadataWithStats({kRedisString}, &slice, &metadata);
     if (!s.ok()) {
       statuses[i] = s;
       (*raw_values)[i].clear();
@@ -65,7 +65,7 @@ rocksdb::Status String::getRawValue(engine::Context &ctx, const std::string &ns_
 
   Metadata metadata(kRedisNone, false);
   Slice slice = *raw_value;
-  return ParseMetadata({kRedisString}, &slice, &metadata);
+  return ParseMetadataWithStats({kRedisString}, &slice, &metadata);
 }
 
 rocksdb::Status String::getValueAndExpire(engine::Context &ctx, const std::string &ns_key, std::string *value,

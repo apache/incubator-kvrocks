@@ -692,7 +692,8 @@ StatusOr<KeyMigrationResult> SlotMigrator::migrateOneKey(const rocksdb::Slice &k
 
   // Construct command according to type of the key
   switch (metadata.Type()) {
-    case kRedisString: {
+    case kRedisString:
+    case kRedisJson: {
       auto s = migrateSimpleKey(key, metadata, bytes, restore_cmds);
       if (!s.IsOK()) {
         return s.Prefixed("failed to migrate simple key");
@@ -738,13 +739,32 @@ StatusOr<KeyMigrationResult> SlotMigrator::migrateOneKey(const rocksdb::Slice &k
 
 Status SlotMigrator::migrateSimpleKey(const rocksdb::Slice &key, const Metadata &metadata, const std::string &bytes,
                                       std::string *restore_cmds) {
-  std::vector<std::string> command = {"SET", key.ToString(), bytes.substr(Metadata::GetOffsetAfterExpire(bytes[0]))};
-  if (metadata.expire > 0) {
-    command.emplace_back("PXAT");
-    command.emplace_back(std::to_string(metadata.expire));
+  if (metadata.Type() == kRedisString) {
+    std::vector<std::string> command = {"SET", key.ToString(), bytes.substr(Metadata::GetOffsetAfterExpire(bytes[0]))};
+    if (metadata.expire > 0) {
+      command.emplace_back("PXAT");
+      command.emplace_back(std::to_string(metadata.expire));
+    }
+    *restore_cmds += redis::ArrayOfBulkStrings(command);
+    current_pipeline_size_++;
+  } else if (metadata.Type() == kRedisJson) {
+    // kRedisJson
+    JsonValue json_value;
+    if (auto s = redis::Json::FromRawString(bytes, &json_value); !s.ok()) {
+      return {Status::NotOK, s.ToString()};
+    }
+    auto json_bytes = GET_OR_RET(json_value.Dump());
+    std::vector<std::string> command = {"JSON.SET", key.ToString(), "$", std::move(json_bytes)};
+    *restore_cmds += redis::ArrayOfBulkStrings(command);
+    current_pipeline_size_++;
+
+    if (metadata.expire > 0) {
+      *restore_cmds += redis::ArrayOfBulkStrings({"PEXPIREAT", key.ToString(), std::to_string(metadata.expire)});
+      current_pipeline_size_++;
+    }
+  } else {
+    return {Status::NotOK, "unsupported simple key type"};
   }
-  *restore_cmds += redis::ArrayOfBulkStrings(command);
-  current_pipeline_size_++;
 
   // Check whether pipeline needs to be sent
   // TODO(chrisZMF): Resend data if failed to send data

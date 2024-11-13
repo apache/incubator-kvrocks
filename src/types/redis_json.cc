@@ -630,7 +630,7 @@ std::vector<rocksdb::Status> Json::readMulti(engine::Context &ctx, const std::ve
     if (!statuses[i].ok()) continue;
     Slice rest(pin_values[i].data(), pin_values[i].size());
     JsonMetadata metadata;
-    statuses[i] = ParseMetadata({kRedisJson}, &rest, &metadata);
+    statuses[i] = ParseMetadataWithStats({kRedisJson}, &rest, &metadata);
     if (!statuses[i].ok()) continue;
 
     statuses[i] = parse(metadata, rest, &values[i]);
@@ -672,6 +672,14 @@ rocksdb::Status Json::Resp(engine::Context &ctx, const std::string &user_key, co
   if (!json_resps) return rocksdb::Status::InvalidArgument(json_resps.Msg());
   *results = std::move(*json_resps);
   return rocksdb::Status::OK();
+}
+
+rocksdb::Status Json::FromRawString(std::string_view value, JsonValue *result) {
+  Slice rest = value;
+  JsonMetadata metadata;
+  auto s = ParseMetadata({kRedisJson}, &rest, &metadata);
+  if (!s.ok()) return s;
+  return parse(metadata, rest, result);
 }
 
 }  // namespace redis
