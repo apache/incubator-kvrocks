@@ -197,6 +197,7 @@ struct Config {
     int wal_ttl_seconds;
     int wal_size_limit_mb;
     int max_total_wal_size;
+    bool dump_malloc_stats;
     int level0_slowdown_writes_trigger;
     int level0_stop_writes_trigger;
     int level0_file_num_compaction_trigger;
