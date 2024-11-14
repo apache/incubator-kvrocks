@@ -89,8 +89,8 @@ StatusOr<std::vector<int>> CommandTable::GetKeysFromCommand(const CommandAttribu
   }
 
   auto cmd = attributes->factory();
-  if (!cmd->Parse(cmd_tokens)) {
-    return {Status::NotOK, "Invalid syntax found in this command arguments"};
+  if (auto s = cmd->Parse(cmd_tokens); !s) {
+    return {Status::NotOK, "Invalid syntax found in this command arguments: " + s.Msg()};
   }
 
   Status status;
