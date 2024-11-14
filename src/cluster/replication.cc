@@ -53,6 +53,8 @@
 #include <openssl/ssl.h>
 #endif
 
+static constexpr int sock_timeout_ms = 3000;
+
 Status FeedSlaveThread::Start() {
   auto s = util::CreateThread("feed-replica", [this] {
     sigset_t mask, omask;
@@ -770,7 +772,6 @@ Status ReplicationThread::parallelFetchFile(const std::string &dir,
           if (this->stop_flag_) {
             return {Status::NotOK, "replication thread was stopped"};
           }
-          int sock_timeout_ms = 3000;
           ssl_st *ssl = nullptr;
 #ifdef ENABLE_OPENSSL
           if (this->srv_->GetConfig()->tls_replication) {
