@@ -85,6 +85,10 @@ class CommandExec : public Commander {
     auto s = storage->BeginTxn();
     if (s.IsOK()) {
       conn->ExecuteCommands(conn->GetMultiExecCommands());
+      // In Redis, errors happening after EXEC instead are not handled in a special way:
+      // all the other commands will be executed even if some command fails during
+      // the transaction.
+      // So, if conn->IsMultiError(), the transaction should still be committed.
       s = storage->CommitTxn();
     }
     return s;

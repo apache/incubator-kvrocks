@@ -45,7 +45,7 @@
 
 enum class MigrationType {
   /// Use Redis commands to migrate data.
-  /// It will trying to extract commands from existing data and log, then replay
+  /// It will try to extract commands from existing data and log, then replay
   /// them on the destination node.
   kRedisCommand = 0,
   /// Using raw key-value and "APPLYBATCH" command in kvrocks to migrate data.

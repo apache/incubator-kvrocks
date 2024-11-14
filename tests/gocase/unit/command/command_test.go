@@ -180,7 +180,7 @@ func TestCommand(t *testing.T) {
 	})
 
 	t.Run("COMMAND GETKEYS ZMPOP", func(t *testing.T) {
-		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "ZMPOP", "2", "key1", "key2")
+		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "ZMPOP", "2", "key1", "key2", "min")
 		vs, err := r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
@@ -189,7 +189,7 @@ func TestCommand(t *testing.T) {
 	})
 
 	t.Run("COMMAND GETKEYS BZMPOP", func(t *testing.T) {
-		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "BZMPOP", "0", "2", "key1", "key2")
+		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "BZMPOP", "0", "2", "key1", "key2", "min")
 		vs, err := r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
@@ -198,7 +198,7 @@ func TestCommand(t *testing.T) {
 	})
 
 	t.Run("COMMAND GETKEYS LMPOP", func(t *testing.T) {
-		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "LMPOP", "2", "key1", "key2")
+		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "LMPOP", "2", "key1", "key2", "left")
 		vs, err := r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
@@ -207,7 +207,7 @@ func TestCommand(t *testing.T) {
 	})
 
 	t.Run("COMMAND GETKEYS BLMPOP", func(t *testing.T) {
-		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "BLMPOP", "0", "2", "key1", "key2")
+		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "BLMPOP", "0", "2", "key1", "key2", "left")
 		vs, err := r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
@@ -250,14 +250,14 @@ func TestCommand(t *testing.T) {
 
 	t.Run("COMMAND GETKEYS GEORADIUSBYMEMBER", func(t *testing.T) {
 		// non-store
-		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "radius", "m")
+		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "100", "m")
 		vs, err := r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 1)
 		require.Equal(t, "src", vs[0])
 
 		// store
-		r = rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "radius", "m", "store", "dst")
+		r = rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "100", "m", "store", "dst")
 		vs, err = r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
@@ -265,7 +265,7 @@ func TestCommand(t *testing.T) {
 		require.Equal(t, "dst", vs[1])
 
 		// storedist
-		r = rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "radius", "m", "storedist", "dst")
+		r = rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "100", "m", "storedist", "dst")
 		vs, err = r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
@@ -273,7 +273,7 @@ func TestCommand(t *testing.T) {
 		require.Equal(t, "dst", vs[1])
 
 		// store + storedist
-		r = rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "radius", "m", "store", "dst1", "storedist", "dst2")
+		r = rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "100", "m", "store", "dst1", "storedist", "dst2")
 		vs, err = r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
