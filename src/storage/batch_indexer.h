@@ -29,7 +29,8 @@
 
 #include "storage.h"
 
-// WriteBatchIndexer traverses the operations in WriteBatch and appends to the specified WriteBatchWithIndex
+/// WriteBatchIndexer traverses the operations in WriteBatch and appends to the
+/// specified WriteBatchWithIndex.
 class WriteBatchIndexer : public rocksdb::WriteBatch::Handler {
  public:
   explicit WriteBatchIndexer(engine::Storage* storage, rocksdb::WriteBatchWithIndex* dest_batch,
@@ -41,6 +42,7 @@ class WriteBatchIndexer : public rocksdb::WriteBatch::Handler {
   }
   explicit WriteBatchIndexer(engine::Context& ctx)
       : WriteBatchIndexer(ctx.storage, ctx.batch.get(), ctx.GetSnapshot()) {}
+
   rocksdb::Status PutCF(uint32_t column_family_id, const rocksdb::Slice& key, const rocksdb::Slice& value) override {
     return dest_batch_->Put(storage_->GetCFHandle(static_cast<ColumnFamilyID>(column_family_id)), key, value);
   }
