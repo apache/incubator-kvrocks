@@ -137,11 +137,9 @@ int main(int argc, char *argv[]) {
   });
 
   crc64_init();
-  InitGoogleLog(&config);
-  
+  InitGoogleLog(&config);  
   google::InitGoogleLogging("kvrocks");
-  auto glog_exit = MakeScopeExit(google::ShutdownGoogleLogging);
-  
+  auto glog_exit = MakeScopeExit(google::ShutdownGoogleLogging);  
   LOG(INFO) << "kvrocks " << PrintVersion;
   // Tricky: We don't expect that different instances running on the same port,
   // but the server use REUSE_PORT to support the multi listeners. So we connect
