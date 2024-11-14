@@ -770,6 +770,7 @@ Status ReplicationThread::parallelFetchFile(const std::string &dir,
           if (this->stop_flag_) {
             return {Status::NotOK, "replication thread was stopped"};
           }
+          int sock_timeout_ms = 3000;
           ssl_st *ssl = nullptr;
 #ifdef ENABLE_OPENSSL
           if (this->srv_->GetConfig()->tls_replication) {
@@ -777,7 +778,8 @@ Status ReplicationThread::parallelFetchFile(const std::string &dir,
           }
           auto exit = MakeScopeExit([ssl] { SSL_free(ssl); });
 #endif
-          int sock_fd = GET_OR_RET(util::SockConnect(this->host_, this->port_, ssl).Prefixed("connect the server err"));
+          int sock_fd = GET_OR_RET(util::SockConnect(this->host_, this->port_, ssl, sock_timeout_ms, sock_timeout_ms)
+                                       .Prefixed("connect the server err"));
 #ifdef ENABLE_OPENSSL
           exit.Disable();
 #endif
@@ -874,6 +876,12 @@ Status ReplicationThread::fetchFile(int sock_fd, evbuffer *evbuf, const std::str
     UniqueEvbufReadln line(evbuf, EVBUFFER_EOL_CRLF_STRICT);
     if (!line) {
       if (auto s = util::EvbufferRead(evbuf, sock_fd, -1, ssl); !s) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+          if (stop_flag_) {
+            return {Status::NotOK, "replication thread was stopped"};
+          }
+          continue;
+        }
         return std::move(s).Prefixed("read size");
       }
       continue;
@@ -907,6 +915,12 @@ Status ReplicationThread::fetchFile(int sock_fd, evbuffer *evbuf, const std::str
       remain -= data_len;
     } else {
       if (auto s = util::EvbufferRead(evbuf, sock_fd, -1, ssl); !s) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+          if (stop_flag_) {
+            return {Status::NotOK, "replication thread was stopped"};
+          }
+          continue;
+        }
         return std::move(s).Prefixed("read sst file");
       }
     }
