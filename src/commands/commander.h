@@ -254,6 +254,8 @@ struct CommandAttributes {
     return {Status::NotOK, "key range is unavailable without command arguments"};
   }
 
+  // the command arguments must be parsed and in valid syntax
+  // before this method is called, otherwise the behavior is UNDEFINED
   template <typename F, typename G>
   void ForEachKeyRange(F &&f, const std::vector<std::string> &args, G &&g) const {
     if (key_range_.first_key > 0) {

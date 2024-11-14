@@ -835,9 +835,11 @@ Status Cluster::CanExecByMySelf(const redis::CommandAttributes *attributes, cons
                                 redis::Connection *conn, lua::ScriptRunCtx *script_run_ctx) {
   std::vector<int> key_indexes;
 
-  auto s = redis::CommandTable::GetKeysFromCommand(attributes, cmd_tokens);
-  if (!s) return Status::OK();
-  key_indexes = *s;
+  attributes->ForEachKeyRange(
+      [&](const std::vector<std::string> &, redis::CommandKeyRange key_range) {
+        key_range.ForEachKeyIndex([&](int i) { key_indexes.push_back(i); }, cmd_tokens.size());
+      },
+      cmd_tokens);
 
   if (key_indexes.empty()) return Status::OK();
 
