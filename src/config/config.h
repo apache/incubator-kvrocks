@@ -104,8 +104,8 @@ struct Config {
   bool slave_readonly = true;
   bool slave_serve_stale_data = true;
   bool slave_empty_db_before_fullsync = false;
-  int slave_fullsync_connect_timeout = 3200;
-  int slave_fullsync_recv_timeout = 3100;
+  int slave_fullsync_connect_timeout_ms = 3200;
+  int slave_fullsync_recv_timeout_ms = 3100;
   int slave_priority = 100;
   int max_db_size = 0;
   int max_replication_mb = 0;
