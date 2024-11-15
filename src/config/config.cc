@@ -203,6 +203,8 @@ Config::Config() {
       {"slave-empty-db-before-fullsync", false, new YesNoField(&slave_empty_db_before_fullsync, false)},
       {"slave-priority", false, new IntField(&slave_priority, 100, 0, INT_MAX)},
       {"slave-read-only", false, new YesNoField(&slave_readonly, true)},
+      {"slave-fullsync-connect-timeout", false, new IntField(&slave_fullsync_connect_timeout, 3100, 0, INT_MAX)},
+      {"slave-fullsync-recv-timeout", false, new IntField(&slave_fullsync_recv_timeout, 3200, 0, INT_MAX)},
       {"use-rsid-psync", true, new YesNoField(&use_rsid_psync, false)},
       {"profiling-sample-ratio", false, new IntField(&profiling_sample_ratio, 0, 0, 100)},
       {"profiling-sample-record-max-len", false, new IntField(&profiling_sample_record_max_len, 256, 0, INT_MAX)},

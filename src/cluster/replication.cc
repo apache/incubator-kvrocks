@@ -53,9 +53,6 @@
 #include <openssl/ssl.h>
 #endif
 
-static constexpr int sock_connect_timeout_ms = 3200;
-static constexpr int sock_recv_timeout_ms = 3100;
-
 Status FeedSlaveThread::Start() {
   auto s = util::CreateThread("feed-replica", [this] {
     sigset_t mask, omask;
@@ -780,9 +777,10 @@ Status ReplicationThread::parallelFetchFile(const std::string &dir,
           }
           auto exit = MakeScopeExit([ssl] { SSL_free(ssl); });
 #endif
-          int sock_fd =
-              GET_OR_RET(util::SockConnect(this->host_, this->port_, ssl, sock_connect_timeout_ms, sock_recv_timeout_ms)
-                             .Prefixed("connect the server err"));
+          int sock_fd = GET_OR_RET(util::SockConnect(this->host_, this->port_, ssl,
+                                                     this->srv_->GetConfig()->slave_fullsync_connect_timeout,
+                                                     this->srv_->GetConfig()->slave_fullsync_recv_timeout)
+                                       .Prefixed("connect the server err"));
 #ifdef ENABLE_OPENSSL
           exit.Disable();
 #endif
