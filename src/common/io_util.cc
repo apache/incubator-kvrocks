@@ -515,7 +515,8 @@ StatusOr<int> EvbufferRead(evbuffer *buf, evutil_socket_t fd, int howmuch, [[may
   if (int ret = evbuffer_read(buf, fd, howmuch); ret > 0) {
     return ret;
   } else {
-    return {Status::NotOK, fmt::format("failed to read from socket: {}", strerror(errno))};
+    return ret == 0 ? Status{Status::NetworkEOF, "EOF"}
+                    : Status{Status::NotOK, fmt::format("failed to read from socket: {}", strerror(errno))};
   }
 }
 

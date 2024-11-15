@@ -75,6 +75,9 @@ class [[nodiscard]] Status {
     // Search
     NoPrefixMatched,
     TypeMismatched,
+
+    // Network
+    NetworkEOF,
   };
 
   Status() : impl_{nullptr} {}
