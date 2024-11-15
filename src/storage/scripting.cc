@@ -778,6 +778,13 @@ int RedisGenericCommand(lua_State *lua, int raise_error) {
   auto *srv = conn->GetServer();
   Config *config = srv->GetConfig();
 
+  cmd->SetArgs(args);
+  auto s = cmd->Parse();
+  if (!s) {
+    PushError(lua, s.Msg().data());
+    return raise_error ? RaiseError(lua) : 1;
+  }
+
   if (config->cluster_enabled) {
     if (script_run_ctx->flags & ScriptFlagType::kScriptNoCluster) {
       PushError(lua, "Can not run script on cluster, 'no-cluster' flag is set");
@@ -804,13 +811,6 @@ int RedisGenericCommand(lua_State *lua, int raise_error) {
     PushError(lua,
               "MASTERDOWN Link with MASTER is down "
               "and slave-serve-stale-data is set to 'no'.");
-    return raise_error ? RaiseError(lua) : 1;
-  }
-
-  cmd->SetArgs(args);
-  auto s = cmd->Parse();
-  if (!s) {
-    PushError(lua, s.Msg().data());
     return raise_error ? RaiseError(lua) : 1;
   }
 
