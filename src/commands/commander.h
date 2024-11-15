@@ -328,9 +328,12 @@ inline uint64_t ParseCommandFlags(const std::string &description, const std::str
       flags |= kCmdNoDBSizeCheck;
     else if (flag == "slow")
       flags |= kCmdSlow;
-    else if (flag == "blocking")
+    else if (flag == "blocking") {
       flags |= kCmdBlocking;
-    else {
+
+      // blocking commands should always be no-multi and no-script
+      flags |= kCmdNoMulti | kCmdNoScript;
+    } else {
       std::cout << fmt::format("Encountered non-existent flag '{}' in command {} in command attribute parsing", flag,
                                cmd_name)
                 << std::endl;
