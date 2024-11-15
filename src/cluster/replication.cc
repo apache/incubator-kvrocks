@@ -252,7 +252,6 @@ void ReplicationThread::CallbacksStateMachine::Start() {
   }
 
   uint64_t last_connect_timestamp = 0;
-  int connect_timeout_ms = 3100;
 
   while (!repl_->stop_flag_ && bev == nullptr) {
     if (util::GetTimeStampMS() - last_connect_timestamp < 1000) {
@@ -260,7 +259,7 @@ void ReplicationThread::CallbacksStateMachine::Start() {
       sleep(1);
     }
     last_connect_timestamp = util::GetTimeStampMS();
-    auto cfd = util::SockConnect(repl_->host_, repl_->port_, connect_timeout_ms);
+    auto cfd = util::SockConnect(repl_->host_, repl_->port_, repl_->srv_->GetConfig()->replication_connect_timeout_ms);
     if (!cfd) {
       LOG(ERROR) << "[replication] Failed to connect the master, err: " << cfd.Msg();
       continue;
@@ -778,8 +777,8 @@ Status ReplicationThread::parallelFetchFile(const std::string &dir,
           auto exit = MakeScopeExit([ssl] { SSL_free(ssl); });
 #endif
           int sock_fd = GET_OR_RET(util::SockConnect(this->host_, this->port_, ssl,
-                                                     this->srv_->GetConfig()->slave_fullsync_connect_timeout_ms,
-                                                     this->srv_->GetConfig()->slave_fullsync_recv_timeout_ms)
+                                                     this->srv_->GetConfig()->replication_connect_timeout_ms,
+                                                     this->srv_->GetConfig()->replication_recv_timeout_ms)
                                        .Prefixed("connect the server err"));
 #ifdef ENABLE_OPENSSL
           exit.Disable();
