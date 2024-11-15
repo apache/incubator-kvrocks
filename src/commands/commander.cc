@@ -88,6 +88,11 @@ StatusOr<std::vector<int>> CommandTable::GetKeysFromCommand(const CommandAttribu
     return {Status::NotOK, "Invalid number of arguments specified for command"};
   }
 
+  auto cmd = attributes->factory();
+  if (auto s = cmd->Parse(cmd_tokens); !s) {
+    return {Status::NotOK, "Invalid syntax found in this command arguments: " + s.Msg()};
+  }
+
   Status status;
   std::vector<int> key_indexes;
 
