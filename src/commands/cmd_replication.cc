@@ -232,11 +232,11 @@ class CommandFetchMeta : public Commander {
       std::string files;
       auto s = engine::Storage::ReplDataManager::GetFullReplDataInfo(srv->storage, &files);
       if (!s.IsOK()) {
+        LOG(WARNING) << "[replication] Failed to get full data file info: " << s.Msg();
         s = util::SockSend(repl_fd, redis::Error({Status::RedisErrorNoPrefix, "can't create db checkpoint"}), bev);
         if (!s.IsOK()) {
           LOG(WARNING) << "[replication] Failed to send error response: " << s.Msg();
         }
-        LOG(WARNING) << "[replication] Failed to get full data file info: " << s.Msg();
         return;
       }
       // Send full data file info
