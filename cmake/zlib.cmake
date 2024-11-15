@@ -20,8 +20,8 @@ include_guard()
 include(cmake/utils.cmake)
 
 FetchContent_DeclareGitHubWithMirror(zlib
-  madler/zlib v1.3
-  MD5=2be1b77674e5aa3196330e58180e5a2c
+  madler/zlib v1.3.1
+  MD5=ef76f7ebfd97778a6653b1d8413541c0
 )
 
 FetchContent_MakeAvailableWithArgs(zlib)
