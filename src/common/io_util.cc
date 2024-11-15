@@ -502,7 +502,11 @@ StatusOr<int> EvbufferRead(evbuffer *buf, evutil_socket_t fd, int howmuch, [[may
       howmuch = BUFFER_SIZE;
     }
     if (howmuch = SSL_read(ssl, tmp, howmuch); howmuch <= 0) {
-      return {Status::NotOK, fmt::format("failed to read from SSL connection: {}", fmt::streamed(SSLError(howmuch)))};
+      if (howmuch == 0) {
+        return {Status::EndOfFile, "EOF encountered while reading from SSL connection"};
+      }
+      return {(errno == EWOULDBLOCK || errno == EAGAIN) ? Status::TryAgain : Status::NotOK,
+              fmt::format("failed to read from SSL connection: {}", fmt::streamed(SSLError(howmuch)))};
     }
 
     if (int ret = evbuffer_add(buf, tmp, howmuch); ret == -1) {
@@ -514,9 +518,11 @@ StatusOr<int> EvbufferRead(evbuffer *buf, evutil_socket_t fd, int howmuch, [[may
 #endif
   if (int ret = evbuffer_read(buf, fd, howmuch); ret > 0) {
     return ret;
+  } else if (ret == 0) {
+    return {Status::EndOfFile, "EOF encountered while reading from socket"};
   } else {
-    return ret == 0 ? Status{Status::NetworkEOF, "EOF"}
-                    : Status{Status::NotOK, fmt::format("failed to read from socket: {}", strerror(errno))};
+    return {(errno == EWOULDBLOCK || errno == EAGAIN) ? Status::TryAgain : Status::NotOK,
+            fmt::format("failed to read from socket: {}", strerror(errno))};
   }
 }
 

@@ -76,8 +76,9 @@ class [[nodiscard]] Status {
     NoPrefixMatched,
     TypeMismatched,
 
-    // Network
-    NetworkEOF,
+    // IO
+    TryAgain,
+    EndOfFile,
   };
 
   Status() : impl_{nullptr} {}

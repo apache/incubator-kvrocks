@@ -876,7 +876,7 @@ Status ReplicationThread::fetchFile(int sock_fd, evbuffer *evbuf, const std::str
     UniqueEvbufReadln line(evbuf, EVBUFFER_EOL_CRLF_STRICT);
     if (!line) {
       if (auto s = util::EvbufferRead(evbuf, sock_fd, -1, ssl); !s) {
-        if (s.GetCode() != Status::NetworkEOF && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        if (s.Is<Status::TryAgain>()) {
           if (stop_flag_) {
             return {Status::NotOK, "replication thread was stopped"};
           }
@@ -915,7 +915,7 @@ Status ReplicationThread::fetchFile(int sock_fd, evbuffer *evbuf, const std::str
       remain -= data_len;
     } else {
       if (auto s = util::EvbufferRead(evbuf, sock_fd, -1, ssl); !s) {
-        if (s.GetCode() != Status::NetworkEOF && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        if (s.Is<Status::TryAgain>()) {
           if (stop_flag_) {
             return {Status::NotOK, "replication thread was stopped"};
           }
