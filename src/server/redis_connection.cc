@@ -397,7 +397,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
 
     if (GetNamespace().empty()) {
       if (!password.empty()) {
-        if (cmd_name != "auth" && cmd_name != "hello") {
+        if (!(cmd_flags & kCmdAuth)) {
           Reply(redis::Error({Status::RedisNoAuth, "Authentication required."}));
           continue;
         }

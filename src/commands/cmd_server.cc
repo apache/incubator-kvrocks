@@ -1329,7 +1329,7 @@ class CommandPollUpdates : public Commander {
   Format format_ = Format::Raw;
 };
 
-REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only ok-loading", NO_KEY),
+REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only ok-loading auth", NO_KEY),
                         MakeCmdAttr<CommandPing>("ping", -1, "read-only", NO_KEY),
                         MakeCmdAttr<CommandSelect>("select", 2, "read-only", NO_KEY),
                         MakeCmdAttr<CommandInfo>("info", -1, "read-only ok-loading", NO_KEY),
@@ -1354,7 +1354,7 @@ REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only o
                         MakeCmdAttr<CommandTime>("time", 1, "read-only ok-loading", NO_KEY),
                         MakeCmdAttr<CommandDisk>("disk", 3, "read-only", 2, 2, 1),
                         MakeCmdAttr<CommandMemory>("memory", 3, "read-only", 2, 2, 1),
-                        MakeCmdAttr<CommandHello>("hello", -1, "read-only ok-loading", NO_KEY),
+                        MakeCmdAttr<CommandHello>("hello", -1, "read-only ok-loading auth", NO_KEY),
                         MakeCmdAttr<CommandRestore>("restore", -4, "write", 1, 1, 1),
 
                         MakeCmdAttr<CommandCompact>("compact", 1, "read-only no-script", NO_KEY),

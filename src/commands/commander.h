@@ -81,6 +81,8 @@ enum CommandFlags : uint64_t {
   // "blocking" flag, for commands that don't perform db ops immediately,
   // but block and wait for some event to happen before performing db ops
   kCmdBlocking = 1ULL << 14,
+  // "auth" flag, for commands used for authentication
+  kCmdAuth = 1ULL << 15,
 };
 
 enum class CommandCategory : uint8_t {
@@ -329,6 +331,8 @@ inline uint64_t ParseCommandFlags(const std::string &description, const std::str
       flags |= kCmdNoDBSizeCheck;
     else if (flag == "slow")
       flags |= kCmdSlow;
+    else if (flag == "auth")
+      flags |= kCmdAuth;
     else if (flag == "blocking") {
       flags |= kCmdBlocking;
 
