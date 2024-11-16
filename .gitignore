@@ -46,3 +46,4 @@ testdb
 
 build
 cmake-build-*
+build-*
