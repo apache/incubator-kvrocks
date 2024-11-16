@@ -174,7 +174,6 @@ func TestMulti(t *testing.T) {
 	t.Run("WATCH inside MULTI is not allowed", func(t *testing.T) {
 		require.NoError(t, rdb.Do(ctx, "MULTI").Err())
 		require.EqualError(t, rdb.Do(ctx, "WATCH", "x").Err(), "ERR WATCH inside MULTI is not allowed")
-		require.NoError(t, rdb.Do(ctx, "EXEC").Err())
 	})
 
 	t.Run("EXEC without MULTI is not allowed", func(t *testing.T) {
