@@ -75,6 +75,10 @@ class [[nodiscard]] Status {
     // Search
     NoPrefixMatched,
     TypeMismatched,
+
+    // IO
+    TryAgain,
+    EndOfFile,
   };
 
   Status() : impl_{nullptr} {}
