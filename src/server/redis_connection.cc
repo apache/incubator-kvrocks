@@ -413,7 +413,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
     // that can guarantee other threads can't come into critical zone, such as DEBUG,
     // CLUSTER subcommand, CONFIG SET, MULTI, LUA (in the immediate future).
     // Otherwise, we just use 'ConcurrencyGuard' to allow all workers to execute commands at the same time.
-    if (is_multi_exec && cmd_name != "exec") {
+    if (is_multi_exec && !(cmd_flags & kCmdEndMulti)) {
       // No lock guard, because 'exec' command has acquired 'WorkExclusivityGuard'
     } else if (cmd_flags & kCmdExclusive) {
       exclusivity = srv_->WorkExclusivityGuard();
