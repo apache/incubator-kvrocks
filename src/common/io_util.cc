@@ -502,10 +502,11 @@ StatusOr<int> EvbufferRead(evbuffer *buf, evutil_socket_t fd, int howmuch, [[may
       howmuch = BUFFER_SIZE;
     }
     if (howmuch = SSL_read(ssl, tmp, howmuch); howmuch <= 0) {
-      if (howmuch == 0) {
+      int err = SSL_get_error(ssl, howmuch);
+      if (err == SSL_ERROR_ZERO_RETURN) {
         return {Status::EndOfFile, "EOF encountered while reading from SSL connection"};
       }
-      return {(errno == EWOULDBLOCK || errno == EAGAIN) ? Status::TryAgain : Status::NotOK,
+      return {(err == SSL_ERROR_WANT_READ) ? Status::TryAgain : Status::NotOK,
               fmt::format("failed to read from SSL connection: {}", fmt::streamed(SSLError(howmuch)))};
     }
 
