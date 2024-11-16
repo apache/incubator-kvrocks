@@ -331,8 +331,9 @@ inline uint64_t ParseCommandFlags(const std::string &description, const std::str
     else if (flag == "blocking") {
       flags |= kCmdBlocking;
 
-      // blocking commands should always be no-multi and no-script
-      flags |= kCmdNoMulti | kCmdNoScript;
+      // blocking commands should always be no-script
+      // TODO: we can relax this restriction if scripting becomes non-exclusive
+      flags |= kCmdNoScript;
     } else {
       std::cout << fmt::format("Encountered non-existent flag '{}' in command {} in command attribute parsing", flag,
                                cmd_name)
