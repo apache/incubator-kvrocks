@@ -116,9 +116,6 @@ static void InitGoogleLog(const Config *config) {
 int main(int argc, char *argv[]) {
   srand(static_cast<unsigned>(util::GetTimeStamp()));
 
-  google::InitGoogleLogging("kvrocks");
-  auto glog_exit = MakeScopeExit(google::ShutdownGoogleLogging);
-
   evthread_use_pthreads();
   auto event_exit = MakeScopeExit(libevent_global_shutdown);
 
@@ -141,6 +138,8 @@ int main(int argc, char *argv[]) {
 
   crc64_init();
   InitGoogleLog(&config);
+  google::InitGoogleLogging("kvrocks");
+  auto glog_exit = MakeScopeExit(google::ShutdownGoogleLogging);
   LOG(INFO) << "kvrocks " << PrintVersion;
   // Tricky: We don't expect that different instances running on the same port,
   // but the server use REUSE_PORT to support the multi listeners. So we connect
