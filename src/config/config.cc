@@ -106,7 +106,7 @@ std::string TrimRocksDbPrefix(std::string s) {
 }
 
 Status SetRocksdbCompression(Server *srv, const rocksdb::CompressionType compression,
-                             const int compression_start_level) {
+                             const size_t compression_start_level) {
   if (!srv) return Status::OK();
   std::string compression_option;
   for (auto &option : engine::CompressionOptions) {
@@ -128,7 +128,7 @@ Status SetRocksdbCompression(Server *srv, const rocksdb::CompressionType compres
   for (int i = 0; i < compression_start_level; i++) {
     compression_per_level_builder.emplace_back("kNoCompression");
   }
-  for (int i = compression_start_level; i < KVROCKS_MAX_LSM_LEVEL; i++) {
+  for (size_t i = compression_start_level; i < KVROCKS_MAX_LSM_LEVEL; i++) {
     compression_per_level_builder.emplace_back(compression_option);
   }
   const std::string compression_per_level = util::StringJoin(
