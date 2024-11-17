@@ -248,11 +248,12 @@ class Storage {
                                  rocksdb::ColumnFamilyHandle *column_family);
   rocksdb::Iterator *NewIterator(engine::Context &ctx, const rocksdb::ReadOptions &options);
 
-  [[nodiscard]] rocksdb::Status Write(engine::Context &ctx, const rocksdb::WriteOptions &options,
-                                      rocksdb::WriteBatch *updates);
-  const rocksdb::WriteOptions &DefaultWriteOptions() { return default_write_opts_; }
+  const rocksdb::WriteOptions &DefaultWriteOptions() const { return default_write_opts_; }
   rocksdb::ReadOptions DefaultScanOptions() const;
   rocksdb::ReadOptions DefaultMultiGetOptions() const;
+
+  [[nodiscard]] rocksdb::Status Write(engine::Context &ctx, const rocksdb::WriteOptions &options,
+                                      rocksdb::WriteBatch *updates);
   [[nodiscard]] rocksdb::Status Delete(engine::Context &ctx, const rocksdb::WriteOptions &options,
                                        rocksdb::ColumnFamilyHandle *cf_handle, const rocksdb::Slice &key);
   [[nodiscard]] rocksdb::Status DeleteRange(engine::Context &ctx, const rocksdb::WriteOptions &options,
@@ -336,6 +337,9 @@ class Storage {
   void SetDBInRetryableIOError(bool yes_or_no) { db_in_retryable_io_error_ = yes_or_no; }
   bool IsDBInRetryableIOError() const { return db_in_retryable_io_error_; }
 
+  /// Redis PSYNC relies on a Unique Replication Sequence Id when use-rsid-psync
+  /// enabled.
+  /// ShiftReplId would generate an Id and write it to propagate cf.
   Status ShiftReplId(engine::Context &ctx);
   std::string GetReplIdFromWalBySeq(rocksdb::SequenceNumber seq);
   std::string GetReplIdFromDbEngine();
@@ -363,6 +367,8 @@ class Storage {
 
   std::atomic<bool> db_in_retryable_io_error_{false};
 
+  // is_txn_mode_ is used to determine whether the current Storage is in transactional mode,
+  // .i.e, in "EXEC" command(CommandExec).
   std::atomic<bool> is_txn_mode_ = false;
   // txn_write_batch_ is used as the global write batch for the transaction mode,
   // all writes will be grouped in this write batch when entering the transaction mode,
@@ -380,39 +386,48 @@ class Storage {
 
 /// Context passes fixed snapshot and batch between APIs
 ///
-/// Limitations: Performing a large number of writes on the same Context may reduce performance.
-/// Please choose to use the same Context or create a new Context based on the actual situation.
+/// Limitations: Performing a large number of writes or apply operations like DeleteRange
+/// on the same Context may reduce performance.
+/// Please choose to use the same Context or create a new Context based on the actual
+/// situation.
 ///
 /// Context does not provide thread safety guarantees and is generally only passed as a parameter between APIs.
 struct Context {
   engine::Storage *storage = nullptr;
 
+  /// batch can be nullptr if
+  /// 1. The Context is not in transactional mode.
+  /// 2. The Context is in transactional mode, but no write operation is performed.
   std::unique_ptr<rocksdb::WriteBatchWithIndex> batch = nullptr;
 
-  /// is_txn_mode is used to determine whether the current Context is in transactional mode,
+  /// txn_context_enabled is used to determine whether the current Context is in transactional mode,
   /// if it is not transactional mode, then Context is equivalent to a Storage.
   /// If the configuration of txn-context-enabled is no, it is false.
-  bool is_txn_mode = true;
+  bool txn_context_enabled = true;
 
   /// NoTransactionContext returns a Context with a is_txn_mode of false
-  static Context NoTransactionContext(engine::Storage *storage) { return Context(storage, false); }
+  static Context NoTransactionContext(engine::Storage *storage) { return Context(storage, /*txn_mode=*/false); }
 
-  /// GetReadOptions returns a default ReadOptions, and if is_txn_mode = true, then its snapshot is specified by the
-  /// Context
+  /// GetReadOptions returns a default ReadOptions, and if txn_context_enabled = true,
+  /// then its snapshot is specified by the Context.
+  /// Otherwise it is the same as Storage::DefaultReadOptions().
   [[nodiscard]] rocksdb::ReadOptions GetReadOptions();
-  /// DefaultScanOptions returns a DefaultScanOptions, and if is_txn_mode = true, then its snapshot is specified by the
-  /// Context. Otherwise it is the same as Storage::DefaultScanOptions
+  /// DefaultScanOptions returns a DefaultScanOptions, and if txn_context_enabled = true,
+  /// then its snapshot is specified by the Context.
+  /// Otherwise it is the same as Storage::DefaultScanOptions().
   [[nodiscard]] rocksdb::ReadOptions DefaultScanOptions();
-  /// DefaultMultiGetOptions returns a DefaultMultiGetOptions, and if is_txn_mode = true, then its snapshot is specified
-  /// by the Context. Otherwise it is the same as Storage::DefaultMultiGetOptions
+  /// DefaultMultiGetOptions returns a DefaultMultiGetOptions, and if txn_context_enabled = true,
+  /// then its snapshot is specified by the Context.
+  /// Otherwise it is the same as Storage::DefaultMultiGetOptions
   [[nodiscard]] rocksdb::ReadOptions DefaultMultiGetOptions();
 
   void RefreshLatestSnapshot();
 
   /// TODO: Change it to defer getting the context, and the snapshot is pinned after the first read operation
   explicit Context(engine::Storage *storage)
-      : storage(storage), is_txn_mode(storage->GetConfig()->txn_context_enabled) {}
+      : storage(storage), txn_context_enabled(storage->GetConfig()->txn_context_enabled) {}
   ~Context() {
+    // A moved-from object doesn't have `storage`.
     if (storage) {
       if (snapshot_ && storage->GetDB()) {
         storage->GetDB()->ReleaseSnapshot(snapshot_);
@@ -441,6 +456,8 @@ struct Context {
   // and it's not a thread-safe operation.
   const rocksdb::Snapshot *GetSnapshot() {
     if (snapshot_ == nullptr) {
+      // Should not acquire a snapshot_ on a moved-from object.
+      DCHECK(storage != nullptr);
       snapshot_ = storage->GetDB()->GetSnapshot();  // NOLINT
     }
     return snapshot_;
@@ -448,7 +465,7 @@ struct Context {
 
  private:
   /// It is only used by NonTransactionContext
-  explicit Context(engine::Storage *storage, bool txn_mode) : storage(storage), is_txn_mode(txn_mode) {}
+  explicit Context(engine::Storage *storage, bool txn_mode) : storage(storage), txn_context_enabled(txn_mode) {}
 
   /// If is_txn_mode is true, snapshot should be specified instead of nullptr when used,
   /// and should be consistent with snapshot in ReadOptions to avoid ambiguity.

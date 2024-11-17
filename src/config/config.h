@@ -54,7 +54,7 @@ constexpr const size_t GiB = 1024L * MiB;
 constexpr const uint32_t kDefaultPort = 6666;
 
 constexpr const char *kDefaultNamespace = "__namespace";
-constexpr const size_t KVROCKS_MAX_LSM_LEVEL = 7;
+constexpr int KVROCKS_MAX_LSM_LEVEL = 7;
 
 enum class BlockCacheType { kCacheTypeLRU = 0, kCacheTypeHCC };
 
@@ -105,6 +105,8 @@ struct Config {
   bool slave_serve_stale_data = true;
   bool slave_empty_db_before_fullsync = false;
   int slave_priority = 100;
+  int replication_connect_timeout_ms = 3100;
+  int replication_recv_timeout_ms = 3200;
   int max_db_size = 0;
   int max_replication_mb = 0;
   int max_io_mb = 0;
@@ -197,6 +199,7 @@ struct Config {
     int wal_ttl_seconds;
     int wal_size_limit_mb;
     int max_total_wal_size;
+    bool dump_malloc_stats;
     int level0_slowdown_writes_trigger;
     int level0_stop_writes_trigger;
     int level0_file_num_compaction_trigger;

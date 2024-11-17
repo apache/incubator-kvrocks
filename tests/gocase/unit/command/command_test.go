@@ -180,7 +180,7 @@ func TestCommand(t *testing.T) {
 	})
 
 	t.Run("COMMAND GETKEYS ZMPOP", func(t *testing.T) {
-		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "ZMPOP", "2", "key1", "key2")
+		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "ZMPOP", "2", "key1", "key2", "min")
 		vs, err := r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
@@ -189,7 +189,7 @@ func TestCommand(t *testing.T) {
 	})
 
 	t.Run("COMMAND GETKEYS BZMPOP", func(t *testing.T) {
-		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "BZMPOP", "0", "2", "key1", "key2")
+		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "BZMPOP", "0", "2", "key1", "key2", "min")
 		vs, err := r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
@@ -198,7 +198,7 @@ func TestCommand(t *testing.T) {
 	})
 
 	t.Run("COMMAND GETKEYS LMPOP", func(t *testing.T) {
-		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "LMPOP", "2", "key1", "key2")
+		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "LMPOP", "2", "key1", "key2", "left")
 		vs, err := r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
@@ -207,7 +207,7 @@ func TestCommand(t *testing.T) {
 	})
 
 	t.Run("COMMAND GETKEYS BLMPOP", func(t *testing.T) {
-		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "BLMPOP", "0", "2", "key1", "key2")
+		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "BLMPOP", "0", "2", "key1", "key2", "left")
 		vs, err := r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
@@ -250,14 +250,14 @@ func TestCommand(t *testing.T) {
 
 	t.Run("COMMAND GETKEYS GEORADIUSBYMEMBER", func(t *testing.T) {
 		// non-store
-		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "radius", "m")
+		r := rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "100", "m")
 		vs, err := r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 1)
 		require.Equal(t, "src", vs[0])
 
 		// store
-		r = rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "radius", "m", "store", "dst")
+		r = rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "100", "m", "store", "dst")
 		vs, err = r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
@@ -265,7 +265,7 @@ func TestCommand(t *testing.T) {
 		require.Equal(t, "dst", vs[1])
 
 		// storedist
-		r = rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "radius", "m", "storedist", "dst")
+		r = rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "100", "m", "storedist", "dst")
 		vs, err = r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
@@ -273,7 +273,7 @@ func TestCommand(t *testing.T) {
 		require.Equal(t, "dst", vs[1])
 
 		// store + storedist
-		r = rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "radius", "m", "store", "dst1", "storedist", "dst2")
+		r = rdb.Do(ctx, "COMMAND", "GETKEYS", "GEORADIUSBYMEMBER", "src", "member", "100", "m", "store", "dst1", "storedist", "dst2")
 		vs, err = r.Slice()
 		require.NoError(t, err)
 		require.Len(t, vs, 2)
@@ -288,5 +288,139 @@ func TestCommand(t *testing.T) {
 		require.Len(t, vs, 2)
 		require.Equal(t, "dst", vs[0])
 		require.Equal(t, "src", vs[1])
+	})
+
+	t.Run("COMMAND GETKEYS XREAD", func(t *testing.T) {
+		{
+			r := rdb.Do(ctx, "COMMAND", "GETKEYS", "XREAD",
+				"STREAMS", "k0-1", "k0-2", "0-0", "0-0")
+			vs, err := r.Slice()
+			require.NoError(t, err)
+			require.Len(t, vs, 2)
+			require.Equal(t, "k0-1", vs[0])
+			require.Equal(t, "k0-2", vs[1])
+		}
+
+		{
+			r := rdb.Do(ctx, "COMMAND", "GETKEYS", "XREAD", "COUNT", "10",
+				"STREAMS", "k1-1", "k1-2", "0-0", "0-0")
+			vs, err := r.Slice()
+			require.NoError(t, err)
+			require.Len(t, vs, 2)
+			require.Equal(t, "k1-1", vs[0])
+			require.Equal(t, "k1-2", vs[1])
+		}
+
+		{
+			r := rdb.Do(ctx, "COMMAND", "GETKEYS", "XREAD", "BLOCK", "1000",
+				"STREAMS", "k2-1", "k2-2", "0-0", "0-0")
+			vs, err := r.Slice()
+			require.NoError(t, err)
+			require.Len(t, vs, 2)
+			require.Equal(t, "k2-1", vs[0])
+			require.Equal(t, "k2-2", vs[1])
+		}
+
+		{
+			r := rdb.Do(ctx, "COMMAND", "GETKEYS", "XREAD", "COUNT", "10",
+				"BLOCK", "1000", "STREAMS", "k3-1", "k3-2", "0-0", "0-0")
+			vs, err := r.Slice()
+			require.NoError(t, err)
+			require.Len(t, vs, 2)
+			require.Equal(t, "k3-1", vs[0])
+			require.Equal(t, "k3-2", vs[1])
+		}
+	})
+
+	t.Run("COMMAND GETKEYS XREADGROUP", func(t *testing.T) {
+		{
+			r := rdb.Do(ctx, "COMMAND", "GETKEYS", "XREADGROUP", "GROUP", "group1", "consumer1",
+				"STREAMS", "gk0-1", "gk0-2", "0-0", "0-0")
+			vs, err := r.Slice()
+			require.NoError(t, err)
+			require.Len(t, vs, 2)
+			require.Equal(t, "gk0-1", vs[0])
+			require.Equal(t, "gk0-2", vs[1])
+		}
+
+		{
+			r := rdb.Do(ctx, "COMMAND", "GETKEYS", "XREADGROUP", "GROUP", "streams", "streams",
+				"STREAMS", "gk1-1", "gk1-2", "0-0", "0-0")
+			vs, err := r.Slice()
+			require.NoError(t, err)
+			require.Len(t, vs, 2)
+			require.Equal(t, "gk1-1", vs[0])
+			require.Equal(t, "gk1-2", vs[1])
+		}
+
+		{
+			r := rdb.Do(ctx, "COMMAND", "GETKEYS", "XREADGROUP", "GROUP", "group1", "consumer1",
+				"COUNT", "10", "STREAMS", "gk3-1", "gk3-2", "0-0", "0-0")
+			vs, err := r.Slice()
+			require.NoError(t, err)
+			require.Len(t, vs, 2)
+			require.Equal(t, "gk3-1", vs[0])
+			require.Equal(t, "gk3-2", vs[1])
+		}
+
+		{
+			r := rdb.Do(ctx, "COMMAND", "GETKEYS", "XREADGROUP", "GROUP", "group1", "consumer1",
+				"BLOCK", "10", "STREAMS", "gk4-1", "gk4-2", "0-0", "0-0")
+			vs, err := r.Slice()
+			require.NoError(t, err)
+			require.Len(t, vs, 2)
+			require.Equal(t, "gk4-1", vs[0])
+			require.Equal(t, "gk4-2", vs[1])
+		}
+
+		{
+			r := rdb.Do(ctx, "COMMAND", "GETKEYS", "XREADGROUP", "GROUP", "group1", "consumer1",
+				"NOACK", "STREAMS", "gk5-1", "gk5-2", "0-0", "0-0")
+			vs, err := r.Slice()
+			require.NoError(t, err)
+			require.Len(t, vs, 2)
+			require.Equal(t, "gk5-1", vs[0])
+			require.Equal(t, "gk5-2", vs[1])
+		}
+
+		{
+			r := rdb.Do(ctx, "COMMAND", "GETKEYS", "XREADGROUP", "GROUP", "group1", "consumer1",
+				"COUNT", "10", "NOACK", "STREAMS", "gk6-1", "gk6-2", "0-0", "0-0")
+			vs, err := r.Slice()
+			require.NoError(t, err)
+			require.Len(t, vs, 2)
+			require.Equal(t, "gk6-1", vs[0])
+			require.Equal(t, "gk6-2", vs[1])
+		}
+
+		{
+			r := rdb.Do(ctx, "COMMAND", "GETKEYS", "XREADGROUP", "GROUP", "group1", "consumer1",
+				"BLOCK", "1000", "NOACK", "STREAMS", "gk7-1", "gk7-2", "0-0", "0-0")
+			vs, err := r.Slice()
+			require.NoError(t, err)
+			require.Len(t, vs, 2)
+			require.Equal(t, "gk7-1", vs[0])
+			require.Equal(t, "gk7-2", vs[1])
+		}
+
+		{
+			r := rdb.Do(ctx, "COMMAND", "GETKEYS", "XREADGROUP", "GROUP", "group1", "consumer1",
+				"COUNT", "10", "BLOCK", "1000", "STREAMS", "gk8-1", "gk8-2", "0-0", "0-0")
+			vs, err := r.Slice()
+			require.NoError(t, err)
+			require.Len(t, vs, 2)
+			require.Equal(t, "gk8-1", vs[0])
+			require.Equal(t, "gk8-2", vs[1])
+		}
+
+		{
+			r := rdb.Do(ctx, "COMMAND", "GETKEYS", "XREADGROUP", "GROUP", "group1", "consumer1",
+				"COUNT", "10", "BLOCK", "1000", "NOACK", "STREAMS", "gk9-1", "gk9-2", "0-0", "0-0")
+			vs, err := r.Slice()
+			require.NoError(t, err)
+			require.Len(t, vs, 2)
+			require.Equal(t, "gk9-1", vs[0])
+			require.Equal(t, "gk9-2", vs[1])
+		}
 	})
 }

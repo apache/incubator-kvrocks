@@ -449,13 +449,31 @@ class CommandFTInfo : public Commander {
       output->append(redis::SimpleString("type"));
       auto type = field.metadata->Type();
       output->append(redis::BulkString(std::string(type.begin(), type.end())));
-      output->append(redis::SimpleString("options"));
+      output->append(redis::SimpleString("properties"));
       if (auto tag = field.MetadataAs<TagFieldMetadata>()) {
         output->append(redis::MultiLen(4));
         output->append(redis::SimpleString("separator"));
         output->append(redis::BulkString(std::string(1, tag->separator)));
         output->append(redis::SimpleString("case_sensitive"));
         output->append(conn->Bool(tag->case_sensitive));
+      } else if (auto vec = field.MetadataAs<HnswVectorFieldMetadata>()) {
+        output->append(redis::MultiLen(16));
+        output->append(redis::SimpleString("algorithm"));
+        output->append(redis::SimpleString("HNSW"));
+        output->append(redis::SimpleString("vector_type"));
+        output->append(redis::SimpleString(VectorTypeToString(vec->vector_type)));
+        output->append(redis::SimpleString("dim"));
+        output->append(redis::Integer(vec->dim));
+        output->append(redis::SimpleString("distance_metric"));
+        output->append(redis::SimpleString(DistanceMetricToString(vec->distance_metric)));
+        output->append(redis::SimpleString("m"));
+        output->append(redis::Integer(vec->m));
+        output->append(redis::SimpleString("ef_construction"));
+        output->append(redis::Integer(vec->ef_construction));
+        output->append(redis::SimpleString("ef_runtime"));
+        output->append(redis::Integer(vec->ef_runtime));
+        output->append(redis::SimpleString("epsilon"));
+        output->append(conn->Double(vec->epsilon));
       } else {
         output->append(redis::MultiLen(0));
       }
