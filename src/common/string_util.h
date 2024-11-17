@@ -32,6 +32,7 @@ namespace util {
 
 std::string Float2String(double d);
 std::string ToLower(std::string in);
+std::string ToUpper(std::string in);
 bool EqualICase(std::string_view lhs, std::string_view rhs);
 std::string BytesToHuman(uint64_t n);
 std::string Trim(std::string in, std::string_view chars);

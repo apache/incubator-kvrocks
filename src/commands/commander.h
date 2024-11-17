@@ -64,8 +64,9 @@ enum CommandFlags : uint64_t {
   // "ok-loading" flag, for any command that can be executed while
   // the db is in loading phase
   kCmdLoading = 1ULL << 5,
-  // "multi" flag, for commands that can end a MULTI scope
-  kCmdEndMulti = 1ULL << 6,
+  // "bypass-multi" flag, for commands that can be executed in a MULTI scope,
+  // but these commands will NOT be queued and will be executed immediately
+  kCmdBypassMulti = 1ULL << 6,
   // "exclusive" flag, for commands that should be executed execlusive globally
   kCmdExclusive = 1ULL << 7,
   // "no-multi" flag, for commands that cannot be executed in MULTI scope
@@ -320,8 +321,8 @@ inline uint64_t ParseCommandFlags(const std::string &description, const std::str
       flags |= kCmdLoading;
     else if (flag == "exclusive")
       flags |= kCmdExclusive;
-    else if (flag == "multi")
-      flags |= kCmdEndMulti;
+    else if (flag == "bypass-multi")
+      flags |= kCmdBypassMulti;
     else if (flag == "no-multi")
       flags |= kCmdNoMulti;
     else if (flag == "no-script")
