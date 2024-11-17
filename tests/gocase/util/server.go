@@ -114,6 +114,10 @@ func (s *KvrocksServer) Close() {
 	s.close(false)
 }
 
+func (s *KvrocksServer) CloseWithoutCleanup() {
+	s.close(true)
+}
+
 func (s *KvrocksServer) close(keepDir bool) {
 	require.NoError(s.t, s.cmd.Process.Signal(syscall.SIGTERM))
 	f := func(err error) { require.NoError(s.t, err) }
