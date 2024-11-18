@@ -397,7 +397,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
 
     if (GetNamespace().empty()) {
       if (!password.empty()) {
-        if (cmd_name != "auth" && cmd_name != "hello") {
+        if (!(cmd_flags & kCmdAuth)) {
           Reply(redis::Error({Status::RedisNoAuth, "Authentication required."}));
           continue;
         }
@@ -413,7 +413,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
     // that can guarantee other threads can't come into critical zone, such as DEBUG,
     // CLUSTER subcommand, CONFIG SET, MULTI, LUA (in the immediate future).
     // Otherwise, we just use 'ConcurrencyGuard' to allow all workers to execute commands at the same time.
-    if (is_multi_exec && cmd_name != "exec") {
+    if (is_multi_exec && !(cmd_flags & kCmdBypassMulti)) {
       // No lock guard, because 'exec' command has acquired 'WorkExclusivityGuard'
     } else if (cmd_flags & kCmdExclusive) {
       exclusivity = srv_->WorkExclusivityGuard();
@@ -443,7 +443,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
     }
 
     if (is_multi_exec && (cmd_flags & kCmdNoMulti)) {
-      Reply(redis::Error({Status::NotOK, "Can't execute " + cmd_name + " in MULTI"}));
+      Reply(redis::Error({Status::NotOK, fmt::format("{} inside MULTI is not allowed", util::ToUpper(cmd_name))}));
       multi_error_ = true;
       continue;
     }
@@ -463,7 +463,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
     }
 
     // We don't execute commands, but queue them, and then execute in EXEC command
-    if (is_multi_exec && !in_exec_ && !(cmd_flags & kCmdEndMulti)) {
+    if (is_multi_exec && !in_exec_ && !(cmd_flags & kCmdBypassMulti)) {
       multi_cmds_.emplace_back(std::move(cmd_tokens));
       Reply(redis::SimpleString("QUEUED"));
       continue;

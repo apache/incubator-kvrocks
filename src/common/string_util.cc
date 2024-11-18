@@ -42,6 +42,11 @@ std::string ToLower(std::string in) {
   return in;
 }
 
+std::string ToUpper(std::string in) {
+  std::transform(in.begin(), in.end(), in.begin(), [](char c) -> char { return static_cast<char>(std::toupper(c)); });
+  return in;
+}
+
 bool EqualICase(std::string_view lhs, std::string_view rhs) {
   return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(),
                                                 [](char l, char r) { return std::tolower(l) == std::tolower(r); });

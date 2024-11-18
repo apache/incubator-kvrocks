@@ -64,8 +64,9 @@ enum CommandFlags : uint64_t {
   // "ok-loading" flag, for any command that can be executed while
   // the db is in loading phase
   kCmdLoading = 1ULL << 5,
-  // "multi" flag, for commands that can end a MULTI scope
-  kCmdEndMulti = 1ULL << 6,
+  // "bypass-multi" flag, for commands that can be executed in a MULTI scope,
+  // but these commands will NOT be queued and will be executed immediately
+  kCmdBypassMulti = 1ULL << 6,
   // "exclusive" flag, for commands that should be executed execlusive globally
   kCmdExclusive = 1ULL << 7,
   // "no-multi" flag, for commands that cannot be executed in MULTI scope
@@ -80,6 +81,8 @@ enum CommandFlags : uint64_t {
   // "blocking" flag, for commands that don't perform db ops immediately,
   // but block and wait for some event to happen before performing db ops
   kCmdBlocking = 1ULL << 14,
+  // "auth" flag, for commands used for authentication
+  kCmdAuth = 1ULL << 15,
 };
 
 enum class CommandCategory : uint8_t {
@@ -318,8 +321,8 @@ inline uint64_t ParseCommandFlags(const std::string &description, const std::str
       flags |= kCmdLoading;
     else if (flag == "exclusive")
       flags |= kCmdExclusive;
-    else if (flag == "multi")
-      flags |= kCmdEndMulti;
+    else if (flag == "bypass-multi")
+      flags |= kCmdBypassMulti;
     else if (flag == "no-multi")
       flags |= kCmdNoMulti;
     else if (flag == "no-script")
@@ -328,9 +331,15 @@ inline uint64_t ParseCommandFlags(const std::string &description, const std::str
       flags |= kCmdNoDBSizeCheck;
     else if (flag == "slow")
       flags |= kCmdSlow;
-    else if (flag == "blocking")
+    else if (flag == "auth")
+      flags |= kCmdAuth;
+    else if (flag == "blocking") {
       flags |= kCmdBlocking;
-    else {
+
+      // blocking commands should always be no-script
+      // TODO: we can relax this restriction if scripting becomes non-exclusive
+      flags |= kCmdNoScript;
+    } else {
       std::cout << fmt::format("Encountered non-existent flag '{}' in command {} in command attribute parsing", flag,
                                cmd_name)
                 << std::endl;

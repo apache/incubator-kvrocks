@@ -98,10 +98,6 @@ class CommandExec : public Commander {
 class CommandWatch : public Commander {
  public:
   Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
-    if (conn->IsFlagEnabled(Connection::kMultiExec)) {
-      return {Status::RedisExecErr, "WATCH inside MULTI is not allowed"};
-    }
-
     // If a conn is already marked as watched_keys_modified, we can skip the watch.
     if (srv->IsWatchedKeysModified(conn)) {
       *output = redis::RESP_OK;
@@ -123,10 +119,10 @@ class CommandUnwatch : public Commander {
   }
 };
 
-REDIS_REGISTER_COMMANDS(Txn, MakeCmdAttr<CommandMulti>("multi", 1, "multi", NO_KEY),
-                        MakeCmdAttr<CommandDiscard>("discard", 1, "multi", NO_KEY),
-                        MakeCmdAttr<CommandExec>("exec", 1, "exclusive multi slow", NO_KEY),
-                        MakeCmdAttr<CommandWatch>("watch", -2, "multi", 1, -1, 1),
-                        MakeCmdAttr<CommandUnwatch>("unwatch", 1, "multi", NO_KEY), )
+REDIS_REGISTER_COMMANDS(Txn, MakeCmdAttr<CommandMulti>("multi", 1, "bypass-multi", NO_KEY),
+                        MakeCmdAttr<CommandDiscard>("discard", 1, "bypass-multi", NO_KEY),
+                        MakeCmdAttr<CommandExec>("exec", 1, "exclusive bypass-multi slow", NO_KEY),
+                        MakeCmdAttr<CommandWatch>("watch", -2, "no-multi", 1, -1, 1),
+                        MakeCmdAttr<CommandUnwatch>("unwatch", 1, "no-multi", NO_KEY), )
 
 }  // namespace redis

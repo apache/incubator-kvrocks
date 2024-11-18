@@ -1329,7 +1329,7 @@ class CommandPollUpdates : public Commander {
   Format format_ = Format::Raw;
 };
 
-REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only ok-loading", NO_KEY),
+REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only ok-loading auth", NO_KEY),
                         MakeCmdAttr<CommandPing>("ping", -1, "read-only", NO_KEY),
                         MakeCmdAttr<CommandSelect>("select", 2, "read-only", NO_KEY),
                         MakeCmdAttr<CommandInfo>("info", -1, "read-only ok-loading", NO_KEY),
@@ -1343,7 +1343,7 @@ REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only o
                         MakeCmdAttr<CommandSlowlog>("slowlog", -2, "read-only", NO_KEY),
                         MakeCmdAttr<CommandPerfLog>("perflog", -2, "read-only", NO_KEY),
                         MakeCmdAttr<CommandClient>("client", -2, "read-only", NO_KEY),
-                        MakeCmdAttr<CommandMonitor>("monitor", 1, "read-only no-multi", NO_KEY),
+                        MakeCmdAttr<CommandMonitor>("monitor", 1, "read-only no-multi no-script", NO_KEY),
                         MakeCmdAttr<CommandShutdown>("shutdown", 1, "read-only no-multi no-script", NO_KEY),
                         MakeCmdAttr<CommandQuit>("quit", 1, "read-only", NO_KEY),
                         MakeCmdAttr<CommandScan>("scan", -2, "read-only", NO_KEY),
@@ -1354,7 +1354,7 @@ REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only o
                         MakeCmdAttr<CommandTime>("time", 1, "read-only ok-loading", NO_KEY),
                         MakeCmdAttr<CommandDisk>("disk", 3, "read-only", 2, 2, 1),
                         MakeCmdAttr<CommandMemory>("memory", 3, "read-only", 2, 2, 1),
-                        MakeCmdAttr<CommandHello>("hello", -1, "read-only ok-loading", NO_KEY),
+                        MakeCmdAttr<CommandHello>("hello", -1, "read-only ok-loading auth", NO_KEY),
                         MakeCmdAttr<CommandRestore>("restore", -4, "write", 1, 1, 1),
 
                         MakeCmdAttr<CommandCompact>("compact", 1, "read-only no-script", NO_KEY),
@@ -1364,7 +1364,7 @@ REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only o
                         MakeCmdAttr<CommandSlaveOf>("slaveof", 3, "read-only exclusive no-script", NO_KEY),
                         MakeCmdAttr<CommandStats>("stats", 1, "read-only", NO_KEY),
                         MakeCmdAttr<CommandRdb>("rdb", -3, "write exclusive", NO_KEY),
-                        MakeCmdAttr<CommandReset>("reset", 1, "ok-loading multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandReset>("reset", 1, "ok-loading bypass-multi no-script", NO_KEY),
                         MakeCmdAttr<CommandApplyBatch>("applybatch", -2, "write no-multi", NO_KEY),
                         MakeCmdAttr<CommandDump>("dump", 2, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandPollUpdates>("pollupdates", -2, "read-only", NO_KEY), )
