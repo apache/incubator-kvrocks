@@ -33,6 +33,22 @@
 #include "types/redis_stream.h"
 
 namespace redis {
+namespace {
+// for XRead and XReadGroup stream range parse.
+CommandKeyRange ParseStreamReadRange(const std::vector<std::string> &args, uint32_t start_offset) {
+  // assert here we must have a stream in args since it has been parsed.
+  auto stream_keyword_iter = std::find_if(std::next(args.cbegin(), start_offset), args.cend(),
+                                          [](const std::string &arg) { return util::EqualICase(arg, "streams"); });
+  int stream_pos = static_cast<int>(std::distance(args.cbegin(), stream_keyword_iter));
+  int stream_size = static_cast<int>(args.size() - stream_pos) / 2;
+
+  CommandKeyRange range;
+  range.first_key = stream_pos + 1;
+  range.key_step = 1;
+  range.last_key = range.first_key + stream_size - 1;
+  return range;
+}
+}  // namespace
 
 class CommandXAck : public Commander {
  public:
@@ -547,7 +563,7 @@ class CommandXGroup : public Commander {
         return {Status::RedisExecErr, s.ToString()};
       }
 
-      *output = redis::SimpleString("OK");
+      *output = redis::RESP_OK;
     }
 
     if (subcommand_ == "destroy") {
@@ -599,7 +615,7 @@ class CommandXGroup : public Commander {
         return {Status::RedisExecErr, s.ToString()};
       }
 
-      *output = redis::SimpleString("OK");
+      *output = redis::RESP_OK;
     }
 
     return Status::OK();
@@ -1404,6 +1420,10 @@ class CommandXRead : public Commander,
     bufferevent_enable(bev, EV_READ);
   }
 
+  static const inline CommandKeyRangeGen keyRangeGen = [](const std::vector<std::string> &args) {
+    return ParseStreamReadRange(args, 0);
+  };
+
  private:
   std::vector<std::string> streams_;
   std::vector<StreamEntryID> ids_;
@@ -1635,6 +1655,14 @@ class CommandXReadGroup : public Commander,
     redis::Stream stream_db(srv_->storage, conn_->GetNamespace());
 
     std::vector<StreamReadResult> results;
+
+    std::vector<std::string> lock_keys;
+    lock_keys.reserve(streams_.size());
+    for (auto &stream_name : streams_) {
+      auto ns_key = stream_db.AppendNamespacePrefix(stream_name);
+      lock_keys.emplace_back(std::move(ns_key));
+    }
+    MultiLockGuard guard(srv_->storage->GetLockManager(), lock_keys);
     engine::Context ctx(srv_->storage);
     for (size_t i = 0; i < streams_.size(); ++i) {
       redis::StreamRangeOptions options;
@@ -1706,6 +1734,10 @@ class CommandXReadGroup : public Commander,
     conn_->SetCB(bev);
     bufferevent_enable(bev, EV_READ);
   }
+
+  static const inline CommandKeyRangeGen keyRangeGen = [](const std::vector<std::string> &args) {
+    return ParseStreamReadRange(args, 4);
+  };
 
  private:
   std::vector<std::string> streams_;
@@ -1865,7 +1897,7 @@ class CommandXSetId : public Commander {
       return {Status::RedisExecErr, s.ToString()};
     }
 
-    *output = redis::SimpleString("OK");
+    *output = redis::RESP_OK;
 
     return Status::OK();
   }
@@ -1884,12 +1916,13 @@ REDIS_REGISTER_COMMANDS(Stream, MakeCmdAttr<CommandXAck>("xack", -4, "write no-d
                         MakeCmdAttr<CommandAutoClaim>("xautoclaim", -6, "write", 1, 1, 1),
                         MakeCmdAttr<CommandXGroup>("xgroup", -4, "write", 2, 2, 1),
                         MakeCmdAttr<CommandXLen>("xlen", -2, "read-only", 1, 1, 1),
-                        MakeCmdAttr<CommandXInfo>("xinfo", -2, "read-only", 0, 0, 0),
+                        MakeCmdAttr<CommandXInfo>("xinfo", -2, "read-only", NO_KEY),
                         MakeCmdAttr<CommandXPending>("xpending", -3, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandXRange>("xrange", -4, "read-only", 1, 1, 1),
                         MakeCmdAttr<CommandXRevRange>("xrevrange", -2, "read-only", 1, 1, 1),
-                        MakeCmdAttr<CommandXRead>("xread", -4, "read-only", 0, 0, 0),
-                        MakeCmdAttr<CommandXReadGroup>("xreadgroup", -7, "write", 0, 0, 0),
+                        MakeCmdAttr<CommandXRead>("xread", -4, "read-only blocking", CommandXRead::keyRangeGen),
+                        MakeCmdAttr<CommandXReadGroup>("xreadgroup", -7, "write blocking",
+                                                       CommandXReadGroup::keyRangeGen),
                         MakeCmdAttr<CommandXTrim>("xtrim", -4, "write no-dbsize-check", 1, 1, 1),
                         MakeCmdAttr<CommandXSetId>("xsetid", -3, "write", 1, 1, 1))
 

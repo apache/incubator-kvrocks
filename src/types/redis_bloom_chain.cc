@@ -126,7 +126,6 @@ rocksdb::Status BloomChain::Reserve(engine::Context &ctx, const Slice &user_key,
                                     uint16_t expansion) {
   std::string ns_key = AppendNamespacePrefix(user_key);
 
-  LockGuard guard(storage_->GetLockManager(), ns_key);
   BloomChainMetadata bloom_chain_metadata;
   rocksdb::Status s = getBloomChainMetadata(ctx, ns_key, &bloom_chain_metadata);
   if (!s.ok() && !s.IsNotFound()) return s;
@@ -156,7 +155,6 @@ rocksdb::Status BloomChain::InsertCommon(engine::Context &ctx, const Slice &user
                                          const BloomFilterInsertOptions &insert_options,
                                          std::vector<BloomFilterAddResult> *rets) {
   std::string ns_key = AppendNamespacePrefix(user_key);
-  LockGuard guard(storage_->GetLockManager(), ns_key);
 
   BloomChainMetadata metadata;
   rocksdb::Status s = getBloomChainMetadata(ctx, ns_key, &metadata);

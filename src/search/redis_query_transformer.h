@@ -171,7 +171,7 @@ struct Transformer : ir::TreeTransformer {
       if (Is<UnsignedInteger>(knn_search->children[1])) {
         k = *ParseInt(knn_search->children[1]->string());
       } else {
-        k = *ParseInt(GET_OR_RET(GetParam(node)));
+        k = *ParseInt(GET_OR_RET(GetParam(knn_search->children[1])));
       }
 
       return std::make_unique<VectorKnnExpr>(std::make_unique<FieldRef>(knn_search->children[2]->string()),

@@ -194,7 +194,7 @@ class CommandReplConf : public Commander {
     if (!ip_address_.empty()) {
       conn->SetAnnounceIP(ip_address_);
     }
-    *output = redis::SimpleString("OK");
+    *output = redis::RESP_OK;
     return Status::OK();
   }
 
@@ -232,11 +232,11 @@ class CommandFetchMeta : public Commander {
       std::string files;
       auto s = engine::Storage::ReplDataManager::GetFullReplDataInfo(srv->storage, &files);
       if (!s.IsOK()) {
+        LOG(WARNING) << "[replication] Failed to get full data file info: " << s.Msg();
         s = util::SockSend(repl_fd, redis::Error({Status::RedisErrorNoPrefix, "can't create db checkpoint"}), bev);
         if (!s.IsOK()) {
           LOG(WARNING) << "[replication] Failed to send error response: " << s.Msg();
         }
-        LOG(WARNING) << "[replication] Failed to get full data file info: " << s.Msg();
         return;
       }
       // Send full data file info
@@ -344,11 +344,10 @@ class CommandDBName : public Commander {
   }
 };
 
-REDIS_REGISTER_COMMANDS(
-    Replication, MakeCmdAttr<CommandReplConf>("replconf", -3, "read-only replication no-script", 0, 0, 0),
-    MakeCmdAttr<CommandPSync>("psync", -2, "read-only replication no-multi no-script", 0, 0, 0),
-    MakeCmdAttr<CommandFetchMeta>("_fetch_meta", 1, "read-only replication no-multi no-script", 0, 0, 0),
-    MakeCmdAttr<CommandFetchFile>("_fetch_file", 2, "read-only replication no-multi no-script", 0, 0, 0),
-    MakeCmdAttr<CommandDBName>("_db_name", 1, "read-only replication no-multi", 0, 0, 0), )
+REDIS_REGISTER_COMMANDS(Replication, MakeCmdAttr<CommandReplConf>("replconf", -3, "read-only no-script", NO_KEY),
+                        MakeCmdAttr<CommandPSync>("psync", -2, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandFetchMeta>("_fetch_meta", 1, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandFetchFile>("_fetch_file", 2, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandDBName>("_db_name", 1, "read-only no-multi", NO_KEY), )
 
 }  // namespace redis

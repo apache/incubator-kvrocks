@@ -79,6 +79,15 @@ const std::vector<ConfigEnum<rocksdb::CompressionType>> compression_types{[] {
   return res;
 }()};
 
+const std::vector<ConfigEnum<rocksdb::CompressionType>> wal_compression_types{[] {
+  std::vector<ConfigEnum<rocksdb::CompressionType>> res;
+  res.reserve(engine::WalCompressionOptions.size());
+  for (const auto &e : engine::WalCompressionOptions) {
+    res.push_back({e.name, e.type});
+  }
+  return res;
+}()};
+
 const std::vector<ConfigEnum<BlockCacheType>> cache_types{[] {
   std::vector<ConfigEnum<BlockCacheType>> res;
   res.reserve(engine::CacheOptions.size());
@@ -96,6 +105,37 @@ std::string TrimRocksDbPrefix(std::string s) {
   return s.substr(8, s.size() - 8);
 }
 
+Status SetRocksdbCompression(Server *srv, const rocksdb::CompressionType compression,
+                             const int compression_start_level) {
+  if (!srv) return Status::OK();
+  std::string compression_option;
+  for (auto &option : engine::CompressionOptions) {
+    if (option.type == compression) {
+      compression_option = option.val;
+      break;
+    }
+  }
+  if (compression_option.empty()) {
+    return {Status::NotOK, "Invalid compression type"};
+  }
+
+  if (compression_start_level >= KVROCKS_MAX_LSM_LEVEL) {
+    return {Status::NotOK, "compression_start_level must be < " + std::to_string(KVROCKS_MAX_LSM_LEVEL)};
+  }
+  std::vector<std::string> compression_per_level_builder;
+  compression_per_level_builder.reserve(KVROCKS_MAX_LSM_LEVEL);
+
+  for (int i = 0; i < compression_start_level; i++) {
+    compression_per_level_builder.emplace_back("kNoCompression");
+  }
+  for (int i = compression_start_level; i < KVROCKS_MAX_LSM_LEVEL; i++) {
+    compression_per_level_builder.emplace_back(compression_option);
+  }
+  const std::string compression_per_level = util::StringJoin(
+      compression_per_level_builder, [](const auto &s) -> decltype(auto) { return s; }, ":");
+  return srv->storage->SetOptionForAllColumnFamilies("compression_per_level", compression_per_level);
+};
+
 Config::Config() {
   struct FieldWrapper {
     std::string name;
@@ -110,6 +150,7 @@ Config::Config() {
       {"daemonize", true, new YesNoField(&daemonize, false)},
       {"bind", true, new StringField(&binds_str_, "")},
       {"port", true, new UInt32Field(&port, kDefaultPort, 1, PORT_LIMIT)},
+      {"socket-fd", true, new IntField(&socket_fd, -1, -1, 1 << 16)},
 #ifdef ENABLE_OPENSSL
       {"tls-port", true, new UInt32Field(&tls_port, 0, 0, PORT_LIMIT)},
       {"tls-cert-file", false, new StringField(&tls_cert_file, "")},
@@ -162,6 +203,8 @@ Config::Config() {
       {"slave-empty-db-before-fullsync", false, new YesNoField(&slave_empty_db_before_fullsync, false)},
       {"slave-priority", false, new IntField(&slave_priority, 100, 0, INT_MAX)},
       {"slave-read-only", false, new YesNoField(&slave_readonly, true)},
+      {"replication-connect-timeout-ms", false, new IntField(&replication_connect_timeout_ms, 3100, 0, INT_MAX)},
+      {"replication-recv-timeout-ms", false, new IntField(&replication_recv_timeout_ms, 3200, 0, INT_MAX)},
       {"use-rsid-psync", true, new YesNoField(&use_rsid_psync, false)},
       {"profiling-sample-ratio", false, new IntField(&profiling_sample_ratio, 0, 0, 100)},
       {"profiling-sample-record-max-len", false, new IntField(&profiling_sample_record_max_len, 256, 0, INT_MAX)},
@@ -201,6 +244,8 @@ Config::Config() {
        new EnumField<rocksdb::CompressionType>(&rocks_db.compression, compression_types,
                                                rocksdb::CompressionType::kNoCompression)},
       {"rocksdb.compression_level", true, new IntField(&rocks_db.compression_level, 32767, INT_MIN, INT_MAX)},
+      {"rocksdb.compression_start_level", false,
+       new IntField(&rocks_db.compression_start_level, 2, 0, KVROCKS_MAX_LSM_LEVEL - 1)},
       {"rocksdb.block_size", true, new IntField(&rocks_db.block_size, 16384, 0, INT_MAX)},
       {"rocksdb.max_open_files", false, new IntField(&rocks_db.max_open_files, 8096, -1, INT_MAX)},
       {"rocksdb.write_buffer_size", false, new IntField(&rocks_db.write_buffer_size, 64, 0, 4096)},
@@ -210,8 +255,12 @@ Config::Config() {
       {"rocksdb.max_background_flushes", true, new IntField(&rocks_db.max_background_flushes, 2, -1, 32)},
       {"rocksdb.max_subcompactions", false, new IntField(&rocks_db.max_subcompactions, 2, 0, 16)},
       {"rocksdb.delayed_write_rate", false, new Int64Field(&rocks_db.delayed_write_rate, 0, 0, INT64_MAX)},
+      {"rocksdb.wal_compression", true,
+       new EnumField<rocksdb::CompressionType>(&rocks_db.wal_compression, wal_compression_types,
+                                               rocksdb::CompressionType::kNoCompression)},
       {"rocksdb.wal_ttl_seconds", true, new IntField(&rocks_db.wal_ttl_seconds, 3 * 3600, 0, INT_MAX)},
       {"rocksdb.wal_size_limit_mb", true, new IntField(&rocks_db.wal_size_limit_mb, 16384, 0, INT_MAX)},
+      {"rocksdb.dump_malloc_stats", true, new YesNoField(&rocks_db.dump_malloc_stats, true)},
       {"rocksdb.max_total_wal_size", false, new IntField(&rocks_db.max_total_wal_size, 64 * 4 * 2, 0, INT_MAX)},
       {"rocksdb.disable_auto_compactions", false, new YesNoField(&rocks_db.disable_auto_compactions, false)},
       {"rocksdb.enable_pipelined_write", true, new YesNoField(&rocks_db.enable_pipelined_write, false)},
@@ -367,31 +416,20 @@ void Config::initFieldCallback() {
     if (!srv) return Status::OK();  // srv is nullptr when load config from file
     return srv->storage->SetOptionForAllColumnFamilies(TrimRocksDbPrefix(k), v);
   };
+
   auto set_compression_type_cb = [](Server *srv, [[maybe_unused]] const std::string &k,
-                                    const std::string &v) -> Status {
+                                    [[maybe_unused]] const std::string &v) -> Status {
     if (!srv) return Status::OK();
-
-    std::string compression_option;
-    for (auto &option : engine::CompressionOptions) {
-      if (option.name == v) {
-        compression_option = option.val;
-        break;
-      }
-    }
-    if (compression_option.empty()) {
-      return {Status::NotOK, "Invalid compression type"};
-    }
-
-    // For the first two levels, it may contain the frequently accessed data,
-    // so it'd be better to use uncompressed data to save the CPU.
-    std::string compression_levels = "kNoCompression:kNoCompression";
-    auto db = srv->storage->GetDB();
-    for (size_t i = 2; i < db->GetOptions().compression_per_level.size(); i++) {
-      compression_levels += ":";
-      compression_levels += compression_option;
-    }
-    return srv->storage->SetOptionForAllColumnFamilies("compression_per_level", compression_levels);
+    return SetRocksdbCompression(srv, srv->GetConfig()->rocks_db.compression,
+                                 srv->GetConfig()->rocks_db.compression_start_level);
   };
+  auto set_compression_start_level_cb = [](Server *srv, [[maybe_unused]] const std::string &k,
+                                           [[maybe_unused]] const std::string &v) -> Status {
+    if (!srv) return Status::OK();
+    return SetRocksdbCompression(srv, srv->GetConfig()->rocks_db.compression,
+                                 srv->GetConfig()->rocks_db.compression_start_level);
+  };
+
 #ifdef ENABLE_OPENSSL
   auto set_tls_option = [](Server *srv, [[maybe_unused]] const std::string &k, [[maybe_unused]] const std::string &v) {
     if (!srv) return Status::OK();  // srv is nullptr when load config from file
@@ -696,6 +734,7 @@ void Config::initFieldCallback() {
           {"rocksdb.level0_stop_writes_trigger", set_cf_option_cb},
           {"rocksdb.level0_file_num_compaction_trigger", set_cf_option_cb},
           {"rocksdb.compression", set_compression_type_cb},
+          {"rocksdb.compression_start_level", set_compression_start_level_cb},
 #ifdef ENABLE_OPENSSL
           {"tls-cert-file", set_tls_option},
           {"tls-key-file", set_tls_option},
@@ -868,7 +907,7 @@ Status Config::Load(const CLIOptions &opts) {
 void Config::Get(const std::string &key, std::vector<std::string> *values) const {
   values->clear();
   for (const auto &iter : fields_) {
-    if (util::StringMatch(key, iter.first, 1)) {
+    if (util::StringMatch(key, iter.first, true)) {
       if (iter.second->IsMultiConfig()) {
         for (const auto &p : util::Split(iter.second->ToString(), "\n")) {
           values->emplace_back(iter.first);

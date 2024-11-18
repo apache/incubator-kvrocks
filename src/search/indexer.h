@@ -75,15 +75,16 @@ struct IndexUpdater {
 
   const kqir::IndexInfo *info = nullptr;
   GlobalIndexer *indexer = nullptr;
+  std::mutex update_mutex;
 
   explicit IndexUpdater(const kqir::IndexInfo *info) : info(info) {}
 
   StatusOr<FieldValues> Record(engine::Context &ctx, std::string_view key) const;
   Status UpdateIndex(engine::Context &ctx, const std::string &field, std::string_view key, const kqir::Value &original,
-                     const kqir::Value &current) const;
-  Status Update(engine::Context &ctx, const FieldValues &original, std::string_view key) const;
+                     const kqir::Value &current);
+  Status Update(engine::Context &ctx, const FieldValues &original, std::string_view key);
 
-  Status Build(engine::Context &ctx) const;
+  Status Build(engine::Context &ctx);
 
   Status UpdateTagIndex(engine::Context &ctx, std::string_view key, const kqir::Value &original,
                         const kqir::Value &current, const SearchKey &search_key, const TagFieldMetadata *tag) const;
@@ -92,25 +93,25 @@ struct IndexUpdater {
                             const NumericFieldMetadata *num) const;
   Status UpdateHnswVectorIndex(engine::Context &ctx, std::string_view key, const kqir::Value &original,
                                const kqir::Value &current, const SearchKey &search_key,
-                               HnswVectorFieldMetadata *vector) const;
+                               HnswVectorFieldMetadata *vector);
 };
 
 struct GlobalIndexer {
   using FieldValues = IndexUpdater::FieldValues;
   struct RecordResult {
-    IndexUpdater updater;
+    IndexUpdater *updater;
     std::string key;
     FieldValues fields;
   };
 
-  tsl::htrie_map<char, IndexUpdater> prefix_map;
-  std::vector<IndexUpdater> updater_list;
+  tsl::htrie_map<char, IndexUpdater *> prefix_map;
+  std::vector<std::unique_ptr<IndexUpdater>> updater_list;
 
   engine::Storage *storage = nullptr;
 
   explicit GlobalIndexer(engine::Storage *storage) : storage(storage) {}
 
-  void Add(IndexUpdater updater);
+  void Add(std::unique_ptr<IndexUpdater> updater);
   void Remove(const kqir::IndexInfo *index);
 
   StatusOr<RecordResult> Record(engine::Context &ctx, std::string_view key, const std::string &ns);

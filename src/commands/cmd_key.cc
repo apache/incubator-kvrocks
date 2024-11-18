@@ -367,7 +367,7 @@ class CommandRename : public Commander {
     auto s = redis.Copy(ctx, ns_key, new_ns_key, false, true, &res);
     if (!s.ok()) return {Status::RedisExecErr, s.ToString()};
     if (res == Database::CopyResult::KEY_NOT_EXIST) return {Status::RedisExecErr, "no such key"};
-    *output = redis::SimpleString("OK");
+    *output = redis::RESP_OK;
     return Status::OK();
   }
 };

@@ -30,7 +30,6 @@
 #include <iomanip>
 #include <ostream>
 
-#include "config.h"
 #include "daemon_util.h"
 #include "io_util.h"
 #include "pid_util.h"
@@ -40,9 +39,7 @@
 #include "storage/storage.h"
 #include "string_util.h"
 #include "time_util.h"
-#include "unique_fd.h"
 #include "vendor/crc64.h"
-#include "version.h"
 #include "version_util.h"
 
 Server *srv = nullptr;
@@ -119,9 +116,6 @@ static void InitGoogleLog(const Config *config) {
 int main(int argc, char *argv[]) {
   srand(static_cast<unsigned>(util::GetTimeStamp()));
 
-  google::InitGoogleLogging("kvrocks");
-  auto glog_exit = MakeScopeExit(google::ShutdownGoogleLogging);
-
   evthread_use_pthreads();
   auto event_exit = MakeScopeExit(libevent_global_shutdown);
 
@@ -136,14 +130,21 @@ int main(int argc, char *argv[]) {
     std::cout << "Failed to load config. Error: " << s.Msg() << std::endl;
     return 1;
   }
+  const auto socket_fd_exit = MakeScopeExit([&config] {
+    if (config.socket_fd != -1) {
+      close(config.socket_fd);
+    }
+  });
 
   crc64_init();
   InitGoogleLog(&config);
+  google::InitGoogleLogging("kvrocks");
+  auto glog_exit = MakeScopeExit(google::ShutdownGoogleLogging);
   LOG(INFO) << "kvrocks " << PrintVersion;
   // Tricky: We don't expect that different instances running on the same port,
   // but the server use REUSE_PORT to support the multi listeners. So we connect
   // the listen port to check if the port has already listened or not.
-  if (!config.binds.empty()) {
+  if (config.socket_fd == -1 && !config.binds.empty()) {
     uint32_t ports[] = {config.port, config.tls_port, 0};
     for (uint32_t *port = ports; *port; ++port) {
       if (util::IsPortInUse(*port)) {

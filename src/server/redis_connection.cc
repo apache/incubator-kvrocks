@@ -358,14 +358,12 @@ Status Connection::ExecuteCommand(engine::Context &ctx, const std::string &cmd_n
 
   srv_->SlowlogPushEntryIfNeeded(&cmd_tokens, duration, this);
   srv_->stats.IncrLatency(static_cast<uint64_t>(duration), cmd_name);
-  srv_->FeedMonitorConns(this, cmd_tokens);
   return s;
 }
 
-static bool IsCmdForIndexing(const CommandAttributes *attr) {
-  return (attr->flags & redis::kCmdWrite) &&
-         (attr->category == CommandCategory::Hash || attr->category == CommandCategory::JSON ||
-          attr->category == CommandCategory::Key);
+static bool IsCmdForIndexing(uint64_t cmd_flags, CommandCategory cmd_cat) {
+  return (cmd_flags & redis::kCmdWrite) &&
+         (cmd_cat == CommandCategory::Hash || cmd_cat == CommandCategory::JSON || cmd_cat == CommandCategory::Key);
 }
 
 void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
@@ -399,7 +397,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
 
     if (GetNamespace().empty()) {
       if (!password.empty()) {
-        if (cmd_name != "auth" && cmd_name != "hello") {
+        if (!(cmd_flags & kCmdAuth)) {
           Reply(redis::Error({Status::RedisNoAuth, "Authentication required."}));
           continue;
         }
@@ -415,21 +413,12 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
     // that can guarantee other threads can't come into critical zone, such as DEBUG,
     // CLUSTER subcommand, CONFIG SET, MULTI, LUA (in the immediate future).
     // Otherwise, we just use 'ConcurrencyGuard' to allow all workers to execute commands at the same time.
-    if (is_multi_exec && cmd_name != "exec") {
+    if (is_multi_exec && !(cmd_flags & kCmdBypassMulti)) {
       // No lock guard, because 'exec' command has acquired 'WorkExclusivityGuard'
     } else if (cmd_flags & kCmdExclusive) {
       exclusivity = srv_->WorkExclusivityGuard();
-
-      // When executing lua script commands that have "exclusive" attribute, we need to know current connection,
-      // but we should set current connection after acquiring the WorkExclusivityGuard to make it thread-safe
-      srv_->SetCurrentConnection(this);
     } else {
       concurrency = srv_->WorkConcurrencyGuard();
-    }
-
-    if (cmd_flags & kCmdROScript) {
-      // if executing read only lua script commands, set current connection.
-      srv_->SetCurrentConnection(this);
     }
 
     if (srv_->IsLoading() && !(cmd_flags & kCmdLoading)) {
@@ -454,7 +443,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
     }
 
     if (is_multi_exec && (cmd_flags & kCmdNoMulti)) {
-      Reply(redis::Error({Status::NotOK, "Can't execute " + cmd_name + " in MULTI"}));
+      Reply(redis::Error({Status::NotOK, fmt::format("{} inside MULTI is not allowed", util::ToUpper(cmd_name))}));
       multi_error_ = true;
       continue;
     }
@@ -473,9 +462,9 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       DisableFlag(kAsking);
     }
 
-    // We don't execute commands, but queue them, ant then execute in EXEC command
-    if (is_multi_exec && !in_exec_ && !(cmd_flags & kCmdMulti)) {
-      multi_cmds_.emplace_back(cmd_tokens);
+    // We don't execute commands, but queue them, and then execute in EXEC command
+    if (is_multi_exec && !in_exec_ && !(cmd_flags & kCmdBypassMulti)) {
+      multi_cmds_.emplace_back(std::move(cmd_tokens));
       Reply(redis::SimpleString("QUEUED"));
       continue;
     }
@@ -498,35 +487,55 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       continue;
     }
 
-    engine::Context ctx(srv_->storage);
-    // TODO: transaction support for index recording
-    std::vector<GlobalIndexer::RecordResult> index_records;
-    if (!srv_->index_mgr.index_map.empty() && IsCmdForIndexing(attributes) && !config->cluster_enabled) {
-      attributes->ForEachKeyRange(
-          [&, this](const std::vector<std::string> &args, const CommandKeyRange &key_range) {
-            key_range.ForEachKey(
-                [&, this](const std::string &key) {
-                  auto res = srv_->indexer.Record(ctx, key, ns_);
-                  if (res.IsOK()) {
-                    index_records.push_back(*res);
-                  } else if (!res.Is<Status::NoPrefixMatched>() && !res.Is<Status::TypeMismatched>()) {
-                    LOG(WARNING) << "index recording failed for key: " << key;
-                  }
-                },
-                args);
-          },
-          cmd_tokens);
-    }
-
     SetLastCmd(cmd_name);
-    s = ExecuteCommand(ctx, cmd_name, cmd_tokens, current_cmd.get(), &reply);
-    // TODO: transaction support for index updating
-    for (const auto &record : index_records) {
-      auto s = GlobalIndexer::Update(ctx, record);
-      if (!s.IsOK() && !s.Is<Status::TypeMismatched>()) {
-        LOG(WARNING) << "index updating failed for key: " << record.key;
+    {
+      std::optional<MultiLockGuard> guard;
+      if (cmd_flags & kCmdWrite) {
+        std::vector<std::string> lock_keys;
+        attributes->ForEachKeyRange(
+            [&lock_keys, this](const std::vector<std::string> &args, const CommandKeyRange &key_range) {
+              key_range.ForEachKey(
+                  [&, this](const std::string &key) {
+                    auto ns_key = ComposeNamespaceKey(ns_, key, srv_->storage->IsSlotIdEncoded());
+                    lock_keys.emplace_back(std::move(ns_key));
+                  },
+                  args);
+            },
+            cmd_tokens);
+
+        guard.emplace(srv_->storage->GetLockManager(), lock_keys);
+      }
+      engine::Context ctx(srv_->storage);
+
+      std::vector<GlobalIndexer::RecordResult> index_records;
+      if (!srv_->index_mgr.index_map.empty() && IsCmdForIndexing(cmd_flags, attributes->category) &&
+          !config->cluster_enabled) {
+        attributes->ForEachKeyRange(
+            [&, this](const std::vector<std::string> &args, const CommandKeyRange &key_range) {
+              key_range.ForEachKey(
+                  [&, this](const std::string &key) {
+                    auto res = srv_->indexer.Record(ctx, key, ns_);
+                    if (res.IsOK()) {
+                      index_records.push_back(*res);
+                    } else if (!res.Is<Status::NoPrefixMatched>() && !res.Is<Status::TypeMismatched>()) {
+                      LOG(WARNING) << "index recording failed for key: " << key;
+                    }
+                  },
+                  args);
+            },
+            cmd_tokens);
+      }
+
+      s = ExecuteCommand(ctx, cmd_name, cmd_tokens, current_cmd.get(), &reply);
+      for (const auto &record : index_records) {
+        auto s = GlobalIndexer::Update(ctx, record);
+        if (!s.IsOK() && !s.Is<Status::TypeMismatched>()) {
+          LOG(WARNING) << "index updating failed for key: " << record.key;
+        }
       }
     }
+
+    srv_->FeedMonitorConns(this, cmd_tokens);
 
     // Break the execution loop when occurring the blocking command like BLPOP or BRPOP,
     // it will suspend the connection and wait for the wakeup signal.

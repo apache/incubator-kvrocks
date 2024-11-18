@@ -54,6 +54,7 @@ constexpr const size_t GiB = 1024L * MiB;
 constexpr const uint32_t kDefaultPort = 6666;
 
 constexpr const char *kDefaultNamespace = "__namespace";
+constexpr int KVROCKS_MAX_LSM_LEVEL = 7;
 
 enum class BlockCacheType { kCacheTypeLRU = 0, kCacheTypeHCC };
 
@@ -70,6 +71,7 @@ struct Config {
   Config();
   ~Config() = default;
   uint32_t port = 0;
+  int socket_fd = -1;
 
   uint32_t tls_port = 0;
   std::string tls_cert_file;
@@ -103,6 +105,8 @@ struct Config {
   bool slave_serve_stale_data = true;
   bool slave_empty_db_before_fullsync = false;
   int slave_priority = 100;
+  int replication_connect_timeout_ms = 3100;
+  int replication_recv_timeout_ms = 3200;
   int max_db_size = 0;
   int max_replication_mb = 0;
   int max_io_mb = 0;
@@ -191,13 +195,16 @@ struct Config {
     int64_t delayed_write_rate;
     int compaction_readahead_size;
     int target_file_size_base;
+    rocksdb::CompressionType wal_compression;
     int wal_ttl_seconds;
     int wal_size_limit_mb;
     int max_total_wal_size;
+    bool dump_malloc_stats;
     int level0_slowdown_writes_trigger;
     int level0_stop_writes_trigger;
     int level0_file_num_compaction_trigger;
     rocksdb::CompressionType compression;
+    int compression_start_level;
     int compression_level;
     bool disable_auto_compactions;
     bool enable_blob_files;

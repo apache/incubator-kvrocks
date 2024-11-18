@@ -100,8 +100,7 @@ class String : public Database {
   rocksdb::Status IncrByFloat(engine::Context &ctx, const std::string &user_key, double increment, double *new_value);
   std::vector<rocksdb::Status> MGet(engine::Context &ctx, const std::vector<Slice> &keys,
                                     std::vector<std::string> *values);
-  rocksdb::Status MSet(engine::Context &ctx, const std::vector<StringPair> &pairs, uint64_t expire_ms,
-                       bool lock = true);
+  rocksdb::Status MSet(engine::Context &ctx, const std::vector<StringPair> &pairs, uint64_t expire_ms);
   rocksdb::Status MSetNX(engine::Context &ctx, const std::vector<StringPair> &pairs, uint64_t expire_ms, bool *flag);
   rocksdb::Status CAS(engine::Context &ctx, const std::string &user_key, const std::string &old_value,
                       const std::string &new_value, uint64_t expire_ms, int *flag);

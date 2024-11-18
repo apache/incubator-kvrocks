@@ -165,12 +165,12 @@ rocksdb::Options Storage::InitRocksDBOptions() {
   options.max_write_buffer_number = config_->rocks_db.max_write_buffer_number;
   options.min_write_buffer_number_to_merge = 2;
   options.write_buffer_size = config_->rocks_db.write_buffer_size * MiB;
-  options.num_levels = 7;
+  options.num_levels = KVROCKS_MAX_LSM_LEVEL;
   options.compression_opts.level = config_->rocks_db.compression_level;
   options.compression_per_level.resize(options.num_levels);
-  // only compress levels >= 2
+  options.wal_compression = config_->rocks_db.wal_compression;
   for (int i = 0; i < options.num_levels; ++i) {
-    if (i < 2) {
+    if (i < config_->rocks_db.compression_start_level) {
       options.compression_per_level[i] = rocksdb::CompressionType::kNoCompression;
     } else {
       options.compression_per_level[i] = config_->rocks_db.compression;
@@ -191,7 +191,7 @@ rocksdb::Options Storage::InitRocksDBOptions() {
   options.WAL_size_limit_MB = static_cast<uint64_t>(config_->rocks_db.wal_size_limit_mb);
   options.max_total_wal_size = static_cast<uint64_t>(config_->rocks_db.max_total_wal_size * MiB);
   options.listeners.emplace_back(new EventListener(this));
-  options.dump_malloc_stats = true;
+  options.dump_malloc_stats = config_->rocks_db.dump_malloc_stats;
   sst_file_manager_ = std::shared_ptr<rocksdb::SstFileManager>(rocksdb::NewSstFileManager(rocksdb::Env::Default()));
   options.sst_file_manager = sst_file_manager_;
   int64_t max_io_mb = kIORateLimitMaxMb;
@@ -597,14 +597,14 @@ rocksdb::Status Storage::Get(engine::Context &ctx, const rocksdb::ReadOptions &o
 rocksdb::Status Storage::Get(engine::Context &ctx, const rocksdb::ReadOptions &options,
                              rocksdb::ColumnFamilyHandle *column_family, const rocksdb::Slice &key,
                              std::string *value) {
-  if (ctx.is_txn_mode) {
+  if (ctx.txn_context_enabled) {
     DCHECK_NOTNULL(options.snapshot);
-    DCHECK_EQ(ctx.snapshot->GetSequenceNumber(), options.snapshot->GetSequenceNumber());
+    DCHECK_EQ(ctx.GetSnapshot()->GetSequenceNumber(), options.snapshot->GetSequenceNumber());
   }
   rocksdb::Status s;
   if (is_txn_mode_ && txn_write_batch_->GetWriteBatch()->Count() > 0) {
     s = txn_write_batch_->GetFromBatchAndDB(db_.get(), options, column_family, key, value);
-  } else if (ctx.batch && ctx.is_txn_mode) {
+  } else if (ctx.batch && ctx.txn_context_enabled) {
     s = ctx.batch->GetFromBatchAndDB(db_.get(), options, column_family, key, value);
   } else {
     s = db_->Get(options, column_family, key, value);
@@ -622,14 +622,14 @@ rocksdb::Status Storage::Get(engine::Context &ctx, const rocksdb::ReadOptions &o
 rocksdb::Status Storage::Get(engine::Context &ctx, const rocksdb::ReadOptions &options,
                              rocksdb::ColumnFamilyHandle *column_family, const rocksdb::Slice &key,
                              rocksdb::PinnableSlice *value) {
-  if (ctx.is_txn_mode) {
+  if (ctx.txn_context_enabled) {
     DCHECK_NOTNULL(options.snapshot);
-    DCHECK_EQ(ctx.snapshot->GetSequenceNumber(), options.snapshot->GetSequenceNumber());
+    DCHECK_EQ(ctx.GetSnapshot()->GetSequenceNumber(), options.snapshot->GetSequenceNumber());
   }
   rocksdb::Status s;
   if (is_txn_mode_ && txn_write_batch_->GetWriteBatch()->Count() > 0) {
     s = txn_write_batch_->GetFromBatchAndDB(db_.get(), options, column_family, key, value);
-  } else if (ctx.is_txn_mode && ctx.batch) {
+  } else if (ctx.txn_context_enabled && ctx.batch) {
     s = ctx.batch->GetFromBatchAndDB(db_.get(), options, column_family, key, value);
   } else {
     s = db_->Get(options, column_family, key, value);
@@ -655,14 +655,14 @@ void Storage::recordKeyspaceStat(const rocksdb::ColumnFamilyHandle *column_famil
 
 rocksdb::Iterator *Storage::NewIterator(engine::Context &ctx, const rocksdb::ReadOptions &options,
                                         rocksdb::ColumnFamilyHandle *column_family) {
-  if (ctx.is_txn_mode) {
+  if (ctx.txn_context_enabled) {
     DCHECK_NOTNULL(options.snapshot);
-    DCHECK_EQ(ctx.snapshot->GetSequenceNumber(), options.snapshot->GetSequenceNumber());
+    DCHECK_EQ(ctx.GetSnapshot()->GetSequenceNumber(), options.snapshot->GetSequenceNumber());
   }
   auto iter = db_->NewIterator(options, column_family);
   if (is_txn_mode_ && txn_write_batch_->GetWriteBatch()->Count() > 0) {
     return txn_write_batch_->NewIteratorWithBase(column_family, iter, &options);
-  } else if (ctx.is_txn_mode && ctx.batch && ctx.batch->GetWriteBatch()->Count() > 0) {
+  } else if (ctx.txn_context_enabled && ctx.batch && ctx.batch->GetWriteBatch()->Count() > 0) {
     return ctx.batch->NewIteratorWithBase(column_family, iter, &options);
   }
   return iter;
@@ -671,14 +671,14 @@ rocksdb::Iterator *Storage::NewIterator(engine::Context &ctx, const rocksdb::Rea
 void Storage::MultiGet(engine::Context &ctx, const rocksdb::ReadOptions &options,
                        rocksdb::ColumnFamilyHandle *column_family, const size_t num_keys, const rocksdb::Slice *keys,
                        rocksdb::PinnableSlice *values, rocksdb::Status *statuses) {
-  if (ctx.is_txn_mode) {
+  if (ctx.txn_context_enabled) {
     DCHECK_NOTNULL(options.snapshot);
-    DCHECK_EQ(ctx.snapshot->GetSequenceNumber(), options.snapshot->GetSequenceNumber());
+    DCHECK_EQ(ctx.GetSnapshot()->GetSequenceNumber(), options.snapshot->GetSequenceNumber());
   }
   if (is_txn_mode_ && txn_write_batch_->GetWriteBatch()->Count() > 0) {
     txn_write_batch_->MultiGetFromBatchAndDB(db_.get(), options, column_family, num_keys, keys, values, statuses,
                                              false);
-  } else if (ctx.is_txn_mode && ctx.batch) {
+  } else if (ctx.txn_context_enabled && ctx.batch) {
     ctx.batch->MultiGetFromBatchAndDB(db_.get(), options, column_family, num_keys, keys, values, statuses, false);
   } else {
     db_->MultiGet(options, column_family, num_keys, keys, values, statuses, false);
@@ -700,18 +700,21 @@ rocksdb::Status Storage::Write(engine::Context &ctx, const rocksdb::WriteOptions
 
 rocksdb::Status Storage::writeToDB(engine::Context &ctx, const rocksdb::WriteOptions &options,
                                    rocksdb::WriteBatch *updates) {
-  // Put replication id logdata at the end of write batch
+  // Put replication id logdata at the end of `updates`.
   if (replid_.length() == kReplIdLength) {
     updates->PutLogData(ServerLogData(kReplIdLog, replid_).Encode());
   }
 
-  if (ctx.is_txn_mode) {
+  if (ctx.txn_context_enabled) {
+    // Extract writes from the updates and append to the ctx.batch
     if (ctx.batch == nullptr) {
       ctx.batch = std::make_unique<rocksdb::WriteBatchWithIndex>();
     }
     WriteBatchIndexer handle(ctx);
     auto s = updates->Iterate(&handle);
     if (!s.ok()) return s;
+  } else {
+    DCHECK(ctx.batch == nullptr);
   }
 
   return db_->Write(options, updates);
@@ -868,9 +871,11 @@ Status Storage::BeginTxn() {
   // The EXEC command is exclusive and shouldn't have multi transaction at the same time,
   // so it's fine to reset the global write batch without any lock.
   is_txn_mode_ = true;
-  txn_write_batch_ =
-      std::make_unique<rocksdb::WriteBatchWithIndex>(rocksdb::BytewiseComparator() /*default backup_index_comparator */,
-                                                     0 /* default reserved_bytes*/, GetWriteBatchMaxBytes());
+  // Set overwrite_key to false to avoid overwriting the existing key in case
+  // like downstream would parse the replication log etc.
+  txn_write_batch_ = std::make_unique<rocksdb::WriteBatchWithIndex>(
+      /*backup_index_comparator=*/rocksdb::BytewiseComparator(),
+      /*reserved_bytes=*/0, /*overwrite_key=*/false, /*max_bytes=*/GetWriteBatchMaxBytes());
   return Status::OK();
 }
 
@@ -1274,30 +1279,29 @@ bool Storage::ReplDataManager::FileExists(Storage *storage, const std::string &d
   return crc == tmp_crc;
 }
 
-[[nodiscard]] rocksdb::ReadOptions Context::GetReadOptions() const {
+[[nodiscard]] rocksdb::ReadOptions Context::GetReadOptions() {
   rocksdb::ReadOptions read_options;
-  if (is_txn_mode) read_options.snapshot = snapshot;
+  if (txn_context_enabled) read_options.snapshot = GetSnapshot();
   return read_options;
 }
 
-[[nodiscard]] rocksdb::ReadOptions Context::DefaultScanOptions() const {
+[[nodiscard]] rocksdb::ReadOptions Context::DefaultScanOptions() {
   rocksdb::ReadOptions read_options = storage->DefaultScanOptions();
-  if (is_txn_mode) read_options.snapshot = snapshot;
+  if (txn_context_enabled) read_options.snapshot = GetSnapshot();
   return read_options;
 }
 
-[[nodiscard]] rocksdb::ReadOptions Context::DefaultMultiGetOptions() const {
+[[nodiscard]] rocksdb::ReadOptions Context::DefaultMultiGetOptions() {
   rocksdb::ReadOptions read_options = storage->DefaultMultiGetOptions();
-  if (is_txn_mode) read_options.snapshot = snapshot;
+  if (txn_context_enabled) read_options.snapshot = GetSnapshot();
   return read_options;
 }
 
 void Context::RefreshLatestSnapshot() {
-  auto guard = storage->WriteLockGuard();
-  if (snapshot) {
-    storage->GetDB()->ReleaseSnapshot(snapshot);
+  if (snapshot_) {
+    storage->GetDB()->ReleaseSnapshot(snapshot_);
   }
-  snapshot = storage->GetDB()->GetSnapshot();
+  snapshot_ = storage->GetDB()->GetSnapshot();
   if (batch) {
     batch->Clear();
   }

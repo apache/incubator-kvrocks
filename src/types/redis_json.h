@@ -82,11 +82,12 @@ class Json : public Database {
 
   rocksdb::Status Resp(engine::Context &ctx, const std::string &user_key, const std::string &path,
                        std::vector<std::string> *results, RESP resp);
+  static rocksdb::Status FromRawString(std::string_view value, JsonValue *result);
 
  private:
   rocksdb::Status write(engine::Context &ctx, Slice ns_key, JsonMetadata *metadata, const JsonValue &json_val);
   rocksdb::Status read(engine::Context &ctx, const Slice &ns_key, JsonMetadata *metadata, JsonValue *value);
-  static rocksdb::Status parse(const JsonMetadata &metadata, const Slice &json_byt, JsonValue *value);
+  static rocksdb::Status parse(const JsonMetadata &metadata, const Slice &json_byte, JsonValue *value);
   rocksdb::Status create(engine::Context &ctx, const std::string &ns_key, JsonMetadata &metadata,
                          const std::string &value);
   rocksdb::Status del(engine::Context &ctx, const Slice &ns_key);

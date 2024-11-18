@@ -62,7 +62,7 @@ Status FeedSlaveThread::Start() {
     sigaddset(&mask, SIGHUP);
     sigaddset(&mask, SIGPIPE);
     pthread_sigmask(SIG_BLOCK, &mask, &omask);
-    auto s = util::SockSend(conn_->GetFD(), redis::SimpleString("OK"), conn_->GetBufferEvent());
+    auto s = util::SockSend(conn_->GetFD(), redis::RESP_OK, conn_->GetBufferEvent());
     if (!s.IsOK()) {
       LOG(ERROR) << "failed to send OK response to the replica: " << s.Msg();
       return;
@@ -252,7 +252,6 @@ void ReplicationThread::CallbacksStateMachine::Start() {
   }
 
   uint64_t last_connect_timestamp = 0;
-  int connect_timeout_ms = 3100;
 
   while (!repl_->stop_flag_ && bev == nullptr) {
     if (util::GetTimeStampMS() - last_connect_timestamp < 1000) {
@@ -260,7 +259,7 @@ void ReplicationThread::CallbacksStateMachine::Start() {
       sleep(1);
     }
     last_connect_timestamp = util::GetTimeStampMS();
-    auto cfd = util::SockConnect(repl_->host_, repl_->port_, connect_timeout_ms);
+    auto cfd = util::SockConnect(repl_->host_, repl_->port_, repl_->srv_->GetConfig()->replication_connect_timeout_ms);
     if (!cfd) {
       LOG(ERROR) << "[replication] Failed to connect the master, err: " << cfd.Msg();
       continue;
@@ -777,7 +776,10 @@ Status ReplicationThread::parallelFetchFile(const std::string &dir,
           }
           auto exit = MakeScopeExit([ssl] { SSL_free(ssl); });
 #endif
-          int sock_fd = GET_OR_RET(util::SockConnect(this->host_, this->port_, ssl).Prefixed("connect the server err"));
+          int sock_fd = GET_OR_RET(util::SockConnect(this->host_, this->port_, ssl,
+                                                     this->srv_->GetConfig()->replication_connect_timeout_ms,
+                                                     this->srv_->GetConfig()->replication_recv_timeout_ms)
+                                       .Prefixed("connect the server err"));
 #ifdef ENABLE_OPENSSL
           exit.Disable();
 #endif
@@ -874,6 +876,12 @@ Status ReplicationThread::fetchFile(int sock_fd, evbuffer *evbuf, const std::str
     UniqueEvbufReadln line(evbuf, EVBUFFER_EOL_CRLF_STRICT);
     if (!line) {
       if (auto s = util::EvbufferRead(evbuf, sock_fd, -1, ssl); !s) {
+        if (s.Is<Status::TryAgain>()) {
+          if (stop_flag_) {
+            return {Status::NotOK, "replication thread was stopped"};
+          }
+          continue;
+        }
         return std::move(s).Prefixed("read size");
       }
       continue;
@@ -907,6 +915,12 @@ Status ReplicationThread::fetchFile(int sock_fd, evbuffer *evbuf, const std::str
       remain -= data_len;
     } else {
       if (auto s = util::EvbufferRead(evbuf, sock_fd, -1, ssl); !s) {
+        if (s.Is<Status::TryAgain>()) {
+          if (stop_flag_) {
+            return {Status::NotOK, "replication thread was stopped"};
+          }
+          continue;
+        }
         return std::move(s).Prefixed("read sst file");
       }
     }
