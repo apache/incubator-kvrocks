@@ -47,7 +47,7 @@ Server *srv = nullptr;
 
 extern "C" void SignalHandler([[maybe_unused]] int sig) {
   if (srv && !srv->IsStopped()) {
-    LOG(INFO) << "Bye Bye";
+    LOG(INFO) << "Signal " << sig << " received, stoping the server";
     srv->Stop();
   }
 }
@@ -116,6 +116,7 @@ static void InitGoogleLog(const Config *config) {
 
 int main(int argc, char *argv[]) {
   srand(static_cast<unsigned>(util::GetTimeStamp()));
+  crc64_init();
 
   evthread_use_pthreads();
   auto event_exit = MakeScopeExit(libevent_global_shutdown);
@@ -137,7 +138,6 @@ int main(int argc, char *argv[]) {
     }
   });
 
-  crc64_init();
   InitGoogleLog(&config);
   google::InitGoogleLogging("kvrocks");
   auto glog_exit = MakeScopeExit(google::ShutdownGoogleLogging);
