@@ -544,7 +544,7 @@ class CommandShutdown : public Commander {
     }
 
     if (!srv->IsStopped()) {
-      LOG(INFO) << "SHUTDOWN command received, stoping the server";
+      LOG(INFO) << "SHUTDOWN command received, stopping the server";
       srv->Stop();
     }
     return Status::OK();

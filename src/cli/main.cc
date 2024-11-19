@@ -47,7 +47,7 @@ Server *srv = nullptr;
 
 extern "C" void SignalHandler([[maybe_unused]] int sig) {
   if (srv && !srv->IsStopped()) {
-    LOG(INFO) << "Signal " << sig << " received, stoping the server";
+    LOG(INFO) << "Signal " << sig << " received, stopping the server";
     srv->Stop();
   }
 }
