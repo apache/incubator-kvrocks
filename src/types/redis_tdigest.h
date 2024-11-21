@@ -49,8 +49,8 @@ class TDigest : public SubKeyScanner {
   rocksdb::Status Add(engine::Context& context, const Slice& digest_name, const std::vector<double>& inputs);
   // rocksdb::Status Cdf(engine::Context& context, const Slice& digest_name, const std::vector<double>& numbers,
   //                     TDigestCDFResult* result);
-  // rocksdb::Status Quantile(engine::Context& context, const Slice& digest_name, const std::vector<double>& numbers,
-  //                          TDigestQuantitleResult* result);
+  rocksdb::Status Quantile(engine::Context& context, const Slice& digest_name, const std::vector<double>& numbers,
+                           TDigestQuantitleResult* result);
   // rocksdb::Status Info(engine::Context& context, const Slice& digest_name, TDigestInfoResult* result);
   // rocksdb::Status Merge(engine::Context& context, const Slice& dest_digest_name, const std::vector<Slice>& sources,
   //                       const TDigestMergeOptions& options);

@@ -1,7 +1,13 @@
 #include "redis_tdigest.h"
 
+#include <functional>
 #include <iterator>
+#include <memory>
 
+#include "rocksdb/db.h"
+#include "rocksdb/iterator.h"
+#include "rocksdb/slice.h"
+#include "rocksdb/snapshot.h"
 #include "rocksdb/status.h"
 #include "storage/redis_db.h"
 #include "storage/redis_metadata.h"
@@ -9,6 +15,61 @@
 
 namespace redis {
 using rocksdb::Status;
+
+StatusOr<Centroid> DecodeCentroid(const rocksdb::Slice& data) {
+  // TODO: implement it
+  return nullptr;
+}
+
+// class TDSample {
+//   public:
+//   struct Iterator {
+//     Iterator* Clone() const;
+//     bool Next();
+//     bool Valid() const;
+//     StatusOr<Centroid> Centriod() const;
+//   };
+
+//   Iterator* Begin();
+//   Iterator* End();
+//   double TotalWeight();
+//   double Min() const;
+//   double Max() const;
+// };
+
+template <typename GetIteratorFunc>
+struct DumpCentroids {
+  struct Iterator {
+    Iterator(GetIteratorFunc get_iterator_func, const rocksdb::Slice& key)
+        : get_iterator(get_iterator_func), iter(get_iterator(key)) {}
+    GetIteratorFunc get_iterator;
+    rocksdb::Iterator* iter;
+    std::unique_ptr<Iterator> Clone() const { return std::make_unique<Iterator>(get_iterator, iter->key()); }
+    bool Next() const {
+      if (iter->Valid()) {
+        iter->Next();
+      }
+      return iter->Valid();
+    }
+
+    bool Valid() const {
+      return iter->Valid();
+    }
+    StatusOr<Centroid> Centroid() const {
+      if (!iter->Valid()) {
+        return Status::InvalidArgument("invalid iterator during decoding tdigest centroid");
+      }
+      return DecodeCentroid(iter->value());
+    }
+  };
+
+  std::unique_ptr<Iterator> Begin() {
+    return GetIteratorFunc(lower_bound);
+  }
+
+  const rocksdb::Slice upper_bound;
+  const rocksdb::Slice lower_bound;
+};
 
 uint64_t constexpr kMaxBufferSize = 1 * 1024;  // 1k doubles
 
@@ -87,13 +148,13 @@ rocksdb::Status TDigest::Add(engine::Context& context, const Slice& digest_name,
 
     auto merged_centroids = TDigestMerge(buffer, {centroids});
 
-    status = applyNewCentroidsAndCleanBuffer(context, batch, ns_key, merged_centroids);
+    status = applyNewCentroidsAndCleanBuffer(context, batch, ns_key, merged_centroids->centroids);
     if (!status.ok()) {
       return status;
     }
 
     metadata.merge_times++;
-    metadata.merged_nodes = merged_centroids.size();
+    metadata.merged_nodes = merged_centroids->centroids.size();
     metadata.unmerged_nodes = 0;
   }
 
@@ -117,5 +178,8 @@ rocksdb::Status TDigest::Add(engine::Context& context, const Slice& digest_name,
 rocksdb::Status TDigest::GetMetaData(engine::Context& context, const Slice& ns_key, TDigestMetadata* metadata) {
   return Database::GetMetadata(context, {kRedisTDigest}, ns_key, metadata);
 }
+
+rocksdb::Status TDigest::Quantile(engine::Context& context, const Slice& digest_name,
+                                  const std::vector<double>& numbers, TDigestQuantitleResult* result) {}
 
 }  // namespace redis

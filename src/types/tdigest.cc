@@ -1,5 +1,7 @@
 #include "tdigest.h"
 
+#include <algorithm>
+#include <iterator>
 #include <memory>
 #include <queue>
 
@@ -339,7 +341,19 @@ class TDigest::TDigestImpl {
 
 TDigest::TDigest(uint64_t delta) : impl_(std::make_unique<TDigestImpl>(delta)) { Reset({}); }
 
-void TDigest::Merge(const std::vector<TDigest>& others) {}
+void TDigest::Merge(const std::vector<TDigest>& others) {
+  if (others.empty()) {
+    return;
+  }
+
+  std::vector<const TDigestImpl*> impls;
+  impls.reserve(others.size());
+
+  std::transform(others.cbegin(), others.cend(), std::back_inserter(impls),
+                 [](const TDigest& i) { return i.impl_.get(); });
+
+  impl_->Merge(impls);
+}
 
 void TDigest::Reset(const std::vector<Centroid>& centroids) { impl_->Reset(centroids); }
 
@@ -368,5 +382,8 @@ StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<CentroidsWithDelta>&
   return digest.DumpCentroids();
 }
 StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<double>& buffer, const CentroidsWithDelta& centroid_list) {
-  return {};
+  TDigest digest{centroid_list.delta};
+  digest.Reset(centroid_list.centroids);
+  digest.Add(buffer);
+  return digest.DumpCentroids();
 }

@@ -23,11 +23,27 @@ struct CentroidsWithDelta {
 };
 
 StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<CentroidsWithDelta>& centroids_list);
-StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<double>& buffer,
-                                             const CentroidsWithDelta& centroid_list);
+StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<double>& buffer, const CentroidsWithDelta& centroid_list);
+
+// TD should looks like below:
+// class TDSample {
+//   public:
+//   struct Iterator {
+//     Iterator* Clone() const;
+//     bool Next();
+//     bool Valid() const;
+//     StatusOr<Centroid> Centriod() const;
+//   };
+
+//   Iterator* Begin();
+//   Iterator* End();
+//   double TotalWeight();
+//   double Min() const;
+//   double Max() const;
+// };
 
 template <typename TD, typename Lerp>
-inline double Quantile(const TD& td, double q) {
+inline StatusOr<double> Quantile(const TD& td, double q) {
   if (q < 0 || q > 1 || td.size() == 0) {
     return NAN;
   }
@@ -43,21 +59,27 @@ inline double Quantile(const TD& td, double q) {
   double weight_sum = 0;
   auto iter = td.Begin();
   for (; iter->Valid(); iter->Next()) {
-    const Centroid centroid = iter->Get();
-    weight_sum += centroid.weight;
+    auto centroid = iter->Centroid();
+    if (!centroid) {
+      return centroid.ToStatus();
+    }
+    weight_sum += centroid->weight;
     if (index <= weight_sum) {
       break;
     }
   }
 
-  const Centroid centroid = iter->Get();
+  auto centroid = iter->Centroid();
+  if (!centroid) {
+    return centroid.ToStatus();
+  }
 
   // deviation of index from the centroid center
-  double diff = index + centroid.weight / 2 - weight_sum;
+  double diff = index + centroid->weight / 2 - weight_sum;
 
   // index happen to be in a unit weight centroid
-  if (centroid.weight == 1 && std::abs(diff) < 0.5) {
-    return centroid.mean;
+  if (centroid->weight == 1 && std::abs(diff) < 0.5) {
+    return centroid->mean;
   }
 
   // find adjacent centroids for interpolation
@@ -66,23 +88,46 @@ inline double Quantile(const TD& td, double q) {
   if (diff > 0) {
     if (ci_right == td.End()) {
       // index larger than center of last bin
-      const Centroid c = ci_left->Get();
-      DCHECK_GE(c.weight, 2);
-      return Lerp(c.mean, td.Max(), diff / (c.weight / 2));
+      auto c = ci_left->Centriod();
+      if (!c) {
+        return c.ToStatus();
+      }
+      DCHECK_GE(c->weight, 2);
+      return Lerp(c->mean, td.Max(), diff / (c->weight / 2));
     }
     ci_right->Next();
   } else {
     if (ci_left == td.Begin()) {
       // index smaller than center of first bin
-      const Centroid c = ci_left->Get();
-      DCHECK_GE(c.weight, 2);
-      return Lerp(td.Min(), c.mean, index / (c.weight / 2));
+      auto c = ci_left->Centriod();
+      if (!c) {
+        return c.ToStatus();
+      }
+      DCHECK_GE(c->weight, 2);
+      return Lerp(td.Min(), c->mean, index / (c->weight / 2));
     }
     --ci_left;
-    diff += td[ci_left].weight / 2 + td[ci_right].weight / 2;
+    auto lc = ci_left->Centriod();
+    if (!lc) {
+      return lc.ToStatus();
+    }
+    auto rc = ci_right->Centroid();
+    if (!rc) {
+      return rc.ToStatus();
+    }
+    diff += lc->weight / 2 + rc->weight / 2;
+  }
+
+  auto lc = ci_left->Centriod();
+  if (!lc) {
+    return lc.ToStatus();
+  }
+  auto rc = ci_right->Centroid();
+  if (!rc) {
+    return rc.ToStatus();
   }
 
   // interpolate from adjacent centroids
-  diff /= (td[ci_left].weight / 2 + td[ci_right].weight / 2);
-  return Lerp(td[ci_left].mean, td[ci_right].mean, diff);
+  diff /= (lc->weight / 2 + rc->weight / 2);
+  return Lerp(lc->mean, rc->mean, diff);
 }
