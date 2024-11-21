@@ -505,6 +505,8 @@ void TDigestMetadata::Encode(std::string *dst) const {
   PutFixed64(dst, merged_nodes);
   PutFixed64(dst, total_weight);
   PutFixed64(dst, merged_weight);
+  PutDouble(dst, minimum);
+  PutDouble(dst, maximum);
   PutFixed64(dst, total_observations);
   PutFixed64(dst, merge_times);
 }
@@ -524,6 +526,8 @@ rocksdb::Status TDigestMetadata::Decode(Slice *input) {
   GetFixed64(input, &merged_nodes);
   GetFixed64(input, &total_weight);
   GetFixed64(input, &merged_weight);
+  GetDouble(input, &minimum);
+  GetDouble(input, &maximum);
   GetFixed64(input, &total_observations);
   GetFixed64(input, &merge_times);
 

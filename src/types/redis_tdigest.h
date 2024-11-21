@@ -8,7 +8,6 @@
 #include "storage/redis_db.h"
 #include "storage/redis_metadata.h"
 #include "storage/storage.h"
-
 #include "tdigest.h"
 
 namespace redis {
@@ -49,7 +48,7 @@ class TDigest : public SubKeyScanner {
   rocksdb::Status Add(engine::Context& context, const Slice& digest_name, const std::vector<double>& inputs);
   // rocksdb::Status Cdf(engine::Context& context, const Slice& digest_name, const std::vector<double>& numbers,
   //                     TDigestCDFResult* result);
-  rocksdb::Status Quantile(engine::Context& context, const Slice& digest_name, const std::vector<double>& numbers,
+  rocksdb::Status Quantile(engine::Context& context, const Slice& digest_name, const std::vector<double>& qs,
                            TDigestQuantitleResult* result);
   // rocksdb::Status Info(engine::Context& context, const Slice& digest_name, TDigestInfoResult* result);
   // rocksdb::Status Merge(engine::Context& context, const Slice& dest_digest_name, const std::vector<Slice>& sources,
@@ -58,12 +57,24 @@ class TDigest : public SubKeyScanner {
   rocksdb::Status GetMetaData(engine::Context& context, const Slice& digest_name, TDigestMetadata* metadata);
 
  private:
+  enum class SegmentType : uint8_t { kCentroids = 0, kGuardFlag = 0xFF };
+
   rocksdb::ColumnFamilyHandle* cf_handle_;
 
-  rocksdb::Status appendBuffer(engine::Context& context, ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch, const std::string& ns_key, const std::vector<double>& inputs);
+  rocksdb::Status appendBuffer(engine::Context& context, ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch,
+                               const std::string& ns_key, const std::vector<double>& inputs);
 
-  rocksdb::Status dumpCentroidsAndBuffer(engine::Context& context, const std::string& ns_key, std::vector<Centroid>* centroids, std::vector<double>* buffer);
-  rocksdb::Status applyNewCentroidsAndCleanBuffer(engine::Context& context, ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch, const std::string& ns_key, const std::vector<Centroid>& centroids);
+  rocksdb::Status dumpCentroidsAndBuffer(engine::Context& context, const std::string& ns_key,
+                                         std::vector<Centroid>* centroids, std::vector<double>* buffer);
+  rocksdb::Status applyNewCentroidsAndCleanBuffer(engine::Context& context,
+                                                  ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch,
+                                                  const std::string& ns_key, const std::vector<Centroid>& centroids);
+
+  std::string internalSegmentGuardPrefixKey(SegmentType seg, const Slice& digest_name) const;
+
+  rocksadb::Status mergeCurrentBuffer(engine::Context& context, const std::string& ns_key,
+                                      ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch, TDigestMetadata* metadata,
+                                      const std::vector<double>* additional_buffer = nullptr);
 };
 
 }  // namespace redis

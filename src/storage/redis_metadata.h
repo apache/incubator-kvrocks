@@ -341,14 +341,18 @@ class TDigestMetadata : public Metadata {
  public:
   uint64_t compression;
   uint64_t capcacity;
-  uint64_t unmerged_nodes;
-  uint64_t merged_nodes;
-  uint64_t total_weight;
-  uint64_t merged_weight;
-  uint64_t total_observations;
-  uint64_t merge_times;
+  uint64_t unmerged_nodes = 0;
+  uint64_t merged_nodes = 0;
+  uint64_t total_weight = 0;
+  uint64_t merged_weight = 0;
+  double minimum = 0.;
+  double maximum = 0.;
+  uint64_t total_observations = 0;
+  uint64_t merge_times = 0;
 
-  explicit TDigestMetadata(bool generate_version = true) : Metadata(kRedisTDigest, generate_version) {}
+  explicit TDigestMetadata(uint64_t compression, uint64_t capacity, bool generate_version = true)
+      : Metadata(kRedisTDigest, generate_version), compression(compression), capcacity(capacity) {}
+  explicit TDigestMetadata(bool generate_version = true) : TDigestMetadata(0, 0, generate_version) {}
   void Encode(std::string *dst) const override;
   rocksdb::Status Decode(Slice *input) override;
 
