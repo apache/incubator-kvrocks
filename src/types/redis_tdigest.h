@@ -34,7 +34,9 @@ struct TDigestMergeOptions {};
 
 struct TDigestCDFResult {};
 
-struct TDigestQuantitleResult {};
+struct TDigestQuantitleResult {
+  std::vector<double> quantiles;
+};
 
 struct TDigestInfoResult {};
 
@@ -72,9 +74,13 @@ class TDigest : public SubKeyScanner {
 
   std::string internalSegmentGuardPrefixKey(SegmentType seg, const Slice& digest_name) const;
 
-  rocksadb::Status mergeCurrentBuffer(engine::Context& context, const std::string& ns_key,
+  rocksdb::Status mergeCurrentBuffer(engine::Context& context, const std::string& ns_key,
                                       ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch, TDigestMetadata* metadata,
                                       const std::vector<double>* additional_buffer = nullptr);
+
+  std::string internalKeyFromCentroid(const std::string& ns_key, const TDigestMetadata& metadata, const Centroid& centroid) const;
+  static std::string internalValueFromCentroid(const Centroid& centroid);
+  Centroid decodeCentroidFromKeyValue(const rocksdb::Slice& key, const rocksdb::Slice& value) const;
 };
 
 }  // namespace redis

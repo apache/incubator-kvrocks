@@ -6,6 +6,7 @@
 #include <type_traits>
 
 #include "db_util.h"
+#include "encoding.h"
 #include "rocksdb/db.h"
 #include "rocksdb/iterator.h"
 #include "rocksdb/slice.h"
@@ -18,11 +19,19 @@
 namespace redis {
 
 using rocksdb::Status;
+namespace {
+// a numerically stable lerp is unbelievably complex
+// but we are *approximating* the quantile, so let's keep it simple
+// reference:
+// https://github.com/apache/arrow/blob/27bbd593625122a4a25d9471c8aaf5df54a6dcf9/cpp/src/arrow/util/tdigest.cc#L38
+double Lerp(double a, double b, double t) { return a + t * (b - a); }
 
-StatusOr<Centroid> DecodeCentroid(const rocksdb::Slice& data) {
-  // TODO: implement it
-  return nullptr;
+StatusOr<Centroid> DecodeCentroid(const rocksdb::Slice& key, const rocksdb::Slice& data) {
+  Centroid centroid;
+
+  GetDouble(&data, double* value) return nullptr;
 }
+}  // namespace
 
 // class TDSample {
 //   public:
@@ -63,7 +72,7 @@ struct DumpCentroids {
       if (!iter->Valid()) {
         return Status::InvalidArgument("invalid iterator during decoding tdigest centroid");
       }
-      return DecodeCentroid(iter->value());
+      return DecodeCentroid(iter->key(), iter->value());
     }
   };
 
@@ -166,20 +175,46 @@ rocksdb::Status TDigest::Add(engine::Context& context, const Slice& digest_name,
 }
 // rocksdb::Status TDigest::Cdf(engine::Context& context, const Slice& digest_name, const std::vector<double>& numbers,
 //                              TDigestCDFResult* result) {}
-rocksdb::Status TDigest::Quantile(engine::Context& context, const Slice& digest_name,
-                                  const std::vector<double>& numbers, TDigestQuantitleResult* result) {
+rocksdb::Status TDigest::Quantile(engine::Context& context, const Slice& digest_name, const std::vector<double>& qs,
+                                  TDigestQuantitleResult* result) {
   auto ns_key = AppendNamespacePrefix(digest_name);
+  TDigestMetadata metadata;
+  {
+    LockGuard guard(storage_->GetLockManager(), ns_key);
 
-  // TODO: merge current buffer
-  context.RefreshLatestSnapshot();
+    auto status = GetMetaData(context, ns_key, &metadata);
+    if (!status.ok()) {
+      return status;
+    }
+
+    auto batch = storage_->GetWriteBatchBase();
+    WriteBatchLogData log_data(kRedisTDigest);
+    status = batch->PutLogData(log_data.Encode());
+    if (!status.ok()) {
+      return status;
+    }
+
+    status = mergeCurrentBuffer(context, ns_key, batch, &metadata);
+    if (!status.ok()) {
+      return status;
+    }
+
+    std::string metadata_bytes;
+    metadata.Encode(&metadata_bytes);
+    status = batch->Put(cf_handle_, ns_key, metadata_bytes);
+    if (!status.ok()) {
+      return status;
+    }
+
+    status = storage_->Write(context, storage_->DefaultWriteOptions(), batch->GetWriteBatch());
+    if (!status.ok()) {
+      return status;
+    }
+
+    context.RefreshLatestSnapshot();
+  }
 
   // since we take a snapshot and read only, we don't need to lock again
-
-  TDigestMetadata metadata;
-  auto status = GetMetaData(context, ns_key, &metadata);
-  if (!status.ok()) {
-    return status;
-  }
 
   auto start_key = internalSegmentGuardPrefixKey(SegmentType::kCentroids, digest_name);
   auto guard_key = internalSegmentGuardPrefixKey(SegmentType::kGuardFlag, digest_name);
@@ -201,6 +236,16 @@ rocksdb::Status TDigest::Quantile(engine::Context& context, const Slice& digest_
   };
 
   auto dump_centroids = DumpCentroids<decltype(get_iterator_func)>{get_iterator_func, &metadata};
+
+  for (auto q : qs) {
+    auto s = TDigestQuantile(dump_centroids, q, Lerp);
+    if (!s) {
+      return rocksdb::Status::InvalidArgument(s.Msg());
+    }
+    result->quantiles.push_back(*s);
+  }
+
+  return Status::OK();
 }
 // rocksdb::Status TDigest::Info(engine::Context& context, const Slice& digest_name, TDigestInfoResult* result) {}
 // rocksdb::Status TDigest::Merge(engine::Context& context, const Slice& dest_digest_name,
@@ -238,6 +283,23 @@ rocksdb::Status TDigest::mergeCurrentBuffer(engine::Context& context, const std:
   metadata->unmerged_nodes = 0;
 
   return status;
+}
+
+std::string TDigest::internalKeyFromCentroid(const std::string& ns_key, const TDigestMetadata& metadata,
+                                             const Centroid& centroid) const {
+  std::string sub_key = ns_key;
+  PutDouble(&sub_key, centroid.mean);  // It uses EncodeDoubleToUInt64 and keeps origonal order of double
+  return InternalKey(ns_key, sub_key, metadata.version, storage_->IsSlotIdEncoded()).Encode();
+}
+
+std::string TDigest::internalValueFromCentroid(const Centroid& centroid) {
+  std::string value;
+  PutDouble(&value, centroid.weight);
+  return value;
+}
+
+Centroid TDigest::decodeCentroidFromKeyValue(const rocksdb::Slice& key, const rocksdb::Slice& value) const {
+  InternalKey ikey(key, storage_->IsSlotIdEncoded());
 }
 
 }  // namespace redis

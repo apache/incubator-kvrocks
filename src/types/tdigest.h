@@ -43,7 +43,7 @@ StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<double>& buffer, con
 // };
 
 template <typename TD, typename Lerp>
-inline StatusOr<double> Quantile(const TD& td, double q) {
+inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
   if (q < 0 || q > 1 || td.size() == 0) {
     return NAN;
   }
@@ -93,7 +93,7 @@ inline StatusOr<double> Quantile(const TD& td, double q) {
         return c.ToStatus();
       }
       DCHECK_GE(c->weight, 2);
-      return Lerp(c->mean, td.Max(), diff / (c->weight / 2));
+      return lerp(c->mean, td.Max(), diff / (c->weight / 2));
     }
     ci_right->Next();
   } else {
@@ -104,7 +104,7 @@ inline StatusOr<double> Quantile(const TD& td, double q) {
         return c.ToStatus();
       }
       DCHECK_GE(c->weight, 2);
-      return Lerp(td.Min(), c->mean, index / (c->weight / 2));
+      return lerp(td.Min(), c->mean, index / (c->weight / 2));
     }
     --ci_left;
     auto lc = ci_left->Centriod();
@@ -129,5 +129,5 @@ inline StatusOr<double> Quantile(const TD& td, double q) {
 
   // interpolate from adjacent centroids
   diff /= (lc->weight / 2 + rc->weight / 2);
-  return Lerp(lc->mean, rc->mean, diff);
+  return lerp(lc->mean, rc->mean, diff);
 }
