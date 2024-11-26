@@ -307,7 +307,7 @@ jobs:
           ./x.py test go build $GOCASE_RUN_ARGS ${{ matrix.ignore_when_tsan}}
 
       - name: Install redis-py
-        run: pip3 install redis==4.3.6
+        run: pip3 install redis==5.2.0
 
       - name: Run kvrocks2redis Test
         # Currently, when enabling Tsan/Asan or running in macOS 11/14, the value mismatch in destination redis server.
