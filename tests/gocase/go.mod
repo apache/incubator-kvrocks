@@ -5,8 +5,8 @@ go 1.23
 require (
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/shirou/gopsutil/v3 v3.24.5
-	github.com/stretchr/testify v1.9.0
-	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
+	github.com/stretchr/testify v1.10.0
+	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
 	modernc.org/mathutil v1.6.0
 )
 
