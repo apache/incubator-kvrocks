@@ -21,6 +21,7 @@
 #pragma once
 
 #include <event2/bufferevent.h>
+#include <rocksdb/advanced_cache.h>
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
 #include <rocksdb/table.h>
@@ -379,6 +380,9 @@ class Storage {
   std::unique_ptr<rocksdb::WriteBatchWithIndex> txn_write_batch_;
 
   rocksdb::WriteOptions default_write_opts_ = rocksdb::WriteOptions();
+
+  // rocksdb used global block cache
+  std::shared_ptr<rocksdb::Cache> shared_block_cache_;
 
   rocksdb::Status writeToDB(engine::Context &ctx, const rocksdb::WriteOptions &options, rocksdb::WriteBatch *updates);
   void recordKeyspaceStat(const rocksdb::ColumnFamilyHandle *column_family, const rocksdb::Status &s);
