@@ -178,6 +178,7 @@ void Worker::newTCPConnection(evconnlistener *listener, evutil_socket_t fd, [[ma
       LOG(WARNING) << "Failed to send error response to socket: " << s.Msg();
     }
     conn->Close();
+    delete conn;
     return;
   }
 
