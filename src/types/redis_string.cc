@@ -297,6 +297,7 @@ rocksdb::Status String::SetRange(engine::Context &ctx, const std::string &user_k
     }
 
     Metadata metadata(kRedisString, false);
+    raw_value.clear();
     metadata.Encode(&raw_value);
   }
 
