@@ -175,6 +175,8 @@ struct Config {
   // Enable transactional mode in engine::Context
   bool txn_context_enabled = false;
 
+  bool fast_shutdown = false;
+
   struct RocksDB {
     int block_size;
     bool cache_index_and_filter_blocks;

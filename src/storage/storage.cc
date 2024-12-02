@@ -98,7 +98,9 @@ void Storage::CloseDB() {
   db_->SyncWAL();
   rocksdb::CancelAllBackgroundWork(db_.get(), true);
   for (auto handle : cf_handles_) db_->DestroyColumnFamilyHandle(handle);
-  shared_block_cache_->DisownData();
+  if (config_->fast_shutdown) {
+    shared_block_cache_->DisownData();
+  }
   db_ = nullptr;
 }
 
