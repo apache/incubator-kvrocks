@@ -250,6 +250,15 @@ TEST_F(RedisStringTest, SetRange) {
   string_->Get(*ctx_, key_, &value);
   EXPECT_EQ(16, value.size());
   auto s = string_->Del(*ctx_, key_);
+
+  string_->SetEX(*ctx_, key_, "test-value", 1);
+  sleep(2);
+  s = string_->Get(*ctx_, key_, &value);
+  EXPECT_TRUE(s.IsNotFound());
+  string_->SetRange(*ctx_, key_, 0, "12345", &ret);
+  EXPECT_EQ(5, ret);
+  string_->Get(*ctx_, key_, &value);
+  EXPECT_EQ("12345", value);
 }
 
 TEST_F(RedisStringTest, CAS) {
