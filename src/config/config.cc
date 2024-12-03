@@ -239,7 +239,7 @@ Config::Config() {
       {"json-storage-format", false,
        new EnumField<JsonStorageFormat>(&json_storage_format, json_storage_formats, JsonStorageFormat::JSON)},
       {"txn-context-enabled", true, new YesNoField(&txn_context_enabled, false)},
-      {"fast_shutdown", false, new YesNoField(&fast_shutdown, false)},
+      {"skip-block-cache-deallocation-on-close", false, new YesNoField(&skip_block_cache_deallocation_on_close, false)},
 
       /* rocksdb options */
       {"rocksdb.compression", false,

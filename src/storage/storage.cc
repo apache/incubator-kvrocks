@@ -88,6 +88,13 @@ Storage::Storage(Config *config)
 Storage::~Storage() {
   DestroyBackup();
   CloseDB();
+  SkipBlockCacheDeallocationOnClose();
+}
+
+void Storage::SkipBlockCacheDeallocationOnClose() {
+  if (config_->skip_block_cache_deallocation_on_close) {
+    shared_block_cache_->DisownData();
+  }
 }
 
 void Storage::CloseDB() {
@@ -98,9 +105,6 @@ void Storage::CloseDB() {
   db_->SyncWAL();
   rocksdb::CancelAllBackgroundWork(db_.get(), true);
   for (auto handle : cf_handles_) db_->DestroyColumnFamilyHandle(handle);
-  if (config_->fast_shutdown) {
-    shared_block_cache_->DisownData();
-  }
   db_ = nullptr;
 }
 

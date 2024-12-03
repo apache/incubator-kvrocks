@@ -213,6 +213,7 @@ class Storage {
   void SetWriteOptions(const Config::RocksDB::WriteOptions &config);
   Status Open(DBOpenMode mode = kDBOpenModeDefault);
   void CloseDB();
+  void SkipBlockCacheDeallocationOnClose();
   bool IsEmptyDB();
   void EmptyDB();
   rocksdb::BlockBasedTableOptions InitTableOptions();
