@@ -88,10 +88,10 @@ Storage::Storage(Config *config)
 Storage::~Storage() {
   DestroyBackup();
   CloseDB();
-  SkipBlockCacheDeallocationOnClose();
+  TrySkipBlockCacheDeallocationOnClose();
 }
 
-void Storage::SkipBlockCacheDeallocationOnClose() {
+void Storage::TrySkipBlockCacheDeallocationOnClose() {
   if (config_->skip_block_cache_deallocation_on_close) {
     shared_block_cache_->DisownData();
   }
