@@ -59,28 +59,28 @@ class TDigest : public SubKeyScanner {
   rocksdb::Status GetMetaData(engine::Context& context, const Slice& digest_name, TDigestMetadata* metadata);
 
  private:
-  enum class SegmentType : uint8_t { kCentroids = 0, kGuardFlag = 0xFF };
+  enum class SegmentType : uint8_t { kBuffer = 0, kCentroids = 1, kGuardFlag = 0xFF };
 
   rocksdb::ColumnFamilyHandle* cf_handle_;
 
-  rocksdb::Status appendBuffer(engine::Context& context, ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch,
-                               const std::string& ns_key, const std::vector<double>& inputs);
+  rocksdb::Status appendBuffer(engine::Context &ctx, ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch,
+                               const std::string& ns_key, const TDigestMetadata& metadata, const std::vector<double>& inputs);
 
-  rocksdb::Status dumpCentroidsAndBuffer(engine::Context& context, const std::string& ns_key,
+  rocksdb::Status dumpCentroidsAndBuffer( const std::string& ns_key, const TDigestMetadata& metadata,
                                          std::vector<Centroid>* centroids, std::vector<double>* buffer);
-  rocksdb::Status applyNewCentroidsAndCleanBuffer(engine::Context& context,
+  rocksdb::Status applyNewCentroidsAndCleanBuffer(
                                                   ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch,
-                                                  const std::string& ns_key, const std::vector<Centroid>& centroids);
+                                                  const std::string& ns_key, const TDigestMetadata& metadata, const std::vector<Centroid>& centroids);
 
   std::string internalSegmentGuardPrefixKey(SegmentType seg, const Slice& digest_name) const;
 
-  rocksdb::Status mergeCurrentBuffer(engine::Context& context, const std::string& ns_key,
+  rocksdb::Status mergeCurrentBuffer(const std::string& ns_key,
                                       ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch, TDigestMetadata* metadata,
                                       const std::vector<double>* additional_buffer = nullptr);
-
+  std::string internalBufferKey(const std::string& ns_key,  const TDigestMetadata& metadata) const;
   std::string internalKeyFromCentroid(const std::string& ns_key, const TDigestMetadata& metadata, const Centroid& centroid) const;
   static std::string internalValueFromCentroid(const Centroid& centroid);
-  Centroid decodeCentroidFromKeyValue(const rocksdb::Slice& key, const rocksdb::Slice& value) const;
+  rocksdb::Status decodeCentroidFromKeyValue(const rocksdb::Slice& key, const rocksdb::Slice& value, Centroid* centroid) const;
 };
 
 }  // namespace redis
