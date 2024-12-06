@@ -220,6 +220,7 @@ struct Config {
     int max_background_jobs;
     bool rate_limiter_auto_tuned;
     bool avoid_unnecessary_blocking_io = true;
+    bool partition_filters;
 
     struct WriteOptions {
       bool sync;

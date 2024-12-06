@@ -131,8 +131,8 @@ Status SetRocksdbCompression(Server *srv, const rocksdb::CompressionType compres
   for (size_t i = compression_start_level; i < KVROCKS_MAX_LSM_LEVEL; i++) {
     compression_per_level_builder.emplace_back(compression_option);
   }
-  const std::string compression_per_level = util::StringJoin(
-      compression_per_level_builder, [](const auto &s) -> decltype(auto) { return s; }, ":");
+  const std::string compression_per_level =
+      util::StringJoin(compression_per_level_builder, [](const auto &s) -> decltype(auto) { return s; }, ":");
   return srv->storage->SetOptionForAllColumnFamilies("compression_per_level", compression_per_level);
 };
 
@@ -298,6 +298,7 @@ Config::Config() {
       {"rocksdb.max_background_jobs", false, new IntField(&rocks_db.max_background_jobs, 4, 0, 32)},
       {"rocksdb.rate_limiter_auto_tuned", true, new YesNoField(&rocks_db.rate_limiter_auto_tuned, true)},
       {"rocksdb.avoid_unnecessary_blocking_io", true, new YesNoField(&rocks_db.avoid_unnecessary_blocking_io, true)},
+      {"rocksdb.partition_filters", true, new YesNoField(&rocks_db.partition_filters, true)},
 
       /* rocksdb write options */
       {"rocksdb.write_options.sync", true, new YesNoField(&rocks_db.write_options.sync, false)},
