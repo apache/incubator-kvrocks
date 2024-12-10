@@ -43,6 +43,8 @@
 #include "redis_db.h"
 #include "redis_metadata.h"
 #include "rocksdb/cache.h"
+#include "rocksdb/options.h"
+#include "rocksdb/write_batch.h"
 #include "rocksdb_crc32c.h"
 #include "server/server.h"
 #include "storage/batch_indexer.h"
@@ -766,20 +768,24 @@ rocksdb::Status Storage::FlushScripts(engine::Context &ctx, const rocksdb::Write
   return Write(ctx, options, batch->GetWriteBatch());
 }
 
-Status Storage::ReplicaApplyWriteBatch(std::string &&raw_batch) {
-  return ApplyWriteBatch(default_write_opts_, std::move(raw_batch));
+Status Storage::ReplicaApplyWriteBatch(rocksdb::WriteBatch *batch) {
+  return applyWriteBatch(default_write_opts_, batch);
 }
 
-Status Storage::ApplyWriteBatch(const rocksdb::WriteOptions &options, std::string &&raw_batch) {
+Status Storage::applyWriteBatch(const rocksdb::WriteOptions &options, rocksdb::WriteBatch *batch) {
   if (db_size_limit_reached_) {
     return {Status::NotOK, "reach space limit"};
   }
-  auto batch = rocksdb::WriteBatch(std::move(raw_batch));
-  auto s = db_->Write(options, &batch);
+  auto s = db_->Write(options, batch);
   if (!s.ok()) {
     return {Status::NotOK, s.ToString()};
   }
   return Status::OK();
+}
+
+Status Storage::ApplyWriteBatch(const rocksdb::WriteOptions &options, std::string &&raw_batch) {
+  auto batch = rocksdb::WriteBatch(std::move(raw_batch));
+  return applyWriteBatch(options, &batch);
 }
 
 void Storage::RecordStat(StatType type, uint64_t v) {

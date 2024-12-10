@@ -30,13 +30,16 @@
 #include <atomic>
 #include <csignal>
 #include <future>
+#include <memory>
 #include <string>
+#include <string_view>
 #include <thread>
 
 #include "commands/error_constants.h"
 #include "event_util.h"
 #include "fmt/format.h"
 #include "io_util.h"
+#include "rocksdb/write_batch.h"
 #include "rocksdb_crc32c.h"
 #include "scope_exit.h"
 #include "server/redis_reply.h"
@@ -123,8 +126,8 @@ void FeedSlaveThread::loop() {
     // iter_ would be always valid here
     auto batch = iter_->GetBatch();
     if (batch.sequence != curr_seq) {
-      LOG(ERROR) << "Fatal error encountered, WAL iterator is discrete, some seq might be lost"
-                 << ", sequence " << curr_seq << " expected, but got " << batch.sequence;
+      LOG(ERROR) << "Fatal error encountered, WAL iterator is discrete, some seq might be lost" << ", sequence "
+                 << curr_seq << " expected, but got " << batch.sequence;
       Stop();
       return;
     }
@@ -470,8 +473,7 @@ ReplicationThread::CBState ReplicationThread::replConfReadCB(bufferevent *bev) {
   // on unknown option: first try without announce ip, if it fails again - do nothing (to prevent infinite loop)
   if (isUnknownOption(line.View()) && !next_try_without_announce_ip_address_) {
     next_try_without_announce_ip_address_ = true;
-    LOG(WARNING) << "The old version master, can't handle ip-address, "
-                 << "try without it again";
+    LOG(WARNING) << "The old version master, can't handle ip-address, " << "try without it again";
     // Retry previous state, i.e. send replconf again
     return CBState::PREV;
   }
@@ -537,8 +539,7 @@ ReplicationThread::CBState ReplicationThread::tryPSyncReadCB(bufferevent *bev) {
 
   if (line[0] == '-' && isWrongPsyncNum(line.View())) {
     next_try_old_psync_ = true;
-    LOG(WARNING) << "The old version master, can't handle new PSYNC, "
-                 << "try old PSYNC again";
+    LOG(WARNING) << "The old version master, can't handle new PSYNC, " << "try old PSYNC again";
     // Retry previous state, i.e. send PSYNC again
     return CBState::PREV;
   }
@@ -557,7 +558,6 @@ ReplicationThread::CBState ReplicationThread::tryPSyncReadCB(bufferevent *bev) {
 }
 
 ReplicationThread::CBState ReplicationThread::incrementBatchLoopCB(bufferevent *bev) {
-  char *bulk_data = nullptr;
   repl_state_.store(kReplConnected, std::memory_order_relaxed);
   auto input = bufferevent_get_input(bev);
   while (true) {
@@ -576,31 +576,38 @@ ReplicationThread::CBState ReplicationThread::incrementBatchLoopCB(bufferevent *
       }
       case Incr_batch_data:
         // Read bulk data (batch data)
-        if (incr_bulk_len_ + 2 <= evbuffer_get_length(input)) {  // We got enough data
-          bulk_data = reinterpret_cast<char *>(evbuffer_pullup(input, static_cast<ssize_t>(incr_bulk_len_ + 2)));
-          std::string bulk_string = std::string(bulk_data, incr_bulk_len_);
-          // master would send the ping heartbeat packet to check whether the slave was alive or not,
-          // don't write ping to db here.
-          if (bulk_string != "ping") {
-            auto s = storage_->ReplicaApplyWriteBatch(std::string(bulk_data, incr_bulk_len_));
-            if (!s.IsOK()) {
-              LOG(ERROR) << "[replication] CRITICAL - Failed to write batch to local, " << s.Msg() << ". batch: 0x"
-                         << util::StringToHex(bulk_string);
-              return CBState::RESTART;
-            }
-
-            s = parseWriteBatch(bulk_string);
-            if (!s.IsOK()) {
-              LOG(ERROR) << "[replication] CRITICAL - failed to parse write batch 0x" << util::StringToHex(bulk_string)
-                         << ": " << s.Msg();
-              return CBState::RESTART;
-            }
-          }
-          evbuffer_drain(input, incr_bulk_len_ + 2);
-          incr_state_ = Incr_batch_size;
-        } else {
+        if (incr_bulk_len_ + 2 > evbuffer_get_length(input)) {  // If data not enough
           return CBState::AGAIN;
         }
+
+        const char *bulk_data =
+            reinterpret_cast<const char *>(evbuffer_pullup(input, static_cast<ssize_t>(incr_bulk_len_ + 2)));
+        std::string bulk_string = std::string(bulk_data, incr_bulk_len_);
+        evbuffer_drain(input, incr_bulk_len_ + 2);
+        incr_state_ = Incr_batch_size;
+
+        if (bulk_string == "ping") {
+          // master would send the ping heartbeat packet to check whether the slave was alive or not,
+          // don't write ping to db here.
+          return CBState::AGAIN;
+        }
+
+        rocksdb::WriteBatch batch(std::move(bulk_string));
+
+        auto s = storage_->ReplicaApplyWriteBatch(&batch);
+        if (!s.IsOK()) {
+          LOG(ERROR) << "[replication] CRITICAL - Failed to write batch to local, " << s.Msg() << ". batch: 0x"
+                     << util::StringToHex(batch.Data());
+          return CBState::RESTART;
+        }
+
+        s = parseWriteBatch(batch);
+        if (!s.IsOK()) {
+          LOG(ERROR) << "[replication] CRITICAL - failed to parse write batch 0x" << util::StringToHex(batch.Data())
+                     << ": " << s.Msg();
+          return CBState::RESTART;
+        }
+
         break;
     }
   }
@@ -815,10 +822,9 @@ Status ReplicationThread::parallelFetchFile(const std::string &dir,
             fetch_cnt.fetch_add(1);
             uint32_t cur_skip_cnt = skip_cnt.load();
             uint32_t cur_fetch_cnt = fetch_cnt.load();
-            LOG(INFO) << "[fetch] "
-                      << "Fetched " << fetch_file << ", crc32: " << fetch_crc << ", skip count: " << cur_skip_cnt
-                      << ", fetch count: " << cur_fetch_cnt << ", progress: " << cur_skip_cnt + cur_fetch_cnt << "/"
-                      << files_count;
+            LOG(INFO) << "[fetch] " << "Fetched " << fetch_file << ", crc32: " << fetch_crc
+                      << ", skip count: " << cur_skip_cnt << ", fetch count: " << cur_fetch_cnt
+                      << ", progress: " << cur_skip_cnt + cur_fetch_cnt << "/" << files_count;
           };
           // For master using old version, it only supports to fetch a single file by one
           // command, so we need to fetch all files by multiple command interactions.
@@ -981,8 +987,7 @@ void ReplicationThread::TimerCB(int, int16_t) {
   }
 }
 
-Status ReplicationThread::parseWriteBatch(const std::string &batch_string) {
-  rocksdb::WriteBatch write_batch(batch_string);
+Status ReplicationThread::parseWriteBatch(const rocksdb::WriteBatch &write_batch) {
   WriteBatchHandler write_batch_handler;
 
   auto db_status = write_batch.Iterate(&write_batch_handler);

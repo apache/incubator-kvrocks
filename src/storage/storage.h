@@ -41,6 +41,7 @@
 #include "config/config.h"
 #include "lock_manager.h"
 #include "observer_or_unique.h"
+#include "rocksdb/write_batch.h"
 #include "status.h"
 
 #if defined(__sparc__) || defined(__arm__)
@@ -230,7 +231,7 @@ class Storage {
   Status RestoreFromBackup();
   Status RestoreFromCheckpoint();
   Status GetWALIter(rocksdb::SequenceNumber seq, std::unique_ptr<rocksdb::TransactionLogIterator> *iter);
-  Status ReplicaApplyWriteBatch(std::string &&raw_batch);
+  Status ReplicaApplyWriteBatch(rocksdb::WriteBatch *batch);
   Status ApplyWriteBatch(const rocksdb::WriteOptions &options, std::string &&raw_batch);
   rocksdb::SequenceNumber LatestSeqNumber();
 
@@ -380,13 +381,14 @@ class Storage {
   // command, so it won't have multi transactions to be executed at the same time.
   std::unique_ptr<rocksdb::WriteBatchWithIndex> txn_write_batch_;
 
-  rocksdb::WriteOptions default_write_opts_ = rocksdb::WriteOptions();
+  rocksdb::WriteOptions default_write_opts_;
 
   // rocksdb used global block cache
   std::shared_ptr<rocksdb::Cache> shared_block_cache_;
 
   rocksdb::Status writeToDB(engine::Context &ctx, const rocksdb::WriteOptions &options, rocksdb::WriteBatch *updates);
   void recordKeyspaceStat(const rocksdb::ColumnFamilyHandle *column_family, const rocksdb::Status &s);
+  Status applyWriteBatch(const rocksdb::WriteOptions &options, rocksdb::WriteBatch *batch);
 };
 
 /// Context passes fixed snapshot and batch between APIs

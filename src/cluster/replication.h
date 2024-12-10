@@ -33,6 +33,7 @@
 
 #include "event_util.h"
 #include "io_util.h"
+#include "rocksdb/write_batch.h"
 #include "server/redis_connection.h"
 #include "status.h"
 #include "storage/storage.h"
@@ -209,7 +210,7 @@ class ReplicationThread : private EventCallbackBase<ReplicationThread> {
   static bool isWrongPsyncNum(std::string_view err);
   static bool isUnknownOption(std::string_view err);
 
-  Status parseWriteBatch(const std::string &batch_string);
+  Status parseWriteBatch(const rocksdb::WriteBatch &write_batch);
 };
 
 /*
