@@ -126,8 +126,8 @@ void FeedSlaveThread::loop() {
     // iter_ would be always valid here
     auto batch = iter_->GetBatch();
     if (batch.sequence != curr_seq) {
-      LOG(ERROR) << "Fatal error encountered, WAL iterator is discrete, some seq might be lost" << ", sequence "
-                 << curr_seq << " expected, but got " << batch.sequence;
+      LOG(ERROR) << "Fatal error encountered, WAL iterator is discrete, some seq might be lost"
+                 << ", sequence " << curr_seq << " expected, but got " << batch.sequence;
       Stop();
       return;
     }
@@ -473,7 +473,8 @@ ReplicationThread::CBState ReplicationThread::replConfReadCB(bufferevent *bev) {
   // on unknown option: first try without announce ip, if it fails again - do nothing (to prevent infinite loop)
   if (isUnknownOption(line.View()) && !next_try_without_announce_ip_address_) {
     next_try_without_announce_ip_address_ = true;
-    LOG(WARNING) << "The old version master, can't handle ip-address, " << "try without it again";
+    LOG(WARNING) << "The old version master, can't handle ip-address, "
+                 << "try without it again";
     // Retry previous state, i.e. send replconf again
     return CBState::PREV;
   }
@@ -539,7 +540,8 @@ ReplicationThread::CBState ReplicationThread::tryPSyncReadCB(bufferevent *bev) {
 
   if (line[0] == '-' && isWrongPsyncNum(line.View())) {
     next_try_old_psync_ = true;
-    LOG(WARNING) << "The old version master, can't handle new PSYNC, " << "try old PSYNC again";
+    LOG(WARNING) << "The old version master, can't handle new PSYNC, "
+                 << "try old PSYNC again";
     // Retry previous state, i.e. send PSYNC again
     return CBState::PREV;
   }
@@ -822,9 +824,10 @@ Status ReplicationThread::parallelFetchFile(const std::string &dir,
             fetch_cnt.fetch_add(1);
             uint32_t cur_skip_cnt = skip_cnt.load();
             uint32_t cur_fetch_cnt = fetch_cnt.load();
-            LOG(INFO) << "[fetch] " << "Fetched " << fetch_file << ", crc32: " << fetch_crc
-                      << ", skip count: " << cur_skip_cnt << ", fetch count: " << cur_fetch_cnt
-                      << ", progress: " << cur_skip_cnt + cur_fetch_cnt << "/" << files_count;
+            LOG(INFO) << "[fetch] "
+                      << "Fetched " << fetch_file << ", crc32: " << fetch_crc << ", skip count: " << cur_skip_cnt
+                      << ", fetch count: " << cur_fetch_cnt << ", progress: " << cur_skip_cnt + cur_fetch_cnt << "/"
+                      << files_count;
           };
           // For master using old version, it only supports to fetch a single file by one
           // command, so we need to fetch all files by multiple command interactions.
