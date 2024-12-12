@@ -32,3 +32,4 @@ Note that when interacting with users, we also refer to KQIR as *Kvrocks Search*
 
 - [KQIR: a query engine for Apache Kvrocks that supports both SQL and RediSearch queries](https://kvrocks.apache.org/blog/kqir-query-engine)
 - [Index encoding format for Kvrocks Search](https://kvrocks.apache.org/community/kvrocks-search-index-encoding)
+- [User documentation of Kvrocks Search](https://kvrocks.apache.org/docs/kvrocks-search)
