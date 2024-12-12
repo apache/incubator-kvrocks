@@ -102,11 +102,17 @@ func SimpleTCPProxy(ctx context.Context, t testing.TB, to string, slowdown bool)
 						time.Sleep(time.Millisecond * 100)
 					}
 					n, err := src.Read(buffer)
-					if err != nil && !errors.Is(err, io.EOF) {
+					if err != nil {
+						if errors.Is(err, io.EOF) {
+							break COPY_LOOP
+						}
 						return err
 					}
 					_, err = dest.Write(buffer[:n])
-					if err != nil && !errors.Is(err, io.EOF) {
+					if err != nil {
+						if errors.Is(err, io.EOF) {
+							break COPY_LOOP
+						}
 						return err
 					}
 				}
