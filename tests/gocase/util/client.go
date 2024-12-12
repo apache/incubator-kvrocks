@@ -21,7 +21,10 @@ package util
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"regexp"
 	"strings"
 	"testing"
@@ -29,6 +32,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 func FindInfoEntry(rdb *redis.Client, key string, section ...string) string {
@@ -70,4 +74,80 @@ func Populate(t testing.TB, rdb *redis.Client, prefix string, n, size int) {
 
 	_, err := p.Exec(ctx)
 	require.NoError(t, err)
+}
+
+func SimpleTCPProxy(ctx context.Context, t testing.TB, to string, slowdown bool) uint64 {
+	addr, err := findFreePort()
+	if err != nil {
+		t.Fatalf("can't find a free port, %v", err)
+	}
+	from := addr.String()
+
+	listener, err := net.Listen("tcp", from)
+	if err != nil {
+		t.Fatalf("listen to %s failed, err: %v", from, err)
+	}
+
+	copyBytes := func(src, dest io.ReadWriter) func() error {
+		buffer := make([]byte, 4096)
+		return func() error {
+		COPY_LOOP:
+			for {
+				select {
+				case <-ctx.Done():
+					t.Log("forwarding tcp stream stopped")
+					break COPY_LOOP
+				default:
+					if slowdown {
+						time.Sleep(time.Millisecond * 100)
+					}
+					n, err := src.Read(buffer)
+					if err != nil {
+						if errors.Is(err, io.EOF) {
+							break COPY_LOOP
+						}
+						return err
+					}
+					_, err = dest.Write(buffer[:n])
+					if err != nil {
+						if errors.Is(err, io.EOF) {
+							break COPY_LOOP
+						}
+						return err
+					}
+				}
+			}
+			return nil
+		}
+	}
+
+	go func() {
+		defer listener.Close()
+	LISTEN_LOOP:
+		for {
+			select {
+			case <-ctx.Done():
+				break LISTEN_LOOP
+
+			default:
+				conn, err := listener.Accept()
+				if err != nil {
+					t.Fatalf("accept conn failed, err: %v", err)
+				}
+				dest, err := net.Dial("tcp", to)
+				if err != nil {
+					t.Fatalf("accept conn failed, err: %v", err)
+				}
+				var errGrp errgroup.Group
+				errGrp.Go(copyBytes(conn, dest))
+				errGrp.Go(copyBytes(dest, conn))
+				err = errGrp.Wait()
+				if err != nil {
+					t.Fatalf("forward tcp stream failed, err: %v", err)
+				}
+
+			}
+		}
+	}()
+	return uint64(addr.Port)
 }
