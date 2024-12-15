@@ -23,6 +23,7 @@
 #include <rocksdb/db.h>
 
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <set>
 #include <string>
@@ -125,7 +126,14 @@ class MultiLockGuard {
   MultiLockGuard(const MultiLockGuard &) = delete;
   MultiLockGuard &operator=(const MultiLockGuard &) = delete;
 
-  MultiLockGuard(MultiLockGuard &&guard) : locks_(std::move(guard.locks_)) {}
+  MultiLockGuard(MultiLockGuard &&guard) : locks_(std::move(guard.locks_)) { guard.locks_.clear(); }
+  MultiLockGuard &operator=(MultiLockGuard &&other) noexcept {
+    if (this != &other) {
+      std::destroy_at(this);
+      new (this) MultiLockGuard(std::move(other));
+    }
+    return *this;
+  }
 
  private:
   std::vector<std::mutex *> locks_;
