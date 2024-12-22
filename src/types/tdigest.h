@@ -1,9 +1,7 @@
 #pragma once
 
-#include <memory>
 #include <vector>
 
-#include "rocksdb/status.h"
 #include "status.h"
 
 struct Centroid {
@@ -15,6 +13,11 @@ struct Centroid {
     weight += centroid.weight;
     mean += (centroid.mean - mean) * centroid.weight / weight;
   }
+
+  template <typename T>
+  explicit Centroid(T&& centroid) : mean(centroid.mean), weight(centroid.weight) {}
+
+  explicit Centroid() = default;
 };
 
 struct CentroidsWithDelta {
@@ -32,7 +35,7 @@ StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<double>& buffer, con
 //     Iterator* Clone() const;
 //     bool Next();
 //     bool Valid() const;
-//     StatusOr<Centroid> Centriod() const;
+//     StatusOr<Centroid> GetCentroid() const;
 //   };
 
 //   Iterator* Begin();
@@ -44,7 +47,7 @@ StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<double>& buffer, con
 
 template <typename TD, typename Lerp>
 inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
-  if (q < 0 || q > 1 || td.size() == 0) {
+  if (q < 0 || q > 1 || td.Size() == 0) {
     return NAN;
   }
 
@@ -59,7 +62,7 @@ inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
   double weight_sum = 0;
   auto iter = td.Begin();
   for (; iter->Valid(); iter->Next()) {
-    auto centroid = iter->Centroid();
+    auto centroid = iter->GetCentroid();
     if (!centroid) {
       return centroid.ToStatus();
     }
@@ -69,7 +72,7 @@ inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
     }
   }
 
-  auto centroid = iter->Centroid();
+  auto centroid = iter->GetCentroid();
   if (!centroid) {
     return centroid.ToStatus();
   }
@@ -88,7 +91,7 @@ inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
   if (diff > 0) {
     if (ci_right == td.End()) {
       // index larger than center of last bin
-      auto c = ci_left->Centriod();
+      auto c = ci_left->GetCentroid();
       if (!c) {
         return c.ToStatus();
       }
@@ -99,30 +102,30 @@ inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
   } else {
     if (ci_left == td.Begin()) {
       // index smaller than center of first bin
-      auto c = ci_left->Centriod();
+      auto c = ci_left->GetCentroid();
       if (!c) {
         return c.ToStatus();
       }
       DCHECK_GE(c->weight, 2);
       return lerp(td.Min(), c->mean, index / (c->weight / 2));
     }
-    --ci_left;
-    auto lc = ci_left->Centriod();
+    ci_left->Prev();
+    auto lc = ci_left->GetCentroid();
     if (!lc) {
       return lc.ToStatus();
     }
-    auto rc = ci_right->Centroid();
+    auto rc = ci_right->GetCentroid();
     if (!rc) {
       return rc.ToStatus();
     }
     diff += lc->weight / 2 + rc->weight / 2;
   }
 
-  auto lc = ci_left->Centriod();
+  auto lc = ci_left->GetCentroid();
   if (!lc) {
     return lc.ToStatus();
   }
-  auto rc = ci_right->Centroid();
+  auto rc = ci_right->GetCentroid();
   if (!rc) {
     return rc.ToStatus();
   }
