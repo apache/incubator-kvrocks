@@ -69,6 +69,8 @@ StatusOr<kqir::Value> FieldValueRetriever::ParseFromJson(const jsoncons::json &v
     if (val.is_string()) {
       const char delim[] = {tag->separator, '\0'};
       auto vec = util::Split(val.as_string(), delim);
+      std::transform(vec.begin(), vec.end(), vec.begin(),
+                     [](const std::string &s) { return util::Trim(s, util::ASCII_WHITESPACES); });
       return kqir::MakeValue<kqir::StringArray>(vec);
     } else if (val.is_array()) {
       std::vector<std::string> strs;
@@ -105,6 +107,8 @@ StatusOr<kqir::Value> FieldValueRetriever::ParseFromHash(const std::string &valu
   } else if (auto tag = dynamic_cast<const redis::TagFieldMetadata *>(type)) {
     const char delim[] = {tag->separator, '\0'};
     auto vec = util::Split(value, delim);
+    std::transform(vec.begin(), vec.end(), vec.begin(),
+                   [](const std::string &s) { return util::Trim(s, util::ASCII_WHITESPACES); });
     return kqir::MakeValue<kqir::StringArray>(vec);
   } else if (auto vector = dynamic_cast<const redis::HnswVectorFieldMetadata *>(type)) {
     const auto dim = vector->dim;

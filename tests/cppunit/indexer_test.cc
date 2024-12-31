@@ -125,7 +125,7 @@ TEST_F(IndexerTest, HashTag) {
     ASSERT_EQ(s->fields["x"], T("food,kitChen,Beauty"));
 
     uint64_t cnt = 0;
-    auto s_set = db.Set(*ctx_, key1, "x", "Clothing,FOOD,sport", &cnt);
+    auto s_set = db.Set(*ctx_, key1, "x", "Clothing,FOOD,sport ", &cnt);
     ASSERT_EQ(cnt, 0);
     ASSERT_TRUE(s_set.ok());
 
@@ -214,7 +214,7 @@ TEST_F(IndexerTest, JsonTag) {
     ASSERT_EQ(s->fields.size(), 1);
     ASSERT_EQ(s->fields["$.x"], T("food,kitChen,Beauty"));
 
-    auto s_set = db.Set(*ctx_, key1, "$.x", "\"Clothing,FOOD,sport\"");
+    auto s_set = db.Set(*ctx_, key1, "$.x", "\"  Clothing, FOOD  ,sport\"");
     ASSERT_TRUE(s_set.ok());
 
     auto s2 = indexer.Update(*ctx_, *s);
@@ -259,7 +259,7 @@ TEST_F(IndexerTest, JsonTagBuildIndex) {
   auto idxname = "jsontest";
 
   {
-    auto s_set = db.Set(*ctx_, key1, "$", R"({"x": "food,kitChen,Beauty"})");
+    auto s_set = db.Set(*ctx_, key1, "$", R"({"x": "food , \nkitChen,Beauty\t "})");
     ASSERT_TRUE(s_set.ok());
 
     auto s2 = indexer.updater_list[1]->Build(*ctx_);
