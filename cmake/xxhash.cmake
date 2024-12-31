@@ -20,8 +20,8 @@ include_guard()
 include(cmake/utils.cmake)
 
 FetchContent_DeclareGitHubWithMirror(xxhash
-  Cyan4973/xxHash v0.8.2
-  MD5=4b793d916f9b8e4ceb984a00e356bdb2
+  Cyan4973/xxHash v0.8.3
+  MD5=19b919a066c28a9121dd9767e01d0c71
 )
 
 FetchContent_GetProperties(xxhash)
