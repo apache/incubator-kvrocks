@@ -144,7 +144,8 @@ struct QueryExprEvaluator {
     auto val = GET_OR_RET(ctx->Retrieve(ctx->db_ctx, row, v->field->info));
 
     CHECK(val.Is<kqir::String>());
-    CHECK_EQ(v->field->info->MetadataAs<redis::TextFieldMetadata>()->tokenize_type, redis::TextTokenizeType::TrivialWhitespace);
+    CHECK_EQ(v->field->info->MetadataAs<redis::TextFieldMetadata>()->tokenize_type,
+             redis::TextTokenizeType::TrivialWhitespace);
 
     return false;
   }
