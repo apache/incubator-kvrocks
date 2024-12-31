@@ -27,6 +27,8 @@
 #include "search/ir.h"
 #include "search/plan_executor.h"
 #include "search/search_encoding.h"
+#include "search/value.h"
+#include "status.h"
 #include "string_util.h"
 
 namespace kqir {
@@ -52,6 +54,9 @@ struct QueryExprEvaluator {
       return Visit(v);
     }
     if (auto v = dynamic_cast<TagContainExpr *>(e)) {
+      return Visit(v);
+    }
+    if (auto v = dynamic_cast<TextContainExpr *>(e)) {
       return Visit(v);
     }
 
@@ -133,6 +138,15 @@ struct QueryExprEvaluator {
     auto effective_range = v->range->val * (1 + meta->epsilon);
 
     return (dist >= -abs(effective_range) && dist <= abs(effective_range));
+  }
+
+  StatusOr<bool> Visit(TextContainExpr *v) const {
+    auto val = GET_OR_RET(ctx->Retrieve(ctx->db_ctx, row, v->field->info));
+
+    CHECK(val.Is<kqir::String>());
+    CHECK_EQ(v->field->info->MetadataAs<redis::TextFieldMetadata>()->tokenize_type, redis::TextTokenizeType::TrivialWhitespace);
+
+    return false;
   }
 };
 
