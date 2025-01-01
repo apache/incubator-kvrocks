@@ -30,6 +30,8 @@
 
 namespace util {
 
+inline const char ASCII_WHITESPACES[] = " \t\r\n\v\f";
+
 std::string Float2String(double d);
 std::string ToLower(std::string in);
 std::string ToUpper(std::string in);
@@ -63,6 +65,12 @@ std::string StringJoin(const T &con, F &&f, std::string_view sep = ", ") {
     res += std::forward<F>(f)(v);
   }
   return res;
+}
+
+template <typename T>
+std::string StringJoin(const T &con, std::string_view sep = ", ") {
+  return StringJoin(
+      con, [](const auto &v) -> decltype(auto) { return v; }, sep);
 }
 
 }  // namespace util
