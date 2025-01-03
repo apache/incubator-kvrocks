@@ -997,11 +997,11 @@ func basicTests(t *testing.T, rdb *redis.Client, ctx context.Context, enabledRES
 	})
 
 	t.Run("ZREMRANGEBYSCORE basics", func(t *testing.T) {
-		remrangebyscore := func(min, max string) int64 {
+		remrangebyscore := func(minStr, maxStr string) int64 {
 			createZset(rdb, ctx, "zset", []redis.Z{{1, "a"}, {2, "b"}, {3, "c"},
 				{4, "d"}, {5, "e"}})
 			require.Equal(t, int64(1), rdb.Exists(ctx, "zset").Val())
-			return rdb.ZRemRangeByScore(ctx, "zset", min, max).Val()
+			return rdb.ZRemRangeByScore(ctx, "zset", minStr, maxStr).Val()
 		}
 
 		// inner range
@@ -1060,11 +1060,11 @@ func basicTests(t *testing.T, rdb *redis.Client, ctx context.Context, enabledRES
 	})
 
 	t.Run("ZREMRANGEBYRANK basics", func(t *testing.T) {
-		remrangebyrank := func(min, max int64) int64 {
+		remrangebyrank := func(minInt, maxInt int64) int64 {
 			createZset(rdb, ctx, "zset", []redis.Z{{1, "a"}, {2, "b"}, {3, "c"},
 				{4, "d"}, {5, "e"}})
 			require.Equal(t, int64(1), rdb.Exists(ctx, "zset").Val())
-			return rdb.ZRemRangeByRank(ctx, "zset", min, max).Val()
+			return rdb.ZRemRangeByRank(ctx, "zset", minInt, maxInt).Val()
 		}
 
 		// inner range
@@ -1721,7 +1721,7 @@ func stressTests(t *testing.T, rdb *redis.Client, ctx context.Context, encoding 
 
 		for i := 0; i < 100; i++ {
 			minVal, maxVal := rand.Float64(), rand.Float64()
-			minVal, maxVal = math.Min(min, max), math.Max(min, max)
+			minVal, maxVal = math.Min(minVal, maxVal), math.Max(minVal, maxVal)
 			low := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: "-inf", Max: fmt.Sprintf("%v", minVal)}).Val()
 			ok := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: fmt.Sprintf("%v", minVal), Max: fmt.Sprintf("%v", maxVal)}).Val()
 			high := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: fmt.Sprintf("%v", maxVal), Max: "+inf"}).Val()
