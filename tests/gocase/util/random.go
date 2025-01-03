@@ -35,19 +35,19 @@ func RandPathNoResult(f ...func()) {
 	f[index]()
 }
 
-// RandomSignedInt returns an integer in (-max, max)
-func RandomSignedInt(max int32) int64 {
-	return rand.Int63n(int64(max)*2-1) - int64(max) + 1
+// RandomSignedInt returns an integer in (-maxInt, maxInt)
+func RandomSignedInt(maxInt int32) int64 {
+	return rand.Int63n(int64(maxInt)*2-1) - int64(maxInt) + 1
 }
 
-// RandomInt return an integer in [0, max)
-func RandomInt(max int64) int64 {
-	return rand.Int63() % max
+// RandomInt return an integer in [0, maxInt)
+func RandomInt(maxInt int64) int64 {
+	return rand.Int63() % maxInt
 }
 
-func RandomIntWithSeed(max, seed int64) int64 {
+func RandomIntWithSeed(maxInt, seed int64) int64 {
 	r := rand.New(rand.NewSource(seed))
-	return r.Int63() % max
+	return r.Int63() % maxInt
 }
 
 func RandomBool() bool {
@@ -61,13 +61,13 @@ const (
 	Binary
 )
 
-func RandString(min, max int, typ RandStringType) string {
-	return RandStringWithSeed(min, max, typ, rand.Int63())
+func RandString(minInt, maxInt int, typ RandStringType) string {
+	return RandStringWithSeed(minInt, maxInt, typ, rand.Int63())
 }
 
-func RandStringWithSeed(min, max int, typ RandStringType, seed int64) string {
+func RandStringWithSeed(minInt, maxInt int, typ RandStringType, seed int64) string {
 	r := rand.New(rand.NewSource(seed))
-	length := min + r.Intn(max-min+1)
+	length := minInt + r.Intn(maxInt-minInt+1)
 
 	var minVal, maxVal int
 	switch typ {
