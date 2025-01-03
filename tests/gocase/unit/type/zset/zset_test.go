@@ -1720,39 +1720,39 @@ func stressTests(t *testing.T, rdb *redis.Client, ctx context.Context, encoding 
 		}
 
 		for i := 0; i < 100; i++ {
-			min, max := rand.Float64(), rand.Float64()
-			min, max = math.Min(min, max), math.Max(min, max)
-			low := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: "-inf", Max: fmt.Sprintf("%v", min)}).Val()
-			ok := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: fmt.Sprintf("%v", min), Max: fmt.Sprintf("%v", max)}).Val()
-			high := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: fmt.Sprintf("%v", max), Max: "+inf"}).Val()
-			lowEx := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: "-inf", Max: fmt.Sprintf("(%v", min)}).Val()
-			okEx := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: fmt.Sprintf("(%v", min), Max: fmt.Sprintf("(%v", max)}).Val()
-			highEx := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: fmt.Sprintf("(%v", max), Max: "+inf"}).Val()
+			minVal, maxVal := rand.Float64(), rand.Float64()
+			minVal, maxVal = math.Min(min, max), math.Max(min, max)
+			low := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: "-inf", Max: fmt.Sprintf("%v", minVal)}).Val()
+			ok := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: fmt.Sprintf("%v", minVal), Max: fmt.Sprintf("%v", maxVal)}).Val()
+			high := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: fmt.Sprintf("%v", maxVal), Max: "+inf"}).Val()
+			lowEx := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: "-inf", Max: fmt.Sprintf("(%v", minVal)}).Val()
+			okEx := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: fmt.Sprintf("(%v", minVal), Max: fmt.Sprintf("(%v", maxVal)}).Val()
+			highEx := rdb.ZRangeByScore(ctx, "zset", &redis.ZRangeBy{Min: fmt.Sprintf("(%v", maxVal), Max: "+inf"}).Val()
 
-			require.Len(t, low, int(rdb.ZCount(ctx, "zset", "-inf", fmt.Sprintf("%v", min)).Val()))
-			require.Len(t, ok, int(rdb.ZCount(ctx, "zset", fmt.Sprintf("%v", min), fmt.Sprintf("%v", max)).Val()))
-			require.Len(t, high, int(rdb.ZCount(ctx, "zset", fmt.Sprintf("%v", max), "+inf").Val()))
-			require.Len(t, lowEx, int(rdb.ZCount(ctx, "zset", "-inf", fmt.Sprintf("(%v", min)).Val()))
-			require.Len(t, okEx, int(rdb.ZCount(ctx, "zset", fmt.Sprintf("(%v", min), fmt.Sprintf("(%v", max)).Val()))
-			require.Len(t, highEx, int(rdb.ZCount(ctx, "zset", fmt.Sprintf("(%v", max), "+inf").Val()))
+			require.Len(t, low, int(rdb.ZCount(ctx, "zset", "-inf", fmt.Sprintf("%v", minVal)).Val()))
+			require.Len(t, ok, int(rdb.ZCount(ctx, "zset", fmt.Sprintf("%v", minVal), fmt.Sprintf("%v", maxVal)).Val()))
+			require.Len(t, high, int(rdb.ZCount(ctx, "zset", fmt.Sprintf("%v", maxVal), "+inf").Val()))
+			require.Len(t, lowEx, int(rdb.ZCount(ctx, "zset", "-inf", fmt.Sprintf("(%v", minVal)).Val()))
+			require.Len(t, okEx, int(rdb.ZCount(ctx, "zset", fmt.Sprintf("(%v", minVal), fmt.Sprintf("(%v", maxVal)).Val()))
+			require.Len(t, highEx, int(rdb.ZCount(ctx, "zset", fmt.Sprintf("(%v", maxVal), "+inf").Val()))
 
 			for _, x := range low {
-				require.LessOrEqual(t, rdb.ZScore(ctx, "zset", x).Val(), min)
+				require.LessOrEqual(t, rdb.ZScore(ctx, "zset", x).Val(), minVal)
 			}
 			for _, x := range lowEx {
-				require.Less(t, rdb.ZScore(ctx, "zset", x).Val(), min)
+				require.Less(t, rdb.ZScore(ctx, "zset", x).Val(), minVal)
 			}
 			for _, x := range ok {
-				util.BetweenValues(t, rdb.ZScore(ctx, "zset", x).Val(), min, max)
+				util.BetweenValues(t, rdb.ZScore(ctx, "zset", x).Val(), minVal, maxVal)
 			}
 			for _, x := range okEx {
-				util.BetweenValuesEx(t, rdb.ZScore(ctx, "zset", x).Val(), min, max)
+				util.BetweenValuesEx(t, rdb.ZScore(ctx, "zset", x).Val(), minVal, maxVal)
 			}
 			for _, x := range high {
-				require.GreaterOrEqual(t, rdb.ZScore(ctx, "zset", x).Val(), min)
+				require.GreaterOrEqual(t, rdb.ZScore(ctx, "zset", x).Val(), minVal)
 			}
 			for _, x := range highEx {
-				require.Greater(t, rdb.ZScore(ctx, "zset", x).Val(), min)
+				require.Greater(t, rdb.ZScore(ctx, "zset", x).Val(), minVal)
 			}
 		}
 	})
@@ -1770,14 +1770,14 @@ func stressTests(t *testing.T, rdb *redis.Client, ctx context.Context, encoding 
 		lexSet = slices.Compact(lexSet)
 
 		for i := 0; i < 100; i++ {
-			min, max := util.RandString(0, 30, util.Alpha), util.RandString(0, 30, util.Alpha)
+			minStr, maxStr := util.RandString(0, 30, util.Alpha), util.RandString(0, 30, util.Alpha)
 			minInc, maxInc := util.RandomBool(), util.RandomBool()
-			cMin, cMax := "("+min, "("+max
+			cMin, cMax := "("+minStr, "("+maxStr
 			if minInc {
-				cMin = "[" + min
+				cMin = "[" + minStr
 			}
 			if maxInc {
-				cMax = "[" + max
+				cMax = "[" + maxStr
 			}
 			rev := util.RandomBool()
 
@@ -1797,16 +1797,16 @@ func stressTests(t *testing.T, rdb *redis.Client, ctx context.Context, encoding 
 			// compute the same output by programming
 			o := make([]string, 0)
 			c := lexSet
-			if (!rev && min > max) || (rev && max > min) {
+			if (!rev && minStr > maxStr) || (rev && maxStr > minStr) {
 				// empty output when ranges are inverted
 			} else {
 				if rev {
 					c = rdb.ZRevRange(ctx, "zset", 0, -1).Val()
-					min, max, minInc, maxInc = max, min, maxInc, minInc
+					minStr, maxStr, minInc, maxInc = maxStr, minStr, maxInc, minInc
 				}
 
 				for _, e := range c {
-					if (minInc && e >= min || !minInc && e > min) && (maxInc && e <= max || !maxInc && e < max) {
+					if (minInc && e >= minStr || !minInc && e > minStr) && (maxInc && e <= maxStr || !maxInc && e < maxStr) {
 						o = append(o, e)
 					}
 				}
@@ -1830,14 +1830,14 @@ func stressTests(t *testing.T, rdb *redis.Client, ctx context.Context, encoding 
 			rdb.ZUnionStore(ctx, "zsetcopy", &redis.ZStore{Keys: []string{"zset"}})
 			var lexSetCopy []string
 			lexSetCopy = append(lexSetCopy, lexSet...)
-			min, max := util.RandString(0, 30, util.Alpha), util.RandString(0, 30, util.Alpha)
+			minStr, maxStr := util.RandString(0, 30, util.Alpha), util.RandString(0, 30, util.Alpha)
 			minInc, maxInc := util.RandomBool(), util.RandomBool()
-			cMin, cMax := "("+min, "("+max
+			cMin, cMax := "("+minStr, "("+maxStr
 			if minInc {
-				cMin = "[" + min
+				cMin = "[" + minStr
 			}
 			if maxInc {
-				cMax = "[" + max
+				cMax = "[" + maxStr
 			}
 			require.Equal(t, lexSet, rdb.ZRange(ctx, "zset", 0, -1).Val())
 			toRem := rdb.ZRangeByLex(ctx, "zset", &redis.ZRangeBy{Min: cMin, Max: cMax}).Val()
