@@ -140,6 +140,48 @@ struct QueryExprEvaluator {
     return (dist >= -abs(effective_range) && dist <= abs(effective_range));
   }
 
+  static std::vector<std::string> TrivialWhiteSpaceTokenize(std::string_view text) {
+    auto generate_check = [](std::string_view chars) {
+      std::bitset<256> res;
+      for (auto c : chars) res.set(c);
+      return res;
+    };
+
+    auto whitespaces = generate_check(" \t\r\n\v\f");
+    auto punctuations = generate_check(",.<>{}[]\"':;!@#$%^&*()-+=~");
+    auto all_marks = whitespaces | punctuations;
+
+    std::vector<std::string> result;
+    std::string current;
+
+    auto clear = [&] {
+      if (!current.empty()) {
+        result.push_back(std::move(current));
+        current.clear();
+      }
+    };
+
+    for (auto i = text.begin(); i != text.end(); ++i) {
+      if (all_marks.test(*i)) {
+        clear();
+        continue;
+      }
+
+      if (*i == '\\') {
+        ++i;
+        if (i != text.end()) {
+          current.push_back(*i);
+        }
+      } else {
+        current.push_back(*i);
+      }
+    }
+
+    clear();
+
+    return result;
+  }
+
   StatusOr<bool> Visit(TextContainExpr *v) const {
     auto val = GET_OR_RET(ctx->Retrieve(ctx->db_ctx, row, v->field->info));
 
@@ -147,7 +189,8 @@ struct QueryExprEvaluator {
     CHECK(v->field->info->MetadataAs<redis::TextFieldMetadata>()->tokenize_type ==
           redis::TextTokenizeType::TrivialWhitespace);
 
-    return false;
+    auto terms = TrivialWhiteSpaceTokenize(val.Get<kqir::String>());
+    return std::find(terms.begin(), terms.end(), v->word) != terms.end();
   }
 };
 
