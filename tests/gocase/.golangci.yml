@@ -24,7 +24,7 @@ linters:
     - bodyclose
     - durationcheck
     - errcheck
-    - exportloopref
+    - copyloopvar
     - gofmt
     - goimports
     - gosimple
