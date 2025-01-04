@@ -151,10 +151,21 @@ struct QueryExprEvaluator {
     auto punctuations = generate_check(",.<>{}[]\"':;!@#$%^&*()-+=~");
     auto all_marks = whitespaces | punctuations;
 
+    auto tolower = [] {
+      std::array<char, 256> res;
+      for (size_t i = 0; i < res.size(); ++i) {
+        if (i >= 'A' && i <= 'Z')
+          res[i] = (char)(i - 'A' + 'a');
+        else
+          res[i] = (char)i;
+      }
+      return res;
+    }();
+
     std::vector<std::string> result;
     std::string current;
 
-    auto clear = [&] {
+    auto push_and_clear = [&] {
       if (!current.empty()) {
         result.push_back(std::move(current));
         current.clear();
@@ -163,7 +174,7 @@ struct QueryExprEvaluator {
 
     for (auto i = text.begin(); i != text.end(); ++i) {
       if (all_marks.test(*i)) {
-        clear();
+        push_and_clear();
         continue;
       }
 
@@ -173,11 +184,11 @@ struct QueryExprEvaluator {
           current.push_back(*i);
         }
       } else {
-        current.push_back(*i);
+        current.push_back(tolower[*i]);
       }
     }
 
-    clear();
+    push_and_clear();
 
     return result;
   }
@@ -190,7 +201,7 @@ struct QueryExprEvaluator {
           redis::TextTokenizeType::TrivialWhitespace);
 
     auto terms = TrivialWhiteSpaceTokenize(val.Get<kqir::String>());
-    return std::find(terms.begin(), terms.end(), v->word) != terms.end();
+    return std::find(terms.begin(), terms.end(), util::ToLower(v->word->val)) != terms.end();
   }
 };
 
