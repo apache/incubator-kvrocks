@@ -10,12 +10,11 @@ require (
 	modernc.org/mathutil v1.7.1
 )
 
-require github.com/ebitengine/purego v0.8.1 // indirect
-
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/ebitengine/purego v0.8.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
