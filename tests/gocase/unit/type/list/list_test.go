@@ -777,10 +777,10 @@ func testList(t *testing.T, configs util.KvrocksServerConfigs) {
 	})
 
 	for listType, large := range largeValue {
-		trimList := func(listType string, min, max int64) []string {
+		trimList := func(listType string, minInt, maxInt int64) []string {
 			require.NoError(t, rdb.Del(ctx, "mylist").Err())
 			createList("mylist", []string{"1", "2", "3", "4", large})
-			require.NoError(t, rdb.LTrim(ctx, "mylist", min, max).Err())
+			require.NoError(t, rdb.LTrim(ctx, "mylist", minInt, maxInt).Err())
 			return rdb.LRange(ctx, "mylist", 0, -1).Val()
 		}
 
