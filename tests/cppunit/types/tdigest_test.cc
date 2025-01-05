@@ -34,12 +34,12 @@ class RedisTDigestTest : public TestBase {};
 
 TEST_F(RedisTDigestTest, CentroidTest) {
   Centroid c1{
-      .mean = 2.,
-      .weight = 3.,
+      2.,
+      3.,
   };
   Centroid c2 {
-    .mean = 3.,
-    .weight = 4.,
+    3.,
+    4.,
   };
 
   c1.Merge(c2);
@@ -49,7 +49,7 @@ TEST_F(RedisTDigestTest, CentroidTest) {
 }
 
 TEST_F(RedisTDigestTest, TempBufferMerge) {
-  constexpr auto delta = 10;
+  // constexpr auto delta = 10;
   
 }
 

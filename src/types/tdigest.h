@@ -18,6 +18,7 @@ struct Centroid {
   explicit Centroid(T&& centroid) : mean(centroid.mean), weight(centroid.weight) {}
 
   explicit Centroid() = default;
+  explicit Centroid(double mean, double weight) : mean(mean), weight(weight) {}
 };
 
 struct CentroidsWithDelta {

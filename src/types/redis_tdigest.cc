@@ -14,6 +14,7 @@
 #include "rocksdb/options.h"
 #include "rocksdb/slice.h"
 #include "rocksdb/status.h"
+#include "status.h"
 #include "storage/redis_db.h"
 #include "storage/redis_metadata.h"
 #include "types/tdigest.h"
@@ -43,8 +44,11 @@ double Lerp(double a, double b, double t) { return a + t * (b - a); }
 //   double Max() const;
 // };
 
+// using GetIteratorFunc = std::function<util::UniqueIterator(const rocksdb::Slice& key)>;
+// using DecodeCentroidFunc = std::function<StatusOr<Centroid>(const rocksdb::Slice& key, const rocksdb::Slice& value)>;
+
 template <typename GetIteratorFunc, typename DecodeCentroidFunc,
-          typename _RocksDBIterator = std::result_of_t<GetIteratorFunc()>>
+          typename _RocksDBIterator = std::result_of_t<GetIteratorFunc(const rocksdb::Slice&)>>
 struct DumpCentroids {
   using Status = rocksdb::Status;
   explicit DumpCentroids(GetIteratorFunc get_iter_func, DecodeCentroidFunc decode_centroid_func,
@@ -75,21 +79,22 @@ struct DumpCentroids {
     bool Valid() const { return iter->Valid(); }
     StatusOr<Centroid> GetCentroid() const {
       if (!iter->Valid()) {
-        return Status::InvalidArgument("invalid iterator during decoding tdigest centroid");
+        return {::Status::NotOK, "invalid iterator during decoding tdigest centroid"};
+        // return Status::InvalidArgument("invalid iterator during decoding tdigest centroid");
       }
       return decode_centroid_func(iter->key(), iter->value());
     }
   };
 
   std::unique_ptr<Iterator> Begin() {
-    auto iter = get_iterator_func();
-    return std::make_unique<Iterator>(get_iterator_func, decode_centroid_func, iter);
+    auto iter = get_iterator_func({});
+    return std::make_unique<Iterator>(get_iterator_func, decode_centroid_func, iter->key());
   }
 
   std::unique_ptr<Iterator> End() {
-    auto iter = get_iterator_func();
+    auto iter = get_iterator_func({});
     iter->SeekToLast();
-    return std::make_unique<Iterator>(get_iterator_func, decode_centroid_func, iter);
+    return std::make_unique<Iterator>(get_iterator_func, decode_centroid_func, iter->key());
   }
 
   double TotalWeight() const { return meta_data->total_weight; }
@@ -107,7 +112,7 @@ struct DumpCentroids {
 uint64_t constexpr kMaxBufferSize = 1 * 1024;  // 1k doubles
 
 std::optional<rocksdb::Status> TDigest::Create(engine::Context& ctx, const Slice& digest_name,
-                                      const TDigestCreateOptions& options) {
+                                               const TDigestCreateOptions& options) {
   auto ns_key = AppendNamespacePrefix(digest_name);
   auto capacity = options.compression * 6 + 10;
   capacity = ((capacity < kMaxBufferSize) ? capacity : kMaxBufferSize);
@@ -252,8 +257,7 @@ rocksdb::Status TDigest::Quantile(engine::Context& ctx, const Slice& digest_name
     return std::move(centroid);
   };
 
-  auto dump_centroids = DumpCentroids<decltype(get_iterator_func), decltype(decode_centroid_func)>{
-      get_iterator_func, decode_centroid_func, &metadata};
+  auto dump_centroids = DumpCentroids{get_iterator_func, decode_centroid_func, &metadata};
 
   for (auto q : qs) {
     auto s = TDigestQuantile(dump_centroids, q, Lerp);
