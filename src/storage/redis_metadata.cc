@@ -500,7 +500,7 @@ rocksdb::Status HyperLogLogMetadata::Decode(Slice *input) {
 void TDigestMetadata::Encode(std::string *dst) const {
   Metadata::Encode(dst);
   PutFixed64(dst, compression);
-  PutFixed64(dst, capcacity);
+  PutFixed64(dst, capacity);
   PutFixed64(dst, unmerged_nodes);
   PutFixed64(dst, merged_nodes);
   PutFixed64(dst, total_weight);
@@ -521,7 +521,7 @@ rocksdb::Status TDigestMetadata::Decode(Slice *input) {
   }
 
   GetFixed64(input, &compression);
-  GetFixed64(input, &capcacity);
+  GetFixed64(input, &capacity);
   GetFixed64(input, &unmerged_nodes);
   GetFixed64(input, &merged_nodes);
   GetFixed64(input, &total_weight);
