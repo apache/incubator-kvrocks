@@ -247,10 +247,10 @@ Status Cluster::SetMasterSlaveRepl() {
       return s.Prefixed("failed to remove master");
     }
     LOG(INFO) << "MASTER MODE enabled by cluster topology setting";
-    if (is_slave && is_cluster_enabled) {
+    if (srv_->slot_migrator && is_cluster_enabled && is_slave) {
       // Slave -> Master
       srv_->slot_migrator->SetStopMigrationFlag(false);
-      LOG(INFO) << "Change server role to master, stop migration task";
+      LOG(INFO) << "Change server role to master, restart migration task";
     }
     return Status::OK();
   }
@@ -265,7 +265,7 @@ Status Cluster::SetMasterSlaveRepl() {
                    << " wasn't enabled by cluster topology setting, encounter error: " << s.Msg();
       return s.Prefixed("failed to add master");
     }
-    if (!is_slave && is_cluster_enabled) {
+    if (srv_->slot_migrator && is_cluster_enabled && !is_slave) {
       // Master -> Slave
       srv_->slot_migrator->SetStopMigrationFlag(true);
       LOG(INFO) << "Change server role to slave, stop migration task";
