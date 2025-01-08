@@ -69,6 +69,9 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - uses: apache/skywalking-eyes/header@v0.6.0
+        with:
+          config: .github/config/licenserc.yml
       - uses: actions/setup-go@v5
         with:
           go-version-file: 'tests/gocase/go.mod'
@@ -77,9 +80,6 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y clang-format-14 clang-tidy-14
-      - uses: apache/skywalking-eyes/header@v0.6.0
-        with:
-          config: .github/config/licenserc.yml
       - name: Check with clang-format
         id: check-format
         run: ./x.py check format --clang-format-path clang-format-14
@@ -89,7 +89,6 @@ jobs:
           ./x.py check tidy -j $(nproc) --clang-tidy-path clang-tidy-14 --run-clang-tidy-path run-clang-tidy-14
       - name: Lint with golangci-lint
         run: ./x.py check golangci-lint
-
       - name: Prepare format patch
         if: always() && steps.check-format.outcome != 'success'
         run: |
