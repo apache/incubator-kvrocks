@@ -84,7 +84,7 @@ func testLTRIM(t *testing.T, configs util.KvrocksServerConfigs) {
 				lo := int64(rand.Float64() * float64(startLen))
 				hi := int64(float64(lo) + rand.Float64()*float64(startLen))
 
-				myList = myList[lo:util.Min(int(hi+1), len(myList))]
+				myList = myList[lo:min(int(hi+1), len(myList))]
 				require.NoError(t, rdb.LTrim(ctx, key, lo, hi).Err())
 				require.Equal(t, myList, rdb.LRange(ctx, key, 0, -1).Val(), "failed trim")
 
