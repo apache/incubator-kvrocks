@@ -126,7 +126,7 @@ rocksdb::Status Database::Expire(engine::Context &ctx, const Slice &user_key, ui
     s = hash_metadata.Decode(value);
     if (!s.ok()) return s;
     redis::Hash hash_db(storage_, namespace_);
-    if (!hash_db.ExistValidField(ctx, ns_key, hash_metadata)) {
+    if (hash_db.GetValidFieldCount(ctx, ns_key, hash_metadata) == 0) {
       return rocksdb::Status::NotFound("no element found");
     }
   }
@@ -216,7 +216,7 @@ rocksdb::Status Database::MDel(engine::Context &ctx, const std::vector<Slice> &k
       s = hash_metadata.Decode(rocksdb::Slice(pin_values[i].data(), pin_values[i].size()));
       if (!s.ok()) continue;
       redis::Hash hash_db(storage_, namespace_);
-      if (hash_db.ExistValidField(ctx, slice_keys[i], hash_metadata)) {
+      if (hash_db.GetValidFieldCount(ctx, slice_keys[i], hash_metadata) > 0) {
         if (!s.ok()) return s;
         *deleted_cnt += 1;
       }
@@ -255,7 +255,7 @@ rocksdb::Status Database::TTL(engine::Context &ctx, const Slice &user_key, int64
     s = hash_metadata.Decode(value);
     if (!s.ok()) return s;
     redis::Hash hash_db(storage_, namespace_);
-    if (!hash_db.ExistValidField(ctx, ns_key, hash_metadata)) {
+    if (hash_db.GetValidFieldCount(ctx, ns_key, hash_metadata) == 0) {
       *ttl = -2;
       return rocksdb::Status::OK();
     }
@@ -337,7 +337,7 @@ rocksdb::Status Database::Keys(engine::Context &ctx, const std::string &prefix, 
         s = hash_metadata.Decode(iter->value());
         if (!s.ok()) continue;
         redis::Hash hash_db(storage_, namespace_);
-        if (!hash_db.ExistValidField(ctx, iter->key(), hash_metadata)) {
+        if (hash_db.GetValidFieldCount(ctx, iter->key(), hash_metadata) == 0) {
           continue;
         }
       }
@@ -429,7 +429,7 @@ rocksdb::Status Database::Scan(engine::Context &ctx, const std::string &cursor, 
         s = hash_metadata.Decode(iter->value());
         if (!s.ok()) continue;
         redis::Hash hash_db(storage_, namespace_);
-        if (!hash_db.ExistValidField(ctx, iter->key(), hash_metadata)) {
+        if (hash_db.GetValidFieldCount(ctx, iter->key(), hash_metadata) == 0) {
           continue;
         }
       }
@@ -729,7 +729,7 @@ rocksdb::Status Database::existsInternal(engine::Context &ctx, const std::vector
         s = hash_metadata.Decode(value);
         if (!s.ok()) return s;
         redis::Hash hash_db(storage_, namespace_);
-        if (!hash_db.ExistValidField(ctx, key, hash_metadata)) {
+        if (hash_db.GetValidFieldCount(ctx, key, hash_metadata) == 0) {
           continue;
         }
       }
@@ -755,7 +755,7 @@ rocksdb::Status Database::typeInternal(engine::Context &ctx, const Slice &key, R
     s = hash_metadata.Decode(value);
     if (!s.ok()) return s;
     redis::Hash hash_db(storage_, namespace_);
-    if (hash_db.ExistValidField(ctx, key, hash_metadata)) {
+    if (hash_db.GetValidFieldCount(ctx, key, hash_metadata) > 0) {
       *type = metadata.Type();
     } else {
       *type = kRedisNone;

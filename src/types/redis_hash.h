@@ -76,7 +76,7 @@ class Hash : public SubKeyScanner {
                                 std::vector<int8_t> *ret);
   rocksdb::Status TTLFields(engine::Context &ctx, const Slice &user_key, const std::vector<Slice> &fields,
                             std::vector<int64_t> *ret);
-  bool ExistValidField(engine::Context &ctx, const Slice &ns_key, const HashMetadata &metadata);
+  uint64_t GetValidFieldCount(engine::Context &ctx, const Slice &ns_key, const HashMetadata &metadata);
   static bool IsFieldExpired(const Slice &metadata_key, const Slice &value);
 
  private:

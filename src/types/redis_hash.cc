@@ -47,31 +47,8 @@ rocksdb::Status Hash::Size(engine::Context &ctx, const Slice &user_key, uint64_t
   HashMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s;
-  // if field expiration is disabled,
-  // the size field in metadata is the length of hash
-  if (!metadata.IsFieldExpirationEnabled()) {
-    *size = metadata.size;
-    return rocksdb::Status::OK();
-  }
 
-  // otherwise, we have to check each field to calc the length
-  std::string prefix_key = InternalKey(ns_key, "", metadata.version, storage_->IsSlotIdEncoded()).Encode();
-  std::string next_version_prefix_key =
-      InternalKey(ns_key, "", metadata.version + 1, storage_->IsSlotIdEncoded()).Encode();
-
-  rocksdb::ReadOptions read_options = ctx.DefaultScanOptions();
-  rocksdb::Slice upper_bound(next_version_prefix_key);
-  read_options.iterate_upper_bound = &upper_bound;
-
-  auto iter = util::UniqueIterator(ctx, read_options);
-  for (iter->Seek(prefix_key); iter->Valid() && iter->key().starts_with(prefix_key); iter->Next()) {
-    uint64_t expire = 0;
-    auto value = iter->value().ToString();
-    if (!decodeExpireFromValue(metadata, &value, expire).ok()) {
-      continue;
-    }
-    *size += 1;
-  }
+  size += GetValidFieldCount(ctx, ns_key, metadata);
   return rocksdb::Status::OK();
 }
 
@@ -729,12 +706,14 @@ bool Hash::IsFieldExpired(const Slice &metadata_key, const Slice &value) {
   return expire != 0 && expire < util::GetTimeStampMS();
 }
 
-bool Hash::ExistValidField(engine::Context &ctx, const Slice &ns_key, const HashMetadata &metadata) {
+uint64_t Hash::GetValidFieldCount(engine::Context &ctx, const Slice &ns_key, const HashMetadata &metadata) {
   if (metadata.Expired()) {
-    return false;
+    return 0;
   }
+  // if field expiration is disabled,
+  // the size field in metadata is the length of hash
   if (!metadata.IsFieldExpirationEnabled()) {
-    return true;
+    return metadata.size;
   }
 
   std::string prefix_key = InternalKey(ns_key, "", metadata.version, storage_->IsSlotIdEncoded()).Encode();
@@ -745,16 +724,17 @@ bool Hash::ExistValidField(engine::Context &ctx, const Slice &ns_key, const Hash
   rocksdb::Slice upper_bound(next_version_prefix_key);
   read_options.iterate_upper_bound = &upper_bound;
 
+  // count the num of expired field
+  uint64_t expired_field_num = 0;
   auto iter = util::UniqueIterator(ctx, read_options);
   for (iter->Seek(prefix_key); iter->Valid() && iter->key().starts_with(prefix_key); iter->Next()) {
     uint64_t expire = 0;
     auto value = iter->value().ToString();
     if (!decodeExpireFromValue(metadata, &value, expire).ok()) {
-      continue;
+      expired_field_num += 1;
     }
-    return true;
   }
-  return false;
+  return metadata.size - expired_field_num;
 }
 
 rocksdb::Status Hash::decodeExpireFromValue(const HashMetadata &metadata, std::string *value, uint64_t &expire) {
