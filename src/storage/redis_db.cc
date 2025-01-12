@@ -127,7 +127,7 @@ rocksdb::Status Database::Expire(engine::Context &ctx, const Slice &user_key, ui
     if (!s.ok()) return s;
     redis::Hash hash_db(storage_, namespace_);
     if (hash_db.GetValidFieldCount(ctx, ns_key, hash_metadata) == 0) {
-      return rocksdb::Status::NotFound("no element found");
+      return rocksdb::Status::NotFound("no elements");
     }
   }
   if (metadata.expire == timestamp) return rocksdb::Status::OK();
