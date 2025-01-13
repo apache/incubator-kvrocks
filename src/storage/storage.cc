@@ -46,6 +46,7 @@
 #include "rocksdb/options.h"
 #include "rocksdb/write_batch.h"
 #include "rocksdb_crc32c.h"
+#include "scope_exit.h"
 #include "server/server.h"
 #include "storage/batch_indexer.h"
 #include "table_properties_collector.h"
@@ -76,6 +77,37 @@ constexpr size_t kRockdbHCCAutoAdjustCharge = 0;
 const int64_t kIORateLimitMaxMb = 1024000;
 
 using rocksdb::Slice;
+
+static Status CreateSnapshot(Config &config) {
+  // The Storage destructor deletes anything at the checkpoint_dir, so we need to make
+  // sure it's empty in case the user happens to use a snapshot name which matches the
+  // default (checkpoint/)
+  const std::string old_checkpoint_dir = std::exchange(config.checkpoint_dir, "");
+  const auto checkpoint_dir_guard =
+      MakeScopeExit([&config, &old_checkpoint_dir] { config.checkpoint_dir = old_checkpoint_dir; });
+
+  // Since .Open() will call `CreateSnapshot` if `snapshot_dir` is set, we need to
+  // clear it, and reset it after the snapshot is created to preserve symmetry.
+  const std::string snapshot_dir = std::exchange(config.snapshot_dir, "");
+  const auto snapshot_dir_guard = MakeScopeExit([&config, &snapshot_dir] { config.snapshot_dir = snapshot_dir; });
+
+  engine::Storage storage(&config);
+  if (const auto s = storage.Open(kDBOpenModeForReadOnly); !s.IsOK()) {
+    return {Status::NotOK, fmt::format("failed to open DB in read-only mode: {}", s.Msg())};
+  }
+
+  rocksdb::Checkpoint *snapshot = nullptr;
+  if (const auto s = rocksdb::Checkpoint::Create(storage.GetDB(), &snapshot); !s.ok()) {
+    return {Status::NotOK, s.ToString()};
+  }
+
+  std::unique_ptr<rocksdb::Checkpoint> snapshot_guard(snapshot);
+  if (const auto s = snapshot->CreateCheckpoint(snapshot_dir + "/db"); !s.ok()) {
+    return {Status::NotOK, s.ToString()};
+  }
+
+  return Status::OK();
+}
 
 Storage::Storage(Config *config)
     : backup_creating_time_secs_(util::GetTimeStamp<std::chrono::seconds>()),
@@ -276,6 +308,18 @@ Status Storage::CreateColumnFamilies(const rocksdb::Options &options) {
 }
 
 Status Storage::Open(DBOpenMode mode) {
+  // If a snapshot directory was specified, create a snapshot and open the database
+  // there in read-only mode.
+  if (config_->snapshot_dir != "") {
+    if (auto s = CreateSnapshot(*config_); !s.IsOK()) {
+      return s;
+    }
+    LOG(INFO) << "Starting server in read-only mode with snapshot dir: " << config_->snapshot_dir;
+    config_->dir = config_->snapshot_dir;
+    config_->db_dir = config_->snapshot_dir + "/db";
+    mode = DBOpenMode::kDBOpenModeForReadOnly;
+  }
+
   auto guard = WriteLockGuard();
   db_closing_ = false;
 

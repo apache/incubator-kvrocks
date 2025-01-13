@@ -24,13 +24,11 @@
 #include <rocksdb/env.h>
 #include <strings.h>
 
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <iostream>
 #include <iterator>
-#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -191,6 +189,7 @@ Config::Config() {
        new IntField(&force_compact_file_min_deleted_percentage, 10, 1, 100)},
       {"db-name", true, new StringField(&db_name, "change.me.db")},
       {"dir", true, new StringField(&dir, kDefaultDir)},
+      {"snapshot-dir", true, new StringField(&snapshot_dir, "")},
       {"backup-dir", false, new StringField(&backup_dir, kDefaultBackupDir)},
       {"log-dir", true, new StringField(&log_dir, "")},
       {"log-level", false, new EnumField<int>(&log_level, log_levels, google::INFO)},
