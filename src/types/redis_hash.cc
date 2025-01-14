@@ -57,7 +57,6 @@ rocksdb::Status Hash::Get(engine::Context &ctx, const Slice &user_key, const Sli
   HashMetadata metadata(false);
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s;
-  rocksdb::ReadOptions read_options;
   std::string sub_key = InternalKey(ns_key, field, metadata.version, storage_->IsSlotIdEncoded()).Encode();
   s = storage_->Get(ctx, ctx.GetReadOptions(), sub_key, value);
   if (!s.ok()) return s;
