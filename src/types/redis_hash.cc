@@ -48,7 +48,7 @@ rocksdb::Status Hash::Size(engine::Context &ctx, const Slice &user_key, uint64_t
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok()) return s;
 
-  size += GetValidFieldCount(ctx, ns_key, metadata);
+  *size += GetValidFieldCount(ctx, ns_key, metadata);
   return rocksdb::Status::OK();
 }
 
