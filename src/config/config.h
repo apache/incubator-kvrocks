@@ -177,6 +177,10 @@ struct Config {
 
   bool skip_block_cache_deallocation_on_close = false;
 
+#ifdef ENABLE_HISTOGRAMS
+  std::vector<double> histogram_bucket_boundaries;
+#endif
+
   struct RocksDB {
     int block_size;
     bool cache_index_and_filter_blocks;
@@ -260,6 +264,10 @@ struct Config {
   std::string profiling_sample_commands_str_;
   std::map<std::string, std::unique_ptr<ConfigField>> fields_;
   std::vector<std::string> rename_command_;
+#ifdef ENABLE_HISTOGRAMS
+  std::string histogram_bucket_boundaries_str_;
+#endif
+
 
   void initFieldValidator();
   void initFieldCallback();

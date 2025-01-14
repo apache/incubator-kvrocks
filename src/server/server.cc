@@ -52,7 +52,11 @@
 #include "worker.h"
 
 Server::Server(engine::Storage *storage, Config *config)
-    : storage(storage),
+    :
+#ifdef ENABLE_HISTOGRAMS
+      stats(config),
+#endif
+      storage(storage),
       indexer(storage),
       index_mgr(&indexer, storage),
       start_time_secs_(util::GetTimeStamp()),
@@ -63,6 +67,18 @@ Server::Server(engine::Storage *storage, Config *config)
   for (const auto &iter : *commands) {
     stats.commands_stats[iter.first].calls = 0;
     stats.commands_stats[iter.first].latency = 0;
+
+#ifdef ENABLE_HISTOGRAMS
+    //NB: Extra index for the last bucket (Inf)
+    for (std::size_t i{0}; i <= stats.bucket_boundaries.size(); ++i) {
+      //auto bucket_ptr = std::make_shared<std::atomic<uint64_t>>(0);
+      auto bucket_ptr = std::shared_ptr<std::atomic<uint64_t>>(new std::atomic<uint64_t>(0));
+
+      stats.commands_histogram[iter.first].buckets.push_back(bucket_ptr);
+    }
+    stats.commands_histogram[iter.first].calls = 0;
+    stats.commands_histogram[iter.first].sum = 0;
+#endif
   }
 
   // init cursor_dict_
@@ -1164,6 +1180,27 @@ void Server::GetCommandsStatsInfo(std::string *info) {
     string_stream << "cmdstat_" << cmd_stat.first << ":calls=" << calls << ",usec=" << latency
                   << ",usec_per_call=" << static_cast<float>(latency / calls) << "\r\n";
   }
+
+#ifdef ENABLE_HISTOGRAMS
+  for (const auto &cmd_hist : stats.commands_histogram) {
+    auto command_name = cmd_hist.first;
+    auto calls = stats.commands_histogram[command_name].calls.load();
+    if (calls == 0) continue;
+
+    auto sum = stats.commands_histogram[command_name].sum.load();
+    string_stream << "cmdstathist_" << command_name << ":";
+    for (std::size_t i{0}; i < stats.commands_histogram[command_name].buckets.size(); ++i) {
+      auto bucket_value = stats.commands_histogram[command_name].buckets[i]->load();
+      auto bucket_bound = std::numeric_limits<double>::infinity();
+      if (i < stats.bucket_boundaries.size()) {
+        bucket_bound = stats.bucket_boundaries[i];
+      }
+
+      string_stream << bucket_bound << "=" << bucket_value << ",";
+    }
+    string_stream << "sum=" << sum << ",count=" << calls << "\r\n";
+  }
+#endif
 
   *info = string_stream.str();
 }

@@ -26,6 +26,23 @@
 #include "fmt/format.h"
 #include "time_util.h"
 
+
+#ifdef ENABLE_HISTOGRAMS
+Stats::Stats(Config *config)
+  : config_(config) {
+  for (int i = 0; i < STATS_METRIC_COUNT; i++) {
+    InstMetric im;
+    im.last_sample_time_ms = 0;
+    im.last_sample_count = 0;
+    im.idx = 0;
+    for (uint64_t &sample : im.samples) {
+      sample = 0;
+    }
+    inst_metrics.push_back(im);
+  }
+  bucket_boundaries = config_->histogram_bucket_boundaries;
+}
+#else
 Stats::Stats() {
   for (int i = 0; i < STATS_METRIC_COUNT; i++) {
     InstMetric im;
@@ -38,6 +55,7 @@ Stats::Stats() {
     inst_metrics.push_back(im);
   }
 }
+#endif
 
 #if defined(__APPLE__)
 #include <mach/mach_init.h>
@@ -86,10 +104,20 @@ int64_t Stats::GetMemoryRSS() {
 void Stats::IncrCalls(const std::string &command_name) {
   total_calls.fetch_add(1, std::memory_order_relaxed);
   commands_stats[command_name].calls.fetch_add(1, std::memory_order_relaxed);
+#ifdef ENABLE_HISTOGRAMS
+  commands_histogram[command_name].calls.fetch_add(1, std::memory_order_relaxed);
+#endif
 }
 
 void Stats::IncrLatency(uint64_t latency, const std::string &command_name) {
   commands_stats[command_name].latency.fetch_add(latency, std::memory_order_relaxed);
+#ifdef ENABLE_HISTOGRAMS
+  commands_histogram[command_name].sum.fetch_add(latency, std::memory_order_relaxed);
+
+  const auto bucket_index = static_cast<std::size_t>(std::distance(
+      bucket_boundaries.begin(), std::lower_bound(bucket_boundaries.begin(), bucket_boundaries.end(), latency)));
+  commands_histogram[command_name].buckets[bucket_index]->fetch_add(1, std::memory_order_relaxed);
+#endif
 }
 
 void Stats::TrackInstantaneousMetric(int metric, uint64_t current_reading) {
