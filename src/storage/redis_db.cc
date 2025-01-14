@@ -96,7 +96,6 @@ rocksdb::Status Database::GetMetadata(engine::Context &ctx, RedisTypes types, co
   auto s = GetRawMetadata(ctx, ns_key, raw_value);
   *rest = *raw_value;
   if (!s.ok()) return s;
-
   return ParseMetadataWithStats(types, rest, metadata);
 }
 
