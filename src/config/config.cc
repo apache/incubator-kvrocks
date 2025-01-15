@@ -240,11 +240,8 @@ Config::Config() {
        new EnumField<JsonStorageFormat>(&json_storage_format, json_storage_formats, JsonStorageFormat::JSON)},
       {"txn-context-enabled", true, new YesNoField(&txn_context_enabled, false)},
       {"skip-block-cache-deallocation-on-close", false, new YesNoField(&skip_block_cache_deallocation_on_close, false)},
-#ifdef ENABLE_HISTOGRAMS
-      {"histogram-bucket-boundaries", true,
-       new StringField(&histogram_bucket_boundaries_str_,
-                       "10,20,40,60,80,100,150,250,350,500,750,1000,1500,2000,4000,8000")},
-#endif
+      {"histogram-bucket-boundaries", true, new StringField(&histogram_bucket_boundaries_str_, "")},
+
       /* rocksdb options */
       {"rocksdb.compression", false,
        new EnumField<rocksdb::CompressionType>(&rocks_db.compression, compression_types,
@@ -759,13 +756,12 @@ void Config::initFieldCallback() {
       {"tls-session-cache-size", set_tls_option},
       {"tls-session-cache-timeout", set_tls_option},
 #endif
-#ifdef ENABLE_HISTOGRAMS
       {"histogram-bucket-boundaries",
        [this]([[maybe_unused]] Server *srv, [[maybe_unused]] const std::string &k, const std::string &v) -> Status {
          std::vector<std::string> buckets = util::Split(v, ",");
          histogram_bucket_boundaries.clear();
          if (buckets.size() < 1) {
-           return {Status::NotOK, "Please provide at least 1 bucket value for histogram"};
+           return Status::OK();
          }
          std::transform(buckets.begin(), buckets.end(), std::back_inserter(histogram_bucket_boundaries),
                         [](const std::string &val) { return std::stod(val); });
@@ -778,7 +774,6 @@ void Config::initFieldCallback() {
          }
          return Status::OK();
        }},
-#endif
   };
   for (const auto &iter : callbacks) {
     auto field_iter = fields_.find(iter.first);

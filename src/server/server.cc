@@ -52,10 +52,7 @@
 #include "worker.h"
 
 Server::Server(engine::Storage *storage, Config *config)
-    :
-#ifdef ENABLE_HISTOGRAMS
-      stats(config),
-#endif
+    : stats(config),
       storage(storage),
       indexer(storage),
       index_mgr(&indexer, storage),
@@ -64,20 +61,21 @@ Server::Server(engine::Storage *storage, Config *config)
       namespace_(storage) {
   // init commands stats here to prevent concurrent insert, and cause core
   auto commands = redis::CommandTable::GetOriginal();
+
   for (const auto &iter : *commands) {
     stats.commands_stats[iter.first].calls = 0;
     stats.commands_stats[iter.first].latency = 0;
 
-#ifdef ENABLE_HISTOGRAMS
-    // NB: Extra index for the last bucket (Inf)
-    for (std::size_t i{0}; i <= stats.bucket_boundaries.size(); ++i) {
-      auto bucket_ptr = std::shared_ptr<std::atomic<uint64_t>>(new std::atomic<uint64_t>(0));
+    if (stats.bucket_boundaries.size() > 0) {
+      // NB: Extra index for the last bucket (Inf)
+      for (std::size_t i{0}; i <= stats.bucket_boundaries.size(); ++i) {
+        auto bucket_ptr = std::shared_ptr<std::atomic<uint64_t>>(new std::atomic<uint64_t>(0));
 
-      stats.commands_histogram[iter.first].buckets.push_back(bucket_ptr);
+        stats.commands_histogram[iter.first].buckets.push_back(bucket_ptr);
+      }
+      stats.commands_histogram[iter.first].calls = 0;
+      stats.commands_histogram[iter.first].sum = 0;
     }
-    stats.commands_histogram[iter.first].calls = 0;
-    stats.commands_histogram[iter.first].sum = 0;
-#endif
   }
 
   // init cursor_dict_
@@ -1180,7 +1178,6 @@ void Server::GetCommandsStatsInfo(std::string *info) {
                   << ",usec_per_call=" << static_cast<float>(latency / calls) << "\r\n";
   }
 
-#ifdef ENABLE_HISTOGRAMS
   for (const auto &cmd_hist : stats.commands_histogram) {
     auto command_name = cmd_hist.first;
     auto calls = stats.commands_histogram[command_name].calls.load();
@@ -1199,7 +1196,6 @@ void Server::GetCommandsStatsInfo(std::string *info) {
     }
     string_stream << "sum=" << sum << ",count=" << calls << "\r\n";
   }
-#endif
 
   *info = string_stream.str();
 }

@@ -22,16 +22,14 @@
 
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <map>
 #include <shared_mutex>
 #include <string>
 #include <vector>
-#ifdef ENABLE_HISTOGRAMS
-#include <algorithm>
 
 #include "config/config.h"
-#endif
 
 enum StatsMetricFlags {
   STATS_METRIC_COMMAND = 0,       // Number of commands executed
@@ -48,14 +46,12 @@ enum StatsMetricFlags {
 
 constexpr int STATS_METRIC_SAMPLES = 16;  // Number of samples per metric
 
-#ifdef ENABLE_HISTOGRAMS
 // Experimental part to support histograms for cmd statistics
 struct CommandHistogram {
   std::vector<std::shared_ptr<std::atomic<uint64_t>>> buckets;
   std::atomic<uint64_t> calls;
   std::atomic<uint64_t> sum;
 };
-#endif
 
 struct CommandStat {
   std::atomic<uint64_t> calls;
@@ -71,14 +67,6 @@ struct InstMetric {
 
 class Stats {
  public:
-#ifdef ENABLE_HISTOGRAMS
-  using BucketBoundaries = std::vector<double>;
-  BucketBoundaries bucket_boundaries;
-  std::map<std::string, CommandHistogram> commands_histogram;
-
-  Config *config_ = nullptr;
-#endif
-
   std::atomic<uint64_t> total_calls = {0};
   std::atomic<uint64_t> in_bytes = {0};
   std::atomic<uint64_t> out_bytes = {0};
@@ -91,11 +79,13 @@ class Stats {
   std::atomic<uint64_t> psync_ok_count = {0};
   std::map<std::string, CommandStat> commands_stats;
 
-#ifdef ENABLE_HISTOGRAMS
-  explicit Stats(Config *config);
-#else
-  Stats();
-#endif
+  using BucketBoundaries = std::vector<double>;
+  BucketBoundaries bucket_boundaries;
+  std::map<std::string, CommandHistogram> commands_histogram;
+
+  Config *config_ = nullptr;
+
+  Stats(Config *config);
 
   void IncrCalls(const std::string &command_name);
   void IncrLatency(uint64_t latency, const std::string &command_name);
