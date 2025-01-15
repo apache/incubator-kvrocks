@@ -132,7 +132,7 @@ Status SetRocksdbCompression(Server *srv, const rocksdb::CompressionType compres
     compression_per_level_builder.emplace_back(compression_option);
   }
   const std::string compression_per_level = util::StringJoin(
-        compression_per_level_builder, [](const auto &s) -> decltype(auto) { return s; }, ":");
+      compression_per_level_builder, [](const auto &s) -> decltype(auto) { return s; }, ":");
   return srv->storage->SetOptionForAllColumnFamilies("compression_per_level", compression_per_level);
 };
 
