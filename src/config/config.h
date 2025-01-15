@@ -268,7 +268,6 @@ struct Config {
   std::string histogram_bucket_boundaries_str_;
 #endif
 
-
   void initFieldValidator();
   void initFieldCallback();
   Status parseConfigFromPair(const std::pair<std::string, std::string> &input, int line_number);

@@ -26,10 +26,8 @@
 #include "fmt/format.h"
 #include "time_util.h"
 
-
 #ifdef ENABLE_HISTOGRAMS
-Stats::Stats(Config *config)
-  : config_(config) {
+Stats::Stats(Config *config) : config_(config) {
   for (int i = 0; i < STATS_METRIC_COUNT; i++) {
     InstMetric im;
     im.last_sample_time_ms = 0;

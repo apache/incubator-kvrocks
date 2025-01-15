@@ -131,8 +131,8 @@ Status SetRocksdbCompression(Server *srv, const rocksdb::CompressionType compres
   for (size_t i = compression_start_level; i < KVROCKS_MAX_LSM_LEVEL; i++) {
     compression_per_level_builder.emplace_back(compression_option);
   }
-  const std::string compression_per_level = util::StringJoin(
-      compression_per_level_builder, [](const auto &s) -> decltype(auto) { return s; }, ":");
+  const std::string compression_per_level =
+      util::StringJoin(compression_per_level_builder, [](const auto &s) -> decltype(auto) { return s; }, ":");
   return srv->storage->SetOptionForAllColumnFamilies("compression_per_level", compression_per_level);
 };
 
@@ -241,8 +241,9 @@ Config::Config() {
       {"txn-context-enabled", true, new YesNoField(&txn_context_enabled, false)},
       {"skip-block-cache-deallocation-on-close", false, new YesNoField(&skip_block_cache_deallocation_on_close, false)},
 #ifdef ENABLE_HISTOGRAMS
-      {"histogram-bucket-boundaries", true, new StringField(&histogram_bucket_boundaries_str_,
-      "10,20,40,60,80,100,150,250,350,500,750,1000,1500,2000,4000,8000")},
+      {"histogram-bucket-boundaries", true,
+       new StringField(&histogram_bucket_boundaries_str_,
+                       "10,20,40,60,80,100,150,250,350,500,750,1000,1500,2000,4000,8000")},
 #endif
       /* rocksdb options */
       {"rocksdb.compression", false,
@@ -761,22 +762,20 @@ void Config::initFieldCallback() {
 #ifdef ENABLE_HISTOGRAMS
       {"histogram-bucket-boundaries",
        [this]([[maybe_unused]] Server *srv, [[maybe_unused]] const std::string &k, const std::string &v) -> Status {
-          std::vector<std::string> buckets = util::Split(v, ",");
-          histogram_bucket_boundaries.clear();
-          if (buckets.size() < 1) {
-            return {Status::NotOK, "Please provide at least 1 bucket value for histogram"};
-          }
-          std::transform(buckets.begin(), buckets.end(), std::back_inserter(histogram_bucket_boundaries), [](const std::string& val)
-          {
-            return std::stod(val);
-          });
-          if (histogram_bucket_boundaries.size() != buckets.size()) {
-            return {Status::NotOK, "All values for the bucket must be double or integer values"};
-          }
+         std::vector<std::string> buckets = util::Split(v, ",");
+         histogram_bucket_boundaries.clear();
+         if (buckets.size() < 1) {
+           return {Status::NotOK, "Please provide at least 1 bucket value for histogram"};
+         }
+         std::transform(buckets.begin(), buckets.end(), std::back_inserter(histogram_bucket_boundaries),
+                        [](const std::string &val) { return std::stod(val); });
+         if (histogram_bucket_boundaries.size() != buckets.size()) {
+           return {Status::NotOK, "All values for the bucket must be double or integer values"};
+         }
 
-          if (!std::is_sorted(histogram_bucket_boundaries.begin(), histogram_bucket_boundaries.end())) {
-            return {Status::NotOK, "The values for the histogram must be sorted"};
-          }
+         if (!std::is_sorted(histogram_bucket_boundaries.begin(), histogram_bucket_boundaries.end())) {
+           return {Status::NotOK, "The values for the histogram must be sorted"};
+         }
          return Status::OK();
        }},
 #endif

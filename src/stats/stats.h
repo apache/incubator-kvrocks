@@ -29,6 +29,7 @@
 #include <vector>
 #ifdef ENABLE_HISTOGRAMS
 #include <algorithm>
+
 #include "config/config.h"
 #endif
 
@@ -89,7 +90,6 @@ class Stats {
   std::atomic<uint64_t> psync_err_count = {0};
   std::atomic<uint64_t> psync_ok_count = {0};
   std::map<std::string, CommandStat> commands_stats;
-
 
 #ifdef ENABLE_HISTOGRAMS
   explicit Stats(Config *config);

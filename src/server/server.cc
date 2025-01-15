@@ -69,7 +69,7 @@ Server::Server(engine::Storage *storage, Config *config)
     stats.commands_stats[iter.first].latency = 0;
 
 #ifdef ENABLE_HISTOGRAMS
-    //NB: Extra index for the last bucket (Inf)
+    // NB: Extra index for the last bucket (Inf)
     for (std::size_t i{0}; i <= stats.bucket_boundaries.size(); ++i) {
       auto bucket_ptr = std::shared_ptr<std::atomic<uint64_t>>(new std::atomic<uint64_t>(0));
 
