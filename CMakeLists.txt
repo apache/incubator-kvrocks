@@ -29,7 +29,6 @@ option(ENABLE_STATIC_LIBSTDCXX "link kvrocks with static library of libstd++ ins
 option(ENABLE_LUAJIT "enable use of luaJIT instead of lua" ON)
 option(ENABLE_OPENSSL "enable openssl to support tls connection" OFF)
 option(ENABLE_IPO "enable interprocedural optimization" ON)
-option(ENABLE_HISTOGRAMS "enable histograms to view the operation latencies" OFF)
 set(SYMBOLIZE_BACKEND "" CACHE STRING "symbolization backend library for cpptrace (libbacktrace, libdwarf, or empty)")
 set(PORTABLE 0 CACHE STRING "build a portable binary (disable arch-specific optimizations)")
 # TODO: set ENABLE_NEW_ENCODING to ON when we are ready
@@ -288,11 +287,6 @@ if(ENABLE_IPO)
         message(WARNING "IPO is not supported: ${ipo_output}")
     endif()
 endif()
-
-if(ENABLE_HISTOGRAMS)
-    target_compile_definitions(kvrocks_objs PUBLIC ENABLE_HISTOGRAMS)
-endif()
-
 
 # kvrocks main target
 add_executable(kvrocks src/cli/main.cc)
