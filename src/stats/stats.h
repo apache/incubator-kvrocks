@@ -96,6 +96,6 @@ class Stats {
   void TrackInstantaneousMetric(int metric, uint64_t current_reading);
   uint64_t GetInstantaneousMetric(int metric) const;
 
-private:
+ private:
   Config *config_ = nullptr;
 };
