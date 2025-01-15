@@ -83,9 +83,7 @@ class Stats {
   BucketBoundaries bucket_boundaries;
   std::map<std::string, CommandHistogram> commands_histogram;
 
-  Config *config_ = nullptr;
-
-  Stats(Config *config);
+  explicit Stats(Config *config);
 
   void IncrCalls(const std::string &command_name);
   void IncrLatency(uint64_t latency, const std::string &command_name);
@@ -97,4 +95,7 @@ class Stats {
   static int64_t GetMemoryRSS();
   void TrackInstantaneousMetric(int metric, uint64_t current_reading);
   uint64_t GetInstantaneousMetric(int metric) const;
+
+private:
+  Config *config_ = nullptr;
 };
