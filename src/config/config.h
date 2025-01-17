@@ -175,6 +175,8 @@ struct Config {
   // Enable transactional mode in engine::Context
   bool txn_context_enabled = false;
 
+  bool skip_block_cache_deallocation_on_close = false;
+
   struct RocksDB {
     int block_size;
     bool cache_index_and_filter_blocks;
@@ -218,6 +220,7 @@ struct Config {
     int max_background_jobs;
     bool rate_limiter_auto_tuned;
     bool avoid_unnecessary_blocking_io = true;
+    bool partition_filters;
 
     struct WriteOptions {
       bool sync;

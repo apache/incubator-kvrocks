@@ -544,7 +544,7 @@ class CommandShutdown : public Commander {
     }
 
     if (!srv->IsStopped()) {
-      LOG(INFO) << "bye bye";
+      LOG(INFO) << "SHUTDOWN command received, stopping the server";
       srv->Stop();
     }
     return Status::OK();
@@ -1344,7 +1344,7 @@ REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only o
                         MakeCmdAttr<CommandPerfLog>("perflog", -2, "read-only", NO_KEY),
                         MakeCmdAttr<CommandClient>("client", -2, "read-only", NO_KEY),
                         MakeCmdAttr<CommandMonitor>("monitor", 1, "read-only no-multi no-script", NO_KEY),
-                        MakeCmdAttr<CommandShutdown>("shutdown", 1, "read-only no-multi no-script", NO_KEY),
+                        MakeCmdAttr<CommandShutdown>("shutdown", 1, "read-only exclusive no-multi no-script", NO_KEY),
                         MakeCmdAttr<CommandQuit>("quit", 1, "read-only", NO_KEY),
                         MakeCmdAttr<CommandScan>("scan", -2, "read-only", NO_KEY),
                         MakeCmdAttr<CommandRandomKey>("randomkey", 1, "read-only", NO_KEY),
@@ -1362,6 +1362,7 @@ REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only o
                         MakeCmdAttr<CommandLastSave>("lastsave", 1, "read-only", NO_KEY),
                         MakeCmdAttr<CommandFlushBackup>("flushbackup", 1, "read-only no-script", NO_KEY),
                         MakeCmdAttr<CommandSlaveOf>("slaveof", 3, "read-only exclusive no-script", NO_KEY),
+                        MakeCmdAttr<CommandSlaveOf>("replicaof", 3, "read-only exclusive no-script", NO_KEY),
                         MakeCmdAttr<CommandStats>("stats", 1, "read-only", NO_KEY),
                         MakeCmdAttr<CommandRdb>("rdb", -3, "write exclusive", NO_KEY),
                         MakeCmdAttr<CommandReset>("reset", 1, "ok-loading bypass-multi no-script", NO_KEY),

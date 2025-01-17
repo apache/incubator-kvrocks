@@ -31,6 +31,7 @@
 #include <ostream>
 
 #include "daemon_util.h"
+#include "glog/log_severity.h"
 #include "io_util.h"
 #include "pid_util.h"
 #include "scope_exit.h"
@@ -46,7 +47,7 @@ Server *srv = nullptr;
 
 extern "C" void SignalHandler([[maybe_unused]] int sig) {
   if (srv && !srv->IsStopped()) {
-    LOG(INFO) << "Bye Bye";
+    LOG(INFO) << "Signal " << sig << " received, stopping the server";
     srv->Stop();
   }
 }
@@ -100,7 +101,7 @@ static void InitGoogleLog(const Config *config) {
 
   if (util::EqualICase(config->log_dir, "stdout")) {
     for (int level = google::INFO; level <= google::FATAL; level++) {
-      google::SetLogDestination(level, "");
+      google::SetLogDestination(static_cast<google::LogSeverity>(level), "");
     }
     FLAGS_stderrthreshold = google::ERROR;
     FLAGS_logtostdout = true;
@@ -108,13 +109,14 @@ static void InitGoogleLog(const Config *config) {
   } else {
     FLAGS_log_dir = config->log_dir + "/";
     if (config->log_retention_days != -1) {
-      google::EnableLogCleaner(config->log_retention_days);
+      google::EnableLogCleaner(std::chrono::hours(24) * config->log_retention_days);
     }
   }
 }
 
 int main(int argc, char *argv[]) {
   srand(static_cast<unsigned>(util::GetTimeStamp()));
+  crc64_init();
 
   evthread_use_pthreads();
   auto event_exit = MakeScopeExit(libevent_global_shutdown);
@@ -136,7 +138,6 @@ int main(int argc, char *argv[]) {
     }
   });
 
-  crc64_init();
   InitGoogleLog(&config);
   google::InitGoogleLogging("kvrocks");
   auto glog_exit = MakeScopeExit(google::ShutdownGoogleLogging);

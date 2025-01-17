@@ -43,6 +43,8 @@
 #include "redis_db.h"
 #include "redis_metadata.h"
 #include "rocksdb/cache.h"
+#include "rocksdb/options.h"
+#include "rocksdb/write_batch.h"
 #include "rocksdb_crc32c.h"
 #include "server/server.h"
 #include "storage/batch_indexer.h"
@@ -88,6 +90,13 @@ Storage::Storage(Config *config)
 Storage::~Storage() {
   DestroyBackup();
   CloseDB();
+  TrySkipBlockCacheDeallocationOnClose();
+}
+
+void Storage::TrySkipBlockCacheDeallocationOnClose() {
+  if (config_->skip_block_cache_deallocation_on_close) {
+    shared_block_cache_->DisownData();
+  }
 }
 
 void Storage::CloseDB() {
@@ -129,7 +138,7 @@ rocksdb::BlockBasedTableOptions Storage::InitTableOptions() {
   table_options.format_version = 5;
   table_options.index_type = rocksdb::BlockBasedTableOptions::IndexType::kTwoLevelIndexSearch;
   table_options.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, false));
-  table_options.partition_filters = true;
+  table_options.partition_filters = config_->rocks_db.partition_filters;
   table_options.optimize_filters_for_memory = true;
   table_options.metadata_block_size = 4096;
   table_options.data_block_index_type = rocksdb::BlockBasedTableOptions::DataBlockIndexType::kDataBlockBinaryAndHash;
@@ -285,18 +294,16 @@ Status Storage::Open(DBOpenMode mode) {
     }
   }
 
-  std::shared_ptr<rocksdb::Cache> shared_block_cache;
-
   if (config_->rocks_db.block_cache_type == BlockCacheType::kCacheTypeLRU) {
-    shared_block_cache = rocksdb::NewLRUCache(block_cache_size, kRocksdbLRUAutoAdjustShardBits,
-                                              kRocksdbCacheStrictCapacityLimit, kRocksdbLRUBlockCacheHighPriPoolRatio);
+    shared_block_cache_ = rocksdb::NewLRUCache(block_cache_size, kRocksdbLRUAutoAdjustShardBits,
+                                               kRocksdbCacheStrictCapacityLimit, kRocksdbLRUBlockCacheHighPriPoolRatio);
   } else {
     rocksdb::HyperClockCacheOptions hcc_cache_options(block_cache_size, kRockdbHCCAutoAdjustCharge);
-    shared_block_cache = hcc_cache_options.MakeSharedCache();
+    shared_block_cache_ = hcc_cache_options.MakeSharedCache();
   }
 
   rocksdb::BlockBasedTableOptions metadata_table_opts = InitTableOptions();
-  metadata_table_opts.block_cache = shared_block_cache;
+  metadata_table_opts.block_cache = shared_block_cache_;
   metadata_table_opts.pin_l0_filter_and_index_blocks_in_cache = true;
   metadata_table_opts.cache_index_and_filter_blocks = cache_index_and_filter_blocks;
   metadata_table_opts.cache_index_and_filter_blocks_with_high_priority = true;
@@ -313,7 +320,7 @@ Status Storage::Open(DBOpenMode mode) {
   SetBlobDB(&metadata_opts);
 
   rocksdb::BlockBasedTableOptions subkey_table_opts = InitTableOptions();
-  subkey_table_opts.block_cache = shared_block_cache;
+  subkey_table_opts.block_cache = shared_block_cache_;
   subkey_table_opts.pin_l0_filter_and_index_blocks_in_cache = true;
   subkey_table_opts.cache_index_and_filter_blocks = cache_index_and_filter_blocks;
   subkey_table_opts.cache_index_and_filter_blocks_with_high_priority = true;
@@ -761,20 +768,24 @@ rocksdb::Status Storage::FlushScripts(engine::Context &ctx, const rocksdb::Write
   return Write(ctx, options, batch->GetWriteBatch());
 }
 
-Status Storage::ReplicaApplyWriteBatch(std::string &&raw_batch) {
-  return ApplyWriteBatch(default_write_opts_, std::move(raw_batch));
+Status Storage::ReplicaApplyWriteBatch(rocksdb::WriteBatch *batch) {
+  return applyWriteBatch(default_write_opts_, batch);
 }
 
-Status Storage::ApplyWriteBatch(const rocksdb::WriteOptions &options, std::string &&raw_batch) {
+Status Storage::applyWriteBatch(const rocksdb::WriteOptions &options, rocksdb::WriteBatch *batch) {
   if (db_size_limit_reached_) {
     return {Status::NotOK, "reach space limit"};
   }
-  auto batch = rocksdb::WriteBatch(std::move(raw_batch));
-  auto s = db_->Write(options, &batch);
+  auto s = db_->Write(options, batch);
   if (!s.ok()) {
     return {Status::NotOK, s.ToString()};
   }
   return Status::OK();
+}
+
+Status Storage::ApplyWriteBatch(const rocksdb::WriteOptions &options, std::string &&raw_batch) {
+  auto batch = rocksdb::WriteBatch(std::move(raw_batch));
+  return applyWriteBatch(options, &batch);
 }
 
 void Storage::RecordStat(StatType type, uint64_t v) {

@@ -320,3 +320,24 @@ func TestGenerateConfigsMatrix(t *testing.T) {
 	require.Contains(t, configsMatrix, util.KvrocksServerConfigs{"txn-context-enabled": "no", "resp3-enabled": "yes"})
 	require.Contains(t, configsMatrix, util.KvrocksServerConfigs{"txn-context-enabled": "no", "resp3-enabled": "no"})
 }
+
+func TestGetConfigSkipBlockCacheDeallocationOnClose(t *testing.T) {
+	srv := util.StartServer(t, map[string]string{
+		"skip-block-cache-deallocation-on-close": "yes",
+	})
+	defer srv.Close()
+
+	ctx := context.Background()
+	rdb := srv.NewClient()
+	defer func() { require.NoError(t, rdb.Close()) }()
+	val := rdb.ConfigGet(ctx, "skip-block-cache-deallocation-on-close").Val()
+	require.EqualValues(t, "yes", val["skip-block-cache-deallocation-on-close"])
+
+	// default value "no"
+	srv1 := util.StartServer(t, map[string]string{})
+	defer srv1.Close()
+
+	rdb = srv1.NewClient()
+	val = rdb.ConfigGet(ctx, "skip-block-cache-deallocation-on-close").Val()
+	require.EqualValues(t, "no", val["skip-block-cache-deallocation-on-close"])
+}

@@ -34,7 +34,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 )
@@ -112,6 +112,10 @@ func (s *KvrocksServer) NewTCPTLSClient(conf *tls.Config) *TCPClient {
 
 func (s *KvrocksServer) Close() {
 	s.close(false)
+}
+
+func (s *KvrocksServer) CloseWithoutCleanup() {
+	s.close(true)
 }
 
 func (s *KvrocksServer) close(keepDir bool) {

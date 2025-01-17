@@ -35,7 +35,8 @@ struct StringOrParam : sor<StringL, Param> {};
 struct NumberOrParam : sor<Number, Param> {};
 
 struct HasTag : string<'h', 'a', 's', 't', 'a', 'g'> {};
-struct HasTagExpr : WSPad<seq<Identifier, WSPad<HasTag>, StringOrParam>> {};
+struct Tagged : string<'t', 'a', 'g', 'g', 'e', 'd'> {};
+struct HasTagExpr : WSPad<seq<Identifier, WSPad<sor<HasTag, Tagged>>, StringOrParam>> {};
 
 struct NumericAtomExpr : WSPad<sor<NumberOrParam, Identifier>> {};
 struct NumericCompareOp : sor<string<'!', '='>, string<'<', '='>, string<'>', '='>, one<'=', '<', '>'>> {};

@@ -366,6 +366,10 @@ static bool IsCmdForIndexing(uint64_t cmd_flags, CommandCategory cmd_cat) {
          (cmd_cat == CommandCategory::Hash || cmd_cat == CommandCategory::JSON || cmd_cat == CommandCategory::Key);
 }
 
+static bool IsCmdAllowedInStaleData(const std::string &cmd_name) {
+  return cmd_name == "info" || cmd_name == "slaveof" || cmd_name == "config";
+}
+
 void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
   const Config *config = srv_->GetConfig();
   std::string reply;
@@ -479,7 +483,7 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       continue;
     }
 
-    if (!config->slave_serve_stale_data && srv_->IsSlave() && cmd_name != "info" && cmd_name != "slaveof" &&
+    if (!config->slave_serve_stale_data && srv_->IsSlave() && !IsCmdAllowedInStaleData(cmd_name) &&
         srv_->GetReplicationState() != kReplConnected) {
       Reply(redis::Error({Status::RedisMasterDown,
                           "Link with MASTER is down "

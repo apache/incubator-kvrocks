@@ -34,7 +34,7 @@ if(NOT lua_POPULATED)
     set(LUA_CFLAGS "${LUA_CFLAGS} -isysroot ${CMAKE_OSX_SYSROOT}")
   endif()
 
-  add_custom_target(make_lua COMMAND ${MAKE_COMMAND} "CC=${LUA_CXX}" "CFLAGS=${LUA_CFLAGS}" liblua.a
+  add_custom_target(make_lua COMMAND ${MAKE_COMMAND} "CC=${LUA_CXX}" "CFLAGS=${LUA_CFLAGS}" ${NINJA_MAKE_JOBS_FLAG} liblua.a
     WORKING_DIRECTORY ${lua_SOURCE_DIR}/src
     BYPRODUCTS ${lua_SOURCE_DIR}/src/liblua.a
   )

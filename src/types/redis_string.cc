@@ -65,7 +65,9 @@ rocksdb::Status String::getRawValue(engine::Context &ctx, const std::string &ns_
 
   Metadata metadata(kRedisNone, false);
   Slice slice = *raw_value;
-  return ParseMetadataWithStats({kRedisString}, &slice, &metadata);
+  s = ParseMetadataWithStats({kRedisString}, &slice, &metadata);
+  if (!s.ok()) raw_value->clear();
+  return s;
 }
 
 rocksdb::Status String::getValueAndExpire(engine::Context &ctx, const std::string &ns_key, std::string *value,
@@ -329,7 +331,6 @@ rocksdb::Status String::IncrBy(engine::Context &ctx, const std::string &user_key
   if (!s.ok() && !s.IsNotFound()) return s;
   if (s.IsNotFound()) {
     Metadata metadata(kRedisString, false);
-    raw_value.clear();
     metadata.Encode(&raw_value);
   }
 
@@ -368,7 +369,6 @@ rocksdb::Status String::IncrByFloat(engine::Context &ctx, const std::string &use
 
   if (s.IsNotFound()) {
     Metadata metadata(kRedisString, false);
-    raw_value.clear();
     metadata.Encode(&raw_value);
   }
   size_t offset = Metadata::GetOffsetAfterExpire(raw_value[0]);

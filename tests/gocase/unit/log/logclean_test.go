@@ -21,47 +21,58 @@ package log
 
 import (
 	"os"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/apache/kvrocks/tests/gocase/util"
 	"github.com/stretchr/testify/require"
 )
 
-func TestLogClean(t *testing.T) {
+const infoLogFileNamePart = ".INFO."
+
+func TestInfoLogClean(t *testing.T) {
 	logDir := "/tmp/kvrocks/logfile"
 	require.NoError(t, os.RemoveAll(logDir))
 	require.NoError(t, os.MkdirAll(logDir, os.ModePerm))
 
 	srv := util.StartServer(t, map[string]string{
 		"log-dir":            logDir,
-		"log-retention-days": "0",
+		"log-retention-days": "-1",
+	})
+	srv.CloseWithoutCleanup()
+
+	logInfoFiles := getInfoLogFilesInDir(t, logDir)
+	require.NotEmpty(t, logInfoFiles)
+
+	srv = util.StartServer(t, map[string]string{
+		"log-dir":            logDir,
+		"log-retention-days": "0", // all previous INFO level logs should be immediately removed
 	})
 	defer srv.Close()
 
-	files1, err := os.ReadDir(logDir)
-	require.NoError(t, err)
-	if len(files1) == 0 {
-		return
-	}
-	require.Eventually(t, func() bool {
-		srv.Restart()
+	logInfoFiles = getInfoLogFilesInDir(t, logDir)
+	require.Empty(t, logInfoFiles) // the log directory doesn't contain any INFO level log files
+}
 
-		files2, err := os.ReadDir(logDir)
-		require.NoError(t, err)
-		for _, f1 := range files1 {
-			fileExists := false
-			for _, f2 := range files2 {
-				if f1.Name() == f2.Name() {
-					fileExists = true
-					break
-				}
-			}
-			// If the file does not exist, it means the file has been cleaned
-			if !fileExists {
-				return true
-			}
+func getInfoLogFilesInDir(t *testing.T, dir string) []os.DirEntry {
+	t.Helper()
+
+	files, err := os.ReadDir(dir)
+	require.NoError(t, err)
+
+	infoLogFiles := make([]os.DirEntry, 0, len(files))
+
+	for _, f := range files {
+		if !f.Type().IsRegular() {
+			continue
 		}
-		return false
-	}, 10*time.Second, 200*time.Millisecond)
+
+		if !strings.Contains(f.Name(), infoLogFileNamePart) {
+			continue
+		}
+
+		infoLogFiles = append(infoLogFiles, f)
+	}
+
+	return infoLogFiles
 }
