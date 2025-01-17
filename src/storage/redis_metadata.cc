@@ -160,16 +160,7 @@ std::string ComposeSlotKeyPrefix(const Slice &ns, int slotid) {
 }
 
 std::string ComposeSlotKeyUpperBound(const Slice &ns, int slotid) {
-  std::string output;
-
-  PutFixed8(&output, static_cast<uint8_t>(ns.size()));
-  output.append(ns.data(), ns.size());
-
-  // Is't ok cause slotid <= HASH_SLOTS_SIZE(16384), uint16_t <= 65535
-  // no overflow
-  PutFixed16(&output, static_cast<uint16_t>(slotid + 1));
-
-  return output;
+  return ComposeSlotKeyPrefix(ns, slotid + 1);
 }
 
 Metadata::Metadata(RedisType type, bool generate_version, bool use_64bit_common_field)
