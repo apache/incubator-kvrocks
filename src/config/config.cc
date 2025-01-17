@@ -763,14 +763,15 @@ void Config::initFieldCallback() {
          if (buckets.size() < 1) {
            return Status::OK();
          }
-         std::transform(buckets.begin(), buckets.end(), std::back_inserter(histogram_bucket_boundaries),
-                        [](const std::string &val) { return std::stod(val); });
-         if (histogram_bucket_boundaries.size() != buckets.size()) {
-           return {Status::NotOK, "All values for the bucket must be double or integer values"};
+         for (const auto &bucket_val : buckets) {
+          auto parse_result = ParseFloat<double>(bucket_val);
+          if (!parse_result) {
+            return {Status::NotOK, "The values in the bucket list must be double or integer."};
+          }
+          histogram_bucket_boundaries.push_back(*parse_result);
          }
-
          if (!std::is_sorted(histogram_bucket_boundaries.begin(), histogram_bucket_boundaries.end())) {
-           return {Status::NotOK, "The values for the histogram must be sorted"};
+           return {Status::NotOK, "The values for the histogram must be sorted."};
          }
          return Status::OK();
        }},

@@ -52,7 +52,7 @@
 #include "worker.h"
 
 Server::Server(engine::Storage *storage, Config *config)
-    : stats(config),
+    : stats(config->histogram_bucket_boundaries),
       storage(storage),
       indexer(storage),
       index_mgr(&indexer, storage),

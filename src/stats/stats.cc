@@ -26,7 +26,7 @@
 #include "fmt/format.h"
 #include "time_util.h"
 
-Stats::Stats(Config *config) : config_(config) {
+Stats::Stats(std::vector<double> bucket_boundaries) : bucket_boundaries(bucket_boundaries) {
   for (int i = 0; i < STATS_METRIC_COUNT; i++) {
     InstMetric im;
     im.last_sample_time_ms = 0;
@@ -36,9 +36,6 @@ Stats::Stats(Config *config) : config_(config) {
       sample = 0;
     }
     inst_metrics.push_back(im);
-  }
-  if (config_->histogram_bucket_boundaries.size() > 0) {
-    bucket_boundaries = config_->histogram_bucket_boundaries;
   }
 }
 
