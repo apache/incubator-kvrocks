@@ -26,8 +26,6 @@
 #include <rocksdb/transaction_log.h>
 #include <rocksdb/write_batch.h>
 
-#include <chrono>
-#include <map>
 #include <memory>
 #include <string>
 #include <thread>
@@ -35,10 +33,7 @@
 #include <vector>
 
 #include "batch_sender.h"
-#include "encoding.h"
-#include "parse_util.h"
 #include "server/server.h"
-#include "slot_import.h"
 #include "status.h"
 #include "storage/redis_db.h"
 #include "unique_fd.h"
