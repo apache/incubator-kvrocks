@@ -26,7 +26,7 @@
 #include "fmt/format.h"
 #include "time_util.h"
 
-Stats::Stats(std::vector<double> bucket_boundaries) : bucket_boundaries(bucket_boundaries) {
+Stats::Stats(std::vector<double> bucket_boundaries) : bucket_boundaries(std::move(bucket_boundaries)) {
   for (int i = 0; i < STATS_METRIC_COUNT; i++) {
     InstMetric im;
     im.last_sample_time_ms = 0;
