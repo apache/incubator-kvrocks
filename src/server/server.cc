@@ -69,7 +69,7 @@ Server::Server(engine::Storage *storage, Config *config)
     if (stats.bucket_boundaries.size() > 0) {
       // NB: Extra index for the last bucket (Inf)
       for (std::size_t i{0}; i <= stats.bucket_boundaries.size(); ++i) {
-        auto bucket_ptr = std::shared_ptr<std::atomic<uint64_t>>(new std::atomic<uint64_t>(0));
+        auto bucket_ptr = std::make_shared<std::atomic<uint64_t>>(0);
 
         stats.commands_histogram[iter.first].buckets.push_back(bucket_ptr);
       }
