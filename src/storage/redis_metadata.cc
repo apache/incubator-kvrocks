@@ -159,7 +159,7 @@ std::string ComposeSlotKeyPrefix(const Slice &ns, int slotid) {
   return output;
 }
 
-std::string ComposeSlotKeyUperBound(const Slice &ns, int slotid) {
+std::string ComposeSlotKeyUpperBound(const Slice &ns, int slotid) {
   std::string output;
 
   PutFixed8(&output, static_cast<uint8_t>(ns.size()));

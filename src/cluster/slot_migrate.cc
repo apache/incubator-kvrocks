@@ -344,7 +344,7 @@ Status SlotMigrator::sendSnapshotByCmd() {
   std::string prefix = ComposeSlotKeyPrefix(namespace_, slot_range.start);
   LOG(INFO) << "[migrate] Iterate keys of slot(s), key's prefix: " << prefix;
 
-  std::string upper_bound = ComposeSlotKeyUperBound(namespace_, slot_range.end);
+  std::string upper_bound = ComposeSlotKeyUpperBound(namespace_, slot_range.end);
   rocksdb::ReadOptions read_options = storage_->DefaultScanOptions();
   read_options.snapshot = slot_snapshot_;
   Slice prefix_slice(prefix);
@@ -1274,7 +1274,7 @@ Status SlotMigrator::sendSnapshotByRawKV() {
   LOG(INFO) << fmt::format("[migrate] Migrating snapshot of slot(s) {} by raw key value", slot_range.String());
 
   auto prefix = ComposeSlotKeyPrefix(namespace_, slot_range.start);
-  auto upper_bound = ComposeSlotKeyUperBound(namespace_, slot_range.end);
+  auto upper_bound = ComposeSlotKeyUpperBound(namespace_, slot_range.end);
 
   rocksdb::ReadOptions read_options = storage_->DefaultScanOptions();
   read_options.snapshot = slot_snapshot_;
