@@ -29,8 +29,6 @@
 #include <string>
 #include <vector>
 
-#include "config/config.h"
-
 enum StatsMetricFlags {
   STATS_METRIC_COMMAND = 0,       // Number of commands executed
   STATS_METRIC_NET_INPUT,         // Bytes read to network
