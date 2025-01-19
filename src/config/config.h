@@ -177,6 +177,9 @@ struct Config {
 
   bool skip_block_cache_deallocation_on_close = false;
 
+  // whether to enable hash field expiration feature
+  bool hash_field_expiration = false;
+
   struct RocksDB {
     int block_size;
     bool cache_index_and_filter_blocks;
