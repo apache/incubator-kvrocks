@@ -21,10 +21,15 @@
 #include "redis_tdigest.h"
 
 #include <algorithm>
+#include <iomanip>
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/join.hpp>
+#include <range/v3/view/transform.hpp>
 #include <type_traits>
+#include <vector>
 
 #include "db_util.h"
 #include "encoding.h"
@@ -38,6 +43,17 @@
 #include "storage/redis_db.h"
 #include "storage/redis_metadata.h"
 #include "types/tdigest.h"
+
+namespace {
+// Helper function to convert rocksdb::Slice to hex string
+std::string SliceToHex(const rocksdb::Slice& slice) {
+  std::ostringstream oss;
+  for (size_t i = 0; i < slice.size(); ++i) {
+    oss << std::hex << std::setw(2) << std::setfill('0') << (int)(unsigned char)slice[i];
+  }
+  return oss.str();
+}
+}  // namespace
 
 namespace redis {
 namespace {
@@ -129,6 +145,61 @@ struct DumpCentroids {
   const TDigestMetadata* const meta_data;
 };
 
+// It should be replaced by a iteration of the rocksdb iterator
+class DummyCentroids {
+ public:
+  DummyCentroids(const TDigestMetadata& meta_data, const std::vector<Centroid>& centroids)
+      : meta_data_(meta_data), centroids_(centroids) {}
+  class Iterator {
+   public:
+    Iterator(std::vector<Centroid>::const_iterator&& iter, const std::vector<Centroid>& centroids)
+        : iter_(iter), centroids_(centroids) {}
+    std::unique_ptr<Iterator> Clone() const {
+      if (iter_ != centroids_.cend()) {
+        return std::make_unique<Iterator>(std::next(centroids_.cbegin(), std::distance(centroids_.cbegin(), iter_)),
+                                          centroids_);
+      }
+      return std::make_unique<Iterator>(centroids_.cend(), centroids_);
+    }
+    bool Next() {
+      if (Valid()) {
+        std::advance(iter_, 1);
+      }
+      return iter_ != centroids_.cend();
+    }
+    bool Prev() {
+      if (Valid()) {
+        if (iter_ != centroids_.cbegin()) {
+          std::advance(iter_, -1);
+        }
+      }
+      return Valid();
+    }
+    bool Valid() const { return iter_ != centroids_.cend(); }
+    StatusOr<Centroid> GetCentroid() const {
+      if (iter_ == centroids_.cend()) {
+        return {::Status::NotOK, "invalid iterator during decoding tdigest centroid"};
+      }
+      return *iter_;
+    }
+
+   private:
+    std::vector<Centroid>::const_iterator iter_;
+    const std::vector<Centroid>& centroids_;
+  };
+
+  std::unique_ptr<Iterator> Begin() { return std::make_unique<Iterator>(centroids_.cbegin(), centroids_); }
+  std::unique_ptr<Iterator> End() { return std::make_unique<Iterator>(centroids_.cend(), centroids_); }
+  double TotalWeight() const { return static_cast<double>(meta_data_.total_weight); }
+  double Min() const { return meta_data_.minimum; }
+  double Max() const { return meta_data_.maximum; }
+  uint64_t Size() const { return meta_data_.merged_nodes; }
+
+ private:
+  const TDigestMetadata& meta_data_;
+  std::vector<Centroid> centroids_;
+};
+
 uint64_t constexpr kMaxBufferSize = 1 * 1024;  // 1k doubles
 
 std::optional<rocksdb::Status> TDigest::Create(engine::Context& ctx, const Slice& digest_name,
@@ -157,7 +228,7 @@ std::optional<rocksdb::Status> TDigest::Create(engine::Context& ctx, const Slice
 
   std::string metadata_bytes;
   metadata.Encode(&metadata_bytes);
-  status = batch->Put(cf_handle_, ns_key, metadata_bytes);
+  status = batch->Put(metadata_cf_handle_, ns_key, metadata_bytes);
   if (!status.ok()) {
     return status;
   }
@@ -185,7 +256,7 @@ rocksdb::Status TDigest::Add(engine::Context& ctx, const Slice& digest_name, con
   metadata.total_weight += inputs.size();
 
   if (metadata.unmerged_nodes + inputs.size() <= metadata.capacity) {
-    status = appendBuffer(ctx, batch, ns_key, metadata, inputs);
+    status = appendBuffer(ctx, batch, ns_key, inputs, &metadata);
     if (!status.ok()) {
       return status;
     }
@@ -199,7 +270,7 @@ rocksdb::Status TDigest::Add(engine::Context& ctx, const Slice& digest_name, con
 
   std::string metadata_bytes;
   metadata.Encode(&metadata_bytes);
-  status = batch->Put(cf_handle_, ns_key, metadata_bytes);
+  status = batch->Put(metadata_cf_handle_, ns_key, metadata_bytes);
   if (!status.ok()) {
     return status;
   }
@@ -234,7 +305,7 @@ rocksdb::Status TDigest::Quantile(engine::Context& ctx, const Slice& digest_name
 
     std::string metadata_bytes;
     metadata.Encode(&metadata_bytes);
-    status = batch->Put(cf_handle_, ns_key, metadata_bytes);
+    status = batch->Put(metadata_cf_handle_, ns_key, metadata_bytes);
     if (!status.ok()) {
       return status;
     }
@@ -249,35 +320,46 @@ rocksdb::Status TDigest::Quantile(engine::Context& ctx, const Slice& digest_name
 
   // since we take a snapshot and read only, we don't need to lock again
 
-  auto start_key = internalSegmentGuardPrefixKey(ns_key, SegmentType::kCentroids);
-  auto guard_key = internalSegmentGuardPrefixKey(ns_key, SegmentType::kGuardFlag);
+  // auto start_key = internalSegmentGuardPrefixKey(ns_key, SegmentType::kCentroids);
+  // auto guard_key = internalSegmentGuardPrefixKey(ns_key, SegmentType::kGuardFlag);
 
-  rocksdb::ReadOptions read_options = ctx.DefaultScanOptions();
-  rocksdb::Slice upper_bound(guard_key);
-  read_options.iterate_upper_bound = &upper_bound;
-  rocksdb::Slice lower_bound(start_key);
-  read_options.iterate_lower_bound = &lower_bound;
+  // rocksdb::ReadOptions read_options = ctx.DefaultScanOptions();
+  // rocksdb::Slice upper_bound(guard_key);
+  // read_options.iterate_upper_bound = &upper_bound;
+  // rocksdb::Slice lower_bound(start_key);
+  // read_options.iterate_lower_bound = &lower_bound;
 
-  auto get_iterator_func = [this, &ctx, &read_options](const rocksdb::Slice& key = {}) {
-    auto iter = util::UniqueIterator(ctx, read_options, cf_handle_);
-    if (key.empty()) {
-      iter->SeekToFirst();
-    } else {
-      iter->Seek(key);
-    }
-    return iter;
-  };
+  // auto get_iterator_func = [this, &ctx, &read_options](const rocksdb::Slice& key = {}) {
+  //   auto iter = util::UniqueIterator(ctx, read_options, cf_handle_);
+  //   if (key.empty()) {
+  //     iter->SeekToFirst();
+  //   } else {
+  //     iter->Seek(key);
+  //   }
+  //   return iter;
+  // };
 
-  auto decode_centroid_func = [this](const rocksdb::Slice& key, const rocksdb::Slice& value) -> StatusOr<Centroid> {
-    Centroid centroid;
-    auto s = decodeCentroidFromKeyValue(key, value, &centroid);
-    if (!s.ok()) {
-      return Status(::Status::InvalidArgument, s.ToString());
-    }
-    return std::move(centroid);
-  };
+  // auto decode_centroid_func = [this](const rocksdb::Slice& key, const rocksdb::Slice& value) -> StatusOr<Centroid> {
+  //   Centroid centroid;
+  //   auto s = decodeCentroidFromKeyValue(key, value, &centroid);
+  //   if (!s.ok()) {
+  //     return Status(::Status::InvalidArgument, s.ToString());
+  //   }
+  //   return std::move(centroid);
+  // };
 
-  auto dump_centroids = DumpCentroids{get_iterator_func, decode_centroid_func, &metadata};
+  // auto dump_centroids = DumpCentroids{get_iterator_func, decode_centroid_func, &metadata};
+
+  std::vector<Centroid> centroids;
+  if (auto status = dumpCentroidsAndBuffer(ctx, ns_key, metadata, &centroids); !status.ok()) {
+    return status;
+  }
+
+  auto dump_centroids = DummyCentroids(metadata, centroids);
+
+  LOG(INFO) << "metadata min: " << metadata.minimum << ", max: " << metadata.maximum
+            << ", total weight: " << metadata.total_weight << ", merged nodes: " << metadata.merged_nodes
+            << ", unmerged nodes: " << metadata.unmerged_nodes;
 
   for (auto q : qs) {
     auto s = TDigestQuantile(dump_centroids, q, Lerp);
@@ -313,7 +395,17 @@ rocksdb::Status TDigest::mergeCurrentBuffer(engine::Context& ctx, const std::str
     std::copy(additional_buffer->begin(), additional_buffer->end(), std::back_inserter(buffer));
   }
 
-  auto merged_centroids = TDigestMerge(buffer, {centroids});
+  auto merged_centroids = TDigestMerge(buffer, {centroids, metadata->compression});
+
+  if (!merged_centroids.IsOK()) {
+    return rocksdb::Status::InvalidArgument(merged_centroids.Msg());
+  }
+
+  LOG(INFO) << "merged centroids size: " << merged_centroids->centroids.size() << ", data: "
+            << (merged_centroids->centroids | ranges::views::transform([](const auto& c) {
+                  return fmt::format("mean: {}, weight: {}", c.mean, c.weight);
+                }) |
+                ranges::views::join(' ') | ranges::to<std::string>());
 
   status = applyNewCentroidsAndCleanBuffer(batch, ns_key, *metadata, merged_centroids->centroids);
   if (!status.ok()) {
@@ -328,16 +420,16 @@ rocksdb::Status TDigest::mergeCurrentBuffer(engine::Context& ctx, const std::str
 }
 
 std::string TDigest::internalBufferKey(const std::string& ns_key, const TDigestMetadata& metadata) const {
-  std::string sub_key = ns_key;
+  std::string sub_key;
   PutFixed8(&sub_key, static_cast<uint8_t>(SegmentType::kBuffer));
   return InternalKey(ns_key, sub_key, metadata.version, storage_->IsSlotIdEncoded()).Encode();
 }
 
 std::string TDigest::internalKeyFromCentroid(const std::string& ns_key, const TDigestMetadata& metadata,
                                              const Centroid& centroid) const {
-  std::string sub_key = ns_key;
+  std::string sub_key;
   PutFixed8(&sub_key, static_cast<uint8_t>(SegmentType::kCentroids));
-  PutDouble(&sub_key, centroid.mean);  // It uses EncodeDoubleToUInt64 and keeps origonal order of double
+  PutDouble(&sub_key, centroid.mean);  // It uses EncodeDoubleToUInt64 and keeps original order of double
   return InternalKey(ns_key, sub_key, metadata.version, storage_->IsSlotIdEncoded()).Encode();
 }
 
@@ -351,9 +443,11 @@ rocksdb::Status TDigest::decodeCentroidFromKeyValue(const rocksdb::Slice& key, c
                                                     Centroid* centroid) const {
   InternalKey ikey(key, storage_->IsSlotIdEncoded());
   auto subkey = ikey.GetSubKey();
+  // LOG(INFO) << "decode subkey: " << SliceToHex(subkey);
   auto type_flg = static_cast<uint8_t>(SegmentType::kGuardFlag);
   GetFixed8(&subkey, &type_flg);
   if (static_cast<SegmentType>(type_flg) != SegmentType::kCentroids) {
+    // LOG(WARNING) << "corrupted tdigest centroid type flag: " << type_flg << ",  key: " << SliceToHex(key);
     return rocksdb::Status::Corruption(fmt::format("corrupted tdigest centroid key type: {}", type_flg));
   }
   GetDouble(&subkey, &centroid->mean);
@@ -362,10 +456,10 @@ rocksdb::Status TDigest::decodeCentroidFromKeyValue(const rocksdb::Slice& key, c
 }
 
 rocksdb::Status TDigest::appendBuffer(engine::Context& ctx, ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch,
-                                      const std::string& ns_key, const TDigestMetadata& metadata,
-                                      const std::vector<double>& inputs) {
+                                      const std::string& ns_key, const std::vector<double>& inputs,
+                                      TDigestMetadata* metadata) {
   // must guard by lock
-  auto buffer_key = internalBufferKey(ns_key, metadata);
+  auto buffer_key = internalBufferKey(ns_key, *metadata);
   std::string buffer_value;
   auto s = storage_->Get(ctx, ctx.GetReadOptions(), cf_handle_, buffer_key, &buffer_value);
   if (!s.ok() && !s.IsNotFound()) {
@@ -373,10 +467,16 @@ rocksdb::Status TDigest::appendBuffer(engine::Context& ctx, ObserverOrUniquePtr<
   }
 
   for (auto item : inputs) {
+    if (item > metadata->maximum) {
+      metadata->maximum = item;
+    }
+    if (item < metadata->minimum) {
+      metadata->minimum = item;
+    }
     PutDouble(&buffer_value, item);
   }
 
-  if (s = batch->Put(buffer_key, buffer_value); !s.ok()) {
+  if (s = batch->Put(cf_handle_, buffer_key, buffer_value); !s.ok()) {
     return s;
   }
 
@@ -386,31 +486,34 @@ rocksdb::Status TDigest::appendBuffer(engine::Context& ctx, ObserverOrUniquePtr<
 rocksdb::Status TDigest::dumpCentroidsAndBuffer(engine::Context& ctx, const std::string& ns_key,
                                                 const TDigestMetadata& metadata, std::vector<Centroid>* centroids,
                                                 std::vector<double>* buffer) {
-  centroids->clear();
-  centroids->reserve(metadata.merged_nodes);
-  buffer->clear();
-  buffer->reserve(metadata.unmerged_nodes);
-  auto buffer_key = internalBufferKey(ns_key, metadata);
-  std::string buffer_value;
-  auto s = storage_->Get(ctx, ctx.GetReadOptions(), cf_handle_, buffer_key, &buffer_value);
-  if (!s.ok() && !s.IsNotFound()) {
-    return s;
-  }
+  if (buffer != nullptr) {
+    buffer->clear();
+    buffer->reserve(metadata.unmerged_nodes);
+    auto buffer_key = internalBufferKey(ns_key, metadata);
+    std::string buffer_value;
+    auto status = storage_->Get(ctx, ctx.GetReadOptions(), cf_handle_, buffer_key, &buffer_value);
+    if (!status.ok() && !status.IsNotFound()) {
+      return status;
+    }
 
-  if (s.ok()) {
-    rocksdb::Slice buffer_slice = buffer_value;
-    for (uint64_t i = 0; i < metadata.unmerged_nodes; ++i) {
-      double tmp_value = std::numeric_limits<double>::quiet_NaN();
-      if (!GetDouble(&buffer_slice, &tmp_value)) {
-        return rocksdb::Status::Corruption(
-            fmt::format("metadata has {} records, but get {} failed", metadata.unmerged_nodes, i));
+    if (status.ok()) {
+      rocksdb::Slice buffer_slice = buffer_value;
+      for (uint64_t i = 0; i < metadata.unmerged_nodes; ++i) {
+        double tmp_value = std::numeric_limits<double>::quiet_NaN();
+        if (!GetDouble(&buffer_slice, &tmp_value)) {
+          return rocksdb::Status::Corruption(
+              fmt::format("metadata has {} records, but get {} failed", metadata.unmerged_nodes, i));
+        }
+        buffer->emplace_back(tmp_value);
       }
-      buffer->emplace_back(tmp_value);
     }
   }
 
-  auto start_key = internalSegmentGuardPrefixKey(ns_key, SegmentType::kCentroids);
-  auto guard_key = internalSegmentGuardPrefixKey(ns_key, SegmentType::kGuardFlag);
+  centroids->clear();
+  centroids->reserve(metadata.merged_nodes);
+
+  auto start_key = internalSegmentGuardPrefixKey(metadata, ns_key, SegmentType::kCentroids);
+  auto guard_key = internalSegmentGuardPrefixKey(metadata, ns_key, SegmentType::kGuardFlag);
 
   rocksdb::ReadOptions read_options = ctx.DefaultScanOptions();
   rocksdb::Slice upper_bound(guard_key);
@@ -418,36 +521,40 @@ rocksdb::Status TDigest::dumpCentroidsAndBuffer(engine::Context& ctx, const std:
   rocksdb::Slice lower_bound(start_key);
   read_options.iterate_lower_bound = &lower_bound;
 
+  // LOG(INFO) << "scan lower bound: " << SliceToHex(lower_bound) << ", upper bound: " << SliceToHex(upper_bound);
+
   auto iter = util::UniqueIterator(ctx, read_options, cf_handle_);
   uint64_t total_count = 0;
   for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
     ++total_count;
     Centroid centroid;
-    if (s = decodeCentroidFromKeyValue(iter->key(), iter->value(), &centroid); !s.ok()) {
-      return s;
+    if (auto status = decodeCentroidFromKeyValue(iter->key(), iter->value(), &centroid); !status.ok()) {
+      return status;
     }
     centroids->emplace_back(centroid);
   }
+  LOG(INFO) << "read centroids total count: " << total_count;
 
   if (total_count != metadata.merged_nodes) {
     return rocksdb::Status::Corruption(
         fmt::format("metadata has {} merged nodes, but got {}", metadata.merged_nodes, total_count));
   }
-  return s;
+  return rocksdb::Status::OK();
 }
 
 rocksdb::Status TDigest::applyNewCentroidsAndCleanBuffer(ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch,
                                                          const std::string& ns_key, const TDigestMetadata& metadata,
                                                          const std::vector<Centroid>& centroids) {
   auto buffer_key = internalBufferKey(ns_key, metadata);
-  if (auto s = batch->Delete(buffer_key); !s.ok() && !s.IsNotFound()) {
+  if (auto s = batch->Delete(cf_handle_, buffer_key); !s.ok() && !s.IsNotFound()) {
     return s;
   }
 
   for (const auto& c : centroids) {
     auto centroid_key = internalKeyFromCentroid(ns_key, metadata, c);
     auto centroid_payload = internalValueFromCentroid(c);
-    if (auto s = batch->Put(centroid_key, centroid_payload); !s.ok()) {
+    LOG(INFO) << "store centroid with key: " << SliceToHex(centroid_key) << ", value: " << SliceToHex(centroid_payload);
+    if (auto s = batch->Put(cf_handle_, centroid_key, centroid_payload); !s.ok()) {
       return s;
     }
   }
@@ -455,9 +562,10 @@ rocksdb::Status TDigest::applyNewCentroidsAndCleanBuffer(ObserverOrUniquePtr<roc
   return rocksdb::Status::OK();
 }
 
-std::string TDigest::internalSegmentGuardPrefixKey(const std::string& ns_key, SegmentType seg) {
-  std::string prefix_key = ns_key;
+std::string TDigest::internalSegmentGuardPrefixKey(const TDigestMetadata& metadata, const std::string& ns_key,
+                                                   SegmentType seg) {
+  std::string prefix_key;
   PutFixed8(&prefix_key, static_cast<uint8_t>(seg));
-  return ns_key;
+  return InternalKey(ns_key, prefix_key, metadata.version, storage_->IsSlotIdEncoded()).Encode();
 }
 }  // namespace redis

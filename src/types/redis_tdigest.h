@@ -58,9 +58,10 @@ struct TDigestQuantitleResult {
   std::vector<double> quantiles;
 };
 
-struct TDigestInfoResult {};
-
+class RedisTDigestTest;
 class TDigest : public SubKeyScanner {
+  friend class RedisTDigestTest;
+
  public:
   using Slice = rocksdb::Slice;
   explicit TDigest(engine::Storage* storage, const std::string& ns)
@@ -84,17 +85,18 @@ class TDigest : public SubKeyScanner {
   rocksdb::ColumnFamilyHandle* cf_handle_;
 
   rocksdb::Status appendBuffer(engine::Context& ctx, ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch,
-                               const std::string& ns_key, const TDigestMetadata& metadata,
-                               const std::vector<double>& inputs);
+                               const std::string& ns_key, const std::vector<double>& inputs,
+                               TDigestMetadata* metadata);
 
   rocksdb::Status dumpCentroidsAndBuffer(engine::Context& ctx, const std::string& ns_key,
                                          const TDigestMetadata& metadata, std::vector<Centroid>* centroids,
-                                         std::vector<double>* buffer);
+                                         std::vector<double>* buffer = nullptr);
   rocksdb::Status applyNewCentroidsAndCleanBuffer(ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch,
                                                   const std::string& ns_key, const TDigestMetadata& metadata,
                                                   const std::vector<Centroid>& centroids);
 
-  static std::string internalSegmentGuardPrefixKey(const std::string& ns_key, SegmentType seg);
+  std::string internalSegmentGuardPrefixKey(const TDigestMetadata& metadata, const std::string& ns_key,
+                                            SegmentType seg);
 
   rocksdb::Status mergeCurrentBuffer(engine::Context& ctx, const std::string& ns_key,
                                      ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch, TDigestMetadata* metadata,

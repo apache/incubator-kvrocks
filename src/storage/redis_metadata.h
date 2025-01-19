@@ -25,6 +25,7 @@
 #include <atomic>
 #include <bitset>
 #include <initializer_list>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -345,8 +346,8 @@ class TDigestMetadata : public Metadata {
   uint64_t merged_nodes = 0;
   uint64_t total_weight = 0;
   uint64_t merged_weight = 0;
-  double minimum = 0.;
-  double maximum = 0.;
+  double minimum = std::numeric_limits<double>::max();
+  double maximum = std::numeric_limits<double>::lowest();
   uint64_t total_observations = 0;
   uint64_t merge_times = 0;
 
