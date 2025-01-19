@@ -159,6 +159,8 @@ std::string ComposeSlotKeyPrefix(const Slice &ns, int slotid) {
   return output;
 }
 
+std::string ComposeSlotKeyUpperBound(const Slice &ns, int slotid) { return ComposeSlotKeyPrefix(ns, slotid + 1); }
+
 Metadata::Metadata(RedisType type, bool generate_version, bool use_64bit_common_field)
     : flags((use_64bit_common_field ? METADATA_64BIT_ENCODING_MASK : 0) | (METADATA_TYPE_MASK & type)),
       expire(0),
