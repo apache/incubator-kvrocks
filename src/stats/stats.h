@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <atomic>
 #include <map>
+#include <memory>
 #include <shared_mutex>
 #include <string>
 #include <vector>
