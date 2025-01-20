@@ -24,13 +24,12 @@
 #include <rocksdb/env.h>
 #include <strings.h>
 
-#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <iostream>
 #include <iterator>
-#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -125,7 +124,7 @@ Status SetRocksdbCompression(Server *srv, const rocksdb::CompressionType compres
   std::vector<std::string> compression_per_level_builder;
   compression_per_level_builder.reserve(KVROCKS_MAX_LSM_LEVEL);
 
-  for (int i = 0; i < compression_start_level; i++) {
+  for (size_t i = 0; i < compression_start_level; i++) {
     compression_per_level_builder.emplace_back("kNoCompression");
   }
   for (size_t i = compression_start_level; i < KVROCKS_MAX_LSM_LEVEL; i++) {

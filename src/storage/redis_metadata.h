@@ -112,6 +112,7 @@ template <typename T = Slice>
 [[nodiscard]] std::tuple<T, T> ExtractNamespaceKey(Slice ns_key, bool slot_id_encoded);
 [[nodiscard]] std::string ComposeNamespaceKey(const Slice &ns, const Slice &key, bool slot_id_encoded);
 [[nodiscard]] std::string ComposeSlotKeyPrefix(const Slice &ns, int slotid);
+[[nodiscard]] std::string ComposeSlotKeyUpperBound(const Slice &ns, int slotid);
 
 class InternalKey {
  public:
