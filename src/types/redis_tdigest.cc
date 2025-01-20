@@ -391,8 +391,12 @@ rocksdb::Status TDigest::mergeCurrentBuffer(engine::Context& ctx, const std::str
     return status;
   }
 
+  if (additional_buffer == nullptr || additional_buffer->empty()) {
+    return rocksdb::Status::OK();
+  }
+
   if (additional_buffer != nullptr) {
-    std::copy(additional_buffer->begin(), additional_buffer->end(), std::back_inserter(buffer));
+    std::copy(additional_buffer->cbegin(), additional_buffer->cend(), std::back_inserter(buffer));
   }
 
   auto merged_centroids = TDigestMerge(buffer, {centroids, metadata->compression});
@@ -464,6 +468,11 @@ rocksdb::Status TDigest::appendBuffer(engine::Context& ctx, ObserverOrUniquePtr<
   auto s = storage_->Get(ctx, ctx.GetReadOptions(), cf_handle_, buffer_key, &buffer_value);
   if (!s.ok() && !s.IsNotFound()) {
     return s;
+  }
+
+  if (s.IsNotFound() && metadata->merge_times == 0 && !inputs.empty()) {
+    metadata->minimum = inputs.front();
+    metadata->maximum = inputs.front();
   }
 
   for (auto item : inputs) {
@@ -553,7 +562,8 @@ rocksdb::Status TDigest::applyNewCentroidsAndCleanBuffer(ObserverOrUniquePtr<roc
   for (const auto& c : centroids) {
     auto centroid_key = internalKeyFromCentroid(ns_key, metadata, c);
     auto centroid_payload = internalValueFromCentroid(c);
-    LOG(INFO) << "store centroid with key: " << SliceToHex(centroid_key) << ", value: " << SliceToHex(centroid_payload);
+    // LOG(INFO) << "store centroid with key: " << SliceToHex(centroid_key) << ", value: " <<
+    // SliceToHex(centroid_payload);
     if (auto s = batch->Put(cf_handle_, centroid_key, centroid_payload); !s.ok()) {
       return s;
     }

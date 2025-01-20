@@ -26,6 +26,7 @@
 #include <queue>
 
 #include "fmt/format.h"
+#include "glog/logging.h"
 #include "status.h"
 
 namespace {
@@ -248,9 +249,19 @@ class TDigest::TDigestImpl {
 
   // merge input data with current tdigest
   void MergeInput(std::vector<double>& input) {
+    if (tdigests_[current_].empty() && !input.empty()) {
+      min_ = input.front();
+      max_ = input.front();
+    }
     total_weight_ += static_cast<double>(input.size());
 
     std::sort(input.begin(), input.end());
+    LOG(INFO) << "input size: " << input.size();
+    if (input.empty()) {
+      LOG(INFO) << "empty input";
+      return;
+    }
+    LOG(INFO) << " front: " << input.front() << " back: " << input.back() << "min_: " << min_ << " max_: " << max_;
     min_ = std::min(min_, input.front());
     max_ = std::max(max_, input.back());
 
