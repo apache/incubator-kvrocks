@@ -82,9 +82,13 @@ std::vector<double> QuantileOf(const std::vector<double> &samples, const std::ve
   return result;
 }
 
-std::vector<double> GenerateSamples(int count) {
-  return ranges::views::iota(1, count + 1) | ranges::views::transform([](int i) { return i; }) |
-         ranges::to<std::vector<double>>();
+std::vector<double> GenerateSamples(int count, double from, double to) {
+  std::vector<double> samples;
+  samples.reserve(count);
+  for (int i = 0; i < count; i++) {
+    samples.push_back(from + static_cast<double>(i) * (to - from) / static_cast<double>(count));
+  }
+  return samples;
 }
 
 std::vector<double> GenerateQuantiles(int count, bool with_head = false, bool with_tail = false) {
@@ -202,10 +206,13 @@ TEST_F(RedisTDigestTest, PlentyQuantile_10000_144) {
 
   int sample_count = 10000;
   int quantile_count = 144;
-  auto samples = GenerateSamples(sample_count);
+  double from = -100;
+  double to = 100;
+  auto error_double = (to - from) / sample_count;
+  auto samples = GenerateSamples(sample_count, -100, 100);
   auto status = tdigest_->Add(*ctx_, test_digest_name, samples);
   ASSERT_TRUE(status.ok()) << status.ToString();
-  
+
   auto qs = GenerateQuantiles(quantile_count);
   auto result = QuantileOf(samples, qs);
 
@@ -214,7 +221,7 @@ TEST_F(RedisTDigestTest, PlentyQuantile_10000_144) {
   ASSERT_TRUE(status.ok()) << status.ToString();
 
   for (int i = 0; i < quantile_count; i++) {
-    EXPECT_NEAR(tdigest_result.quantiles[i], result[i], 1) << "quantile is: " << qs[i];
+    EXPECT_NEAR(tdigest_result.quantiles[i], result[i], error_double) << "quantile is: " << qs[i];
   }
 }
 

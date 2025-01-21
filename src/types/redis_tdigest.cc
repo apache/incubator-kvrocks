@@ -245,6 +245,11 @@ rocksdb::Status TDigest::Add(engine::Context& ctx, const Slice& digest_name, con
     return status;
   }
 
+  if (metadata.merge_times == 0 && metadata.merged_nodes == 0 && !inputs.empty()) {
+    metadata.minimum = inputs.front();
+    metadata.maximum = inputs.back();
+  }
+
   auto batch = storage_->GetWriteBatchBase();
   WriteBatchLogData log_data(kRedisTDigest);
   status = batch->PutLogData(log_data.Encode());
