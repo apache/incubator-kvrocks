@@ -47,7 +47,7 @@ constexpr int STATS_METRIC_SAMPLES = 16;  // Number of samples per metric
 
 // Experimental part to support histograms for cmd statistics
 struct CommandHistogram {
-  std::vector<std::shared_ptr<std::atomic<uint64_t>>> buckets;
+  std::vector<std::unique_ptr<std::atomic<uint64_t>>> buckets;
   std::atomic<uint64_t> calls;
   std::atomic<uint64_t> sum;
 };
