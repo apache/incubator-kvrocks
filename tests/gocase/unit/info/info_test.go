@@ -27,9 +27,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/redis/go-redis/v9"
-
 	"github.com/apache/kvrocks/tests/gocase/util"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 
@@ -108,20 +107,17 @@ func TestInfo(t *testing.T) {
 	})
 
 	t.Run("get command latencies via histogram INFO - histogram-bucket-boundaries", func(t *testing.T) {
-		output := util.FindInfoEntry(rdb0, "cmdstathist", "cmdstathist_info")
-		if len(output) == 0 {
-			t.SkipNow()
-		}
+		output := util.FindInfoEntry(rdb0, "cmdstathist_info", "commandstats")
 
 		splitValues := strings.FieldsFunc(output, func(r rune) bool {
 			return r == '=' || r == ','
 		})
 
 		// expected: 10=..,20=..,30=..,50=..,inf=..,sum=...,count=..
-		require.GreaterOrEqual(t, len(splitValues), 15)
+		require.GreaterOrEqual(t, len(splitValues), 14)
 		require.Contains(t, splitValues, "sum")
 		require.Contains(t, splitValues, "count")
-		require.Contains(t, splitValues, "info")
+		require.Contains(t, splitValues, "inf")
 	})
 }
 
