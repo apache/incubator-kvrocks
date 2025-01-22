@@ -130,6 +130,8 @@ TEST(Config, GetAndSet) {
       {"rocksdb.rate_limiter_auto_tuned", "yes"},
       {"rocksdb.compression_level", "32767"},
       {"rocksdb.wal_compression", "no"},
+      {"histogram-bucket-boundaries", "10,100,1000,10000"},
+
   };
   for (const auto &iter : immutable_cases) {
     s = config.Set(nullptr, iter.first, iter.second);

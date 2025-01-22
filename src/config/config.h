@@ -180,6 +180,8 @@ struct Config {
   // whether to enable hash field expiration feature
   bool hash_field_expiration = false;
 
+  std::vector<double> histogram_bucket_boundaries;
+
   struct RocksDB {
     int block_size;
     bool cache_index_and_filter_blocks;
@@ -263,6 +265,7 @@ struct Config {
   std::string profiling_sample_commands_str_;
   std::map<std::string, std::unique_ptr<ConfigField>> fields_;
   std::vector<std::string> rename_command_;
+  std::string histogram_bucket_boundaries_str_;
 
   void initFieldValidator();
   void initFieldCallback();
