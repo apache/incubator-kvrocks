@@ -547,9 +547,8 @@ void Worker::KillClient(redis::Connection *self, uint64_t id, const std::string 
 }
 
 void Worker::LuaReset() {
-  auto lua = lua::CreateState();
-  lua::DestroyState(lua_);
-  lua_ = lua;
+  auto lua = lua_.exchange(lua::CreateState());
+  lua::DestroyState(lua);
 }
 
 int64_t Worker::GetLuaMemorySize() { return (int64_t)lua_gc(lua_, LUA_GCCOUNT, 0) * 1024; }
