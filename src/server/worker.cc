@@ -552,6 +552,8 @@ void Worker::LuaReset() {
   lua_ = lua;
 }
 
+int64_t Worker::GetLuaMemorySize() { return (int64_t)lua_gc(lua_, LUA_GCCOUNT, 0) * 1024; }
+
 void Worker::KickoutIdleClients(int timeout) {
   std::vector<std::pair<int, uint64_t>> to_be_killed_conns;
 

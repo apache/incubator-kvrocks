@@ -1010,12 +1010,19 @@ void Server::GetClientsInfo(std::string *info) {
 
 void Server::GetMemoryInfo(std::string *info) {
   int64_t rss = Stats::GetMemoryRSS();
+  int64_t memory_lua = 0;
+  for (auto &wt : worker_threads_) {
+    memory_lua += wt->GetWorker()->GetLuaMemorySize();
+  }
   std::string used_memory_rss_human = util::BytesToHuman(rss);
+  std::string used_memory_lua_human = util::BytesToHuman(memory_lua);
 
   std::ostringstream string_stream;
   string_stream << "# Memory\r\n";
   string_stream << "used_memory_rss:" << rss << "\r\n";
   string_stream << "used_memory_rss_human:" << used_memory_rss_human << "\r\n";
+  string_stream << "used_memory_lua:" << memory_lua << "\r\n";
+  string_stream << "used_memory_lua_human:" << used_memory_lua_human << "\r\n";
   string_stream << "used_memory_startup:" << memory_startup_use_.load(std::memory_order_relaxed) << "\r\n";
   *info = string_stream.str();
 }
