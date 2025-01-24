@@ -72,10 +72,10 @@ Status FunctionLoad(redis::Connection *conn, const std::string &script, bool nee
                     std::string *lib_name, bool read_only = false);
 Status FunctionCall(redis::Connection *conn, const std::string &name, const std::vector<std::string> &keys,
                     const std::vector<std::string> &argv, std::string *output, bool read_only = false);
-Status FunctionList(Server *srv, redis::Connection *conn, const std::string &libname, bool with_code,
+Status FunctionList(Server *srv, const redis::Connection *conn, const std::string &libname, bool with_code,
                     std::string *output);
 Status FunctionListFunc(Server *srv, const redis::Connection *conn, const std::string &funcname, std::string *output);
-Status FunctionListLib(Server *srv, const redis::Connection *conn, const std::string &libname, std::string *output);
+Status FunctionListLib(redis::Connection *conn, const std::string &libname, std::string *output);
 Status FunctionDelete(engine::Context &ctx, redis::Connection *conn, const std::string &name);
 bool FunctionIsLibExist(redis::Connection *conn, const std::string &libname, bool need_check_storage = true,
                         bool read_only = false);

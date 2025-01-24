@@ -66,7 +66,7 @@ struct CommandFunction : Commander {
     } else if (parser.EatEqICase("listlib")) {
       auto libname = GET_OR_RET(parser.TakeStr().Prefixed("expect a library name"));
 
-      return lua::FunctionListLib(srv, conn, libname, output);
+      return lua::FunctionListLib(conn, libname, output);
     } else if (parser.EatEqICase("delete")) {
       auto libname = GET_OR_RET(parser.TakeStr());
       if (!lua::FunctionIsLibExist(conn, libname)) {

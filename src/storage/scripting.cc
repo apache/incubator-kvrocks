@@ -301,7 +301,7 @@ Status FunctionLoad(redis::Connection *conn, const std::string &script, bool nee
       return {Status::NotOK, "library already exists, please specify REPLACE to force load"};
     }
     engine::Context ctx(srv->storage);
-    auto s = FunctionDelete(ctx, srv, libname);
+    auto s = FunctionDelete(ctx, conn, libname);
     if (!s) return s;
   }
 
@@ -526,7 +526,7 @@ Status FunctionListFunc(Server *srv, const redis::Connection *conn, const std::s
 // list detailed informantion of a specific library
 // NOTE: it is required to load the library to lua runtime before listing (calling this function)
 // i.e. it will output nothing if the library is only in storage but not loaded
-Status FunctionListLib(Server *srv, redis::Connection *conn, const std::string &libname, std::string *output) {
+Status FunctionListLib(redis::Connection *conn, const std::string &libname, std::string *output) {
   auto lua = conn->Owner()->Lua();
 
   lua_getglobal(lua, REDIS_FUNCTION_LIBRARIES);
