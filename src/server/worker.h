@@ -74,6 +74,7 @@ class Worker : EventCallbackBase<Worker>, EvconnlistenerBase<Worker> {
   void TimerCB(int, int16_t events);
 
   lua_State *Lua() { return lua_; }
+  void LuaReset();
   std::map<int, redis::Connection *> GetConnections() const { return conns_; }
   Server *srv;
 

@@ -546,6 +546,12 @@ void Worker::KillClient(redis::Connection *self, uint64_t id, const std::string 
   }
 }
 
+void Worker::LuaReset() {
+  auto lua = lua::CreateState();
+  lua::DestroyState(lua_);
+  lua_ = lua;
+}
+
 void Worker::KickoutIdleClients(int timeout) {
   std::vector<std::pair<int, uint64_t>> to_be_killed_conns;
 

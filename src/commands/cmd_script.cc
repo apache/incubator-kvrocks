@@ -95,7 +95,7 @@ class CommandScript : public Commander {
       }
     } else if (args_.size() == 3 && subcommand_ == "load") {
       std::string sha;
-      auto s = lua::CreateFunction(srv, args_[2], &sha, srv->Lua(), true);
+      auto s = lua::CreateFunction(srv, args_[2], &sha, conn->Owner()->Lua(), true);
       if (!s.IsOK()) {
         return s;
       }
@@ -125,9 +125,8 @@ uint64_t GenerateScriptFlags(uint64_t flags, const std::vector<std::string> &arg
   return flags;
 }
 
-REDIS_REGISTER_COMMANDS(Script,
-                        MakeCmdAttr<CommandEval>("eval", -3, "exclusive write no-script", GetScriptEvalKeyRange),
-                        MakeCmdAttr<CommandEvalSHA>("evalsha", -3, "exclusive write no-script", GetScriptEvalKeyRange),
+REDIS_REGISTER_COMMANDS(Script, MakeCmdAttr<CommandEval>("eval", -3, "write no-script", GetScriptEvalKeyRange),
+                        MakeCmdAttr<CommandEvalSHA>("evalsha", -3, "write no-script", GetScriptEvalKeyRange),
                         MakeCmdAttr<CommandEvalRO>("eval_ro", -3, "read-only no-script", GetScriptEvalKeyRange),
                         MakeCmdAttr<CommandEvalSHARO>("evalsha_ro", -3, "read-only no-script", GetScriptEvalKeyRange),
                         MakeCmdAttr<CommandScript>("script", -2, "exclusive no-script", NO_KEY), )

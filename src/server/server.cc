@@ -113,7 +113,6 @@ Server::Server(engine::Storage *storage, Config *config)
   AdjustOpenFilesLimit();
   slow_log_.SetMaxEntries(config->slowlog_max_len);
   perf_log_.SetMaxEntries(config->profiling_sample_record_max_len);
-  lua_ = lua::CreateState();
 }
 
 Server::~Server() {
@@ -134,8 +133,6 @@ Server::~Server() {
   }
   cleanupExitedWorkerThreads(true /* force */);
   CleanupExitedSlaves();
-
-  lua::DestroyState(lua_);
 }
 
 // Kvrocks threads list:
@@ -1013,16 +1010,12 @@ void Server::GetClientsInfo(std::string *info) {
 
 void Server::GetMemoryInfo(std::string *info) {
   int64_t rss = Stats::GetMemoryRSS();
-  int memory_lua = lua_gc(lua_, LUA_GCCOUNT, 0) * 1024;
   std::string used_memory_rss_human = util::BytesToHuman(rss);
-  std::string used_memory_lua_human = util::BytesToHuman(memory_lua);
 
   std::ostringstream string_stream;
   string_stream << "# Memory\r\n";
   string_stream << "used_memory_rss:" << rss << "\r\n";
   string_stream << "used_memory_rss_human:" << used_memory_rss_human << "\r\n";
-  string_stream << "used_memory_lua:" << memory_lua << "\r\n";
-  string_stream << "used_memory_lua_human:" << used_memory_lua_human << "\r\n";
   string_stream << "used_memory_startup:" << memory_startup_use_.load(std::memory_order_relaxed) << "\r\n";
   *info = string_stream.str();
 }
@@ -1733,11 +1726,7 @@ StatusOr<std::unique_ptr<redis::Commander>> Server::LookupAndCreateCommand(const
   return std::move(cmd);
 }
 
-Status Server::ScriptExists(const std::string &sha) {
-  if (lua::ScriptExists(lua_, sha)) {
-    return Status::OK();
-  }
-
+Status Server::ScriptExists(const std::string &sha) const {
   std::string body;
   return ScriptGet(sha, &body);
 }
@@ -1794,8 +1783,9 @@ Status Server::FunctionSetLib(const std::string &func, const std::string &lib) c
 }
 
 void Server::ScriptReset() {
-  auto lua = lua_.exchange(lua::CreateState());
-  lua::DestroyState(lua);
+  for (auto &wt : worker_threads_) {
+    wt->GetWorker()->LuaReset();
+  }
 }
 
 Status Server::ScriptFlush() {

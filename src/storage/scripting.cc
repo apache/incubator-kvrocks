@@ -294,7 +294,7 @@ Status FunctionLoad(redis::Connection *conn, const std::string &script, bool nee
   const auto libname = GET_OR_RET(ExtractLibNameFromShebang(first_line));
 
   auto srv = conn->GetServer();
-  auto lua = read_only ? conn->Owner()->Lua() : srv->Lua();
+  auto lua = conn->Owner()->Lua();
 
   if (FunctionIsLibExist(conn, libname, need_to_store, read_only)) {
     if (!replace) {
@@ -348,7 +348,7 @@ Status FunctionLoad(redis::Connection *conn, const std::string &script, bool nee
 
 bool FunctionIsLibExist(redis::Connection *conn, const std::string &libname, bool need_check_storage, bool read_only) {
   auto srv = conn->GetServer();
-  auto lua = read_only ? conn->Owner()->Lua() : srv->Lua();
+  auto lua = conn->Owner()->Lua();
 
   lua_getglobal(lua, REDIS_FUNCTION_LIBRARIES);
 
@@ -382,7 +382,7 @@ bool FunctionIsLibExist(redis::Connection *conn, const std::string &libname, boo
 Status FunctionCall(redis::Connection *conn, const std::string &name, const std::vector<std::string> &keys,
                     const std::vector<std::string> &argv, std::string *output, bool read_only) {
   auto srv = conn->GetServer();
-  auto lua = read_only ? conn->Owner()->Lua() : srv->Lua();
+  auto lua = conn->Owner()->Lua();
 
   lua_getglobal(lua, "__redis__err__handler");
 
@@ -526,8 +526,8 @@ Status FunctionListFunc(Server *srv, const redis::Connection *conn, const std::s
 // list detailed informantion of a specific library
 // NOTE: it is required to load the library to lua runtime before listing (calling this function)
 // i.e. it will output nothing if the library is only in storage but not loaded
-Status FunctionListLib(Server *srv, const redis::Connection *conn, const std::string &libname, std::string *output) {
-  auto lua = srv->Lua();
+Status FunctionListLib(Server *srv, redis::Connection *conn, const std::string &libname, std::string *output) {
+  auto lua = conn->Owner()->Lua();
 
   lua_getglobal(lua, REDIS_FUNCTION_LIBRARIES);
   if (lua_isnil(lua, -1)) {
@@ -563,8 +563,8 @@ Status FunctionListLib(Server *srv, const redis::Connection *conn, const std::st
   return Status::OK();
 }
 
-Status FunctionDelete(engine::Context &ctx, Server *srv, const std::string &name) {
-  auto lua = srv->Lua();
+Status FunctionDelete(engine::Context &ctx, redis::Connection *conn, const std::string &name) {
+  auto lua = conn->Owner()->Lua();
 
   lua_getglobal(lua, REDIS_FUNCTION_LIBRARIES);
   if (lua_isnil(lua, -1)) {
@@ -578,7 +578,7 @@ Status FunctionDelete(engine::Context &ctx, Server *srv, const std::string &name
     return {Status::NotOK, "the library does not exist in lua environment"};
   }
 
-  auto storage = srv->storage;
+  auto storage = conn->GetServer()->storage;
   auto cf = storage->GetCFHandle(ColumnFamilyID::Propagate);
 
   for (size_t i = 1; i <= lua_objlen(lua, -1); ++i) {
@@ -607,7 +607,7 @@ Status EvalGenericCommand(redis::Connection *conn, const std::string &body_or_sh
                           const std::vector<std::string> &argv, bool evalsha, std::string *output, bool read_only) {
   Server *srv = conn->GetServer();
   // Use the worker's private Lua VM when entering the read-only mode
-  lua_State *lua = read_only ? conn->Owner()->Lua() : srv->Lua();
+  lua_State *lua = conn->Owner()->Lua();
 
   /* We obtain the script SHA1, then check if this function is already
    * defined into the Lua state */

@@ -72,7 +72,7 @@ struct CommandFunction : Commander {
       if (!lua::FunctionIsLibExist(conn, libname)) {
         return {Status::NotOK, "no such library"};
       }
-      auto s = lua::FunctionDelete(ctx, srv, libname);
+      auto s = lua::FunctionDelete(ctx, conn, libname);
       if (!s) return s;
 
       *output = RESP_OK;
@@ -112,7 +112,7 @@ uint64_t GenerateFunctionFlags(uint64_t flags, const std::vector<std::string> &a
 REDIS_REGISTER_COMMANDS(Function,
                         MakeCmdAttr<CommandFunction>("function", -2, "exclusive no-script", NO_KEY,
                                                      GenerateFunctionFlags),
-                        MakeCmdAttr<CommandFCall<>>("fcall", -3, "exclusive write no-script", GetScriptEvalKeyRange),
+                        MakeCmdAttr<CommandFCall<>>("fcall", -3, "write no-script", GetScriptEvalKeyRange),
                         MakeCmdAttr<CommandFCall<true>>("fcall_ro", -3, "read-only no-script", GetScriptEvalKeyRange));
 
 }  // namespace redis
