@@ -111,8 +111,7 @@ rocksdb::Status Hash::IncrBy(engine::Context &ctx, const Slice &user_key, const 
   if (!s.ok()) return s;
   auto value_str = std::to_string(*new_value);
   if (metadata.IsFieldExpirationEnabled()) {
-    std::string enc_value;
-    encodeExpireAndValue(value_str, expire, &enc_value);
+    auto enc_value = encodeExpireAndValue(value_str, expire);
     batch->Put(sub_key, enc_value);
   } else {
     batch->Put(sub_key, value_str);
@@ -171,8 +170,7 @@ rocksdb::Status Hash::IncrByFloat(engine::Context &ctx, const Slice &user_key, c
   if (!s.ok()) return s;
   auto value_str = std::to_string(*new_value);
   if (metadata.IsFieldExpirationEnabled()) {
-    std::string enc_value;
-    encodeExpireAndValue(value_str, expire, &enc_value);
+    auto enc_value = encodeExpireAndValue(value_str, expire);
     batch->Put(sub_key, enc_value);
   } else {
     batch->Put(sub_key, value_str);
@@ -326,8 +324,7 @@ rocksdb::Status Hash::MSet(engine::Context &ctx, const Slice &user_key, const st
 
     auto value = it->value;
     if (metadata.IsFieldExpirationEnabled()) {
-      std::string enc_value;
-      encodeExpireAndValue(value, expire, &enc_value);
+      auto enc_value = encodeExpireAndValue(value, expire);
       s = batch->Put(sub_key, enc_value);
     } else {
       s = batch->Put(sub_key, value);
@@ -563,8 +560,7 @@ rocksdb::Status Hash::ExpireFields(engine::Context &ctx, const Slice &user_key, 
         (type == HashFieldExpireType::XX && field_expire != 0) ||
         (type == HashFieldExpireType::GT && expire_ms > treated_expire) ||
         (type == HashFieldExpireType::LT && expire_ms < treated_expire)) {
-      std::string enc_value;
-      encodeExpireAndValue(value, expire_ms, &enc_value);
+      auto enc_value = encodeExpireAndValue(value, expire_ms);
       batch->Put(sub_keys[i], enc_value);
       // 1 if expiration was updated
       ret->emplace_back(1);
@@ -636,8 +632,7 @@ rocksdb::Status Hash::PersistFields(engine::Context &ctx, const Slice &user_key,
       ret->emplace_back(-1);
     } else {
       removed = true;
-      std::string enc_value;
-      encodeExpireAndValue(value, 0, &enc_value);
+      auto enc_value = encodeExpireAndValue(value, 0);
       batch->Put(sub_keys[i], enc_value);
       // 1 if expiration was removed
       ret->emplace_back(1);
@@ -757,10 +752,11 @@ rocksdb::Status Hash::decodeExpireFromValue(const HashMetadata &metadata, std::s
   return (expire == 0 || expire > util::GetTimeStampMS()) ? rocksdb::Status::OK() : rocksdb::Status::NotFound();
 }
 
-rocksdb::Status Hash::encodeExpireAndValue(std::string_view value, uint64_t expire, std::string *enc_value) {
-  PutFixed64(enc_value, expire);
-  enc_value->append(value);
-  return rocksdb::Status::OK();
+std::string Hash::encodeExpireAndValue(std::string_view value, uint64_t expire) {
+  std::string out;
+  PutFixed64(&out, expire);
+  out.append(value);
+  return out;
 }
 
 }  // namespace redis
