@@ -876,8 +876,8 @@ func TestEvalScriptFlags(t *testing.T) {
 
 		r = rdb0.Do(ctx, "EVAL",
 			`#!lua flags=no-writes,allow-cross-slot-keys
-		redis.call('set', 'bar');
-		return redis.call('set', 'test');`, "0")
+		redis.call('set', 'bar', 'value');
+		return redis.call('set', 'test', 'value');`, "0")
 		util.ErrorRegexp(t, r.Err(), "ERR .* Write commands are not allowed from read-only scripts")
 
 		r = rdb0.Do(ctx, "EVAL",
