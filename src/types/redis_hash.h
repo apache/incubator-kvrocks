@@ -82,7 +82,7 @@ class Hash : public SubKeyScanner {
  private:
   rocksdb::Status GetMetadata(engine::Context &ctx, const Slice &ns_key, HashMetadata *metadata);
   static rocksdb::Status decodeExpireFromValue(const HashMetadata &metadata, std::string *value, uint64_t &expire);
-  static rocksdb::Status encodeExpireAndValue(std::string value, uint64_t expire, std::string *enc_value);
+  static rocksdb::Status encodeExpireAndValue(std::string_view value, uint64_t expire, std::string *enc_value);
 
   friend struct FieldValueRetriever;
 };

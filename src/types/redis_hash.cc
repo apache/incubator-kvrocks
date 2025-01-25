@@ -757,7 +757,7 @@ rocksdb::Status Hash::decodeExpireFromValue(const HashMetadata &metadata, std::s
   return (expire == 0 || expire > util::GetTimeStampMS()) ? rocksdb::Status::OK() : rocksdb::Status::NotFound();
 }
 
-rocksdb::Status Hash::encodeExpireAndValue(std::string value, uint64_t expire, std::string *enc_value) {
+rocksdb::Status Hash::encodeExpireAndValue(std::string_view value, uint64_t expire, std::string *enc_value) {
   PutFixed64(enc_value, expire);
   enc_value->append(value);
   return rocksdb::Status::OK();
