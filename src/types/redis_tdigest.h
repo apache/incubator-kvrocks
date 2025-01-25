@@ -22,25 +22,15 @@
 
 #include <vector>
 
-#include "rocksdb/db.h"
-#include "rocksdb/slice.h"
-#include "rocksdb/status.h"
+#include <rocksdb/db.h>
+#include <rocksdb/slice.h>
+#include <rocksdb/status.h>
 #include "storage/redis_db.h"
 #include "storage/redis_metadata.h"
 #include "storage/storage.h"
 #include "tdigest.h"
 
 namespace redis {
-// struct Centroid {
-//   double mean;
-//   double weight = 1.0;
-
-//   Centroid& operator+(const Centroid& _) {
-//     // TODO: implement this
-//     return *this;
-//   }
-// };
-
 struct CentroidWithKey {
   Centroid centroid;
   rocksdb::Slice key;
@@ -69,13 +59,8 @@ class TDigest : public SubKeyScanner {
   std::optional<rocksdb::Status> Create(engine::Context& ctx, const Slice& digest_name,
                                         const TDigestCreateOptions& options);
   rocksdb::Status Add(engine::Context& ctx, const Slice& digest_name, const std::vector<double>& inputs);
-  // rocksdb::Status Cdf(engine::Context& context, const Slice& digest_name, const std::vector<double>& numbers,
-  //                     TDigestCDFResult* result);
   rocksdb::Status Quantile(engine::Context& ctx, const Slice& digest_name, const std::vector<double>& qs,
                            TDigestQuantitleResult* result);
-  // rocksdb::Status Info(engine::Context& context, const Slice& digest_name, TDigestInfoResult* result);
-  // rocksdb::Status Merge(engine::Context& context, const Slice& dest_digest_name, const std::vector<Slice>& sources,
-  //                       const TDigestMergeOptions& options);
 
   rocksdb::Status GetMetaData(engine::Context& context, const Slice& digest_name, TDigestMetadata* metadata);
 

@@ -17,54 +17,32 @@
  * under the License.
  *
  */
+ 
+#include <cmath>
 
-#include "types/tdigest.h"
+#include <algorithm>
+#include <memory>
+#include <random>
+#include <string>
+#include <vector>
 
 #include <fmt/format.h>
 #include <glog/logging.h>
 #include <gtest/gtest.h>
-
-#include <algorithm>
-#include <cmath>
-#include <memory>
-#include <random>
 #include <range/v3/algorithm/shuffle.hpp>
 #include <range/v3/range.hpp>
 #include <range/v3/view/chunk.hpp>
 #include <range/v3/view/iota.hpp>
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/transform.hpp>
-#include <string>
-#include <vector>
 
 #include "storage/redis_metadata.h"
 #include "test_base.h"
 #include "time_util.h"
 #include "types/redis_tdigest.h"
+#include "types/tdigest.h"
 
 namespace {
-// class TDSample {
-//   public:
-//   struct Iterator {
-//     Iterator* Clone() const;
-//     bool Next();
-//     bool Valid() const;
-//     const Centroid& Centroid() const;
-//   };
-
-//   Iterator* Begin();
-//   Iterator* End();
-//   double TotalWeight();
-//   double Min() const;
-//   double Max() const;
-// };
-// class CentroidSimpleStorage {
-
-// private:
-// std::list<Centroid> centroids_;
-// std::vector<double> buffer_;
-// };
-
 constexpr std::random_device::result_type kSeed = 14863;  // fixed seed for reproducibility
 
 std::vector<double> QuantileOf(const std::vector<double> &samples, const std::vector<double> &qs) {
@@ -162,7 +140,7 @@ TEST_F(RedisTDigestTest, CentroidTest) {
 }
 
 TEST_F(RedisTDigestTest, Create) {
-  std::string test_digest_name = "test_digest_create";
+  std::string test_digest_name = "test_digest_create" + std::to_string(util::GetTimeStampMS());
   {
     auto status = tdigest_->Create(*ctx_, test_digest_name, {100});
     ASSERT_TRUE(status);
@@ -267,41 +245,3 @@ TEST_F(RedisTDigestTest, Add_2_times) {
                                                 expect_upper);
   }
 }
-
-// TEST_F(RedisTDigestTest, PlentyQuantile_13765_144_Add_100_times) {
-//   std::string test_digest_name = "test_digest_quantile" + std::to_string(util::GetTimeStampMS());
-//   {
-//     auto status = tdigest_->Create(*ctx_, test_digest_name, {1000});
-//     ASSERT_TRUE(status);
-//     ASSERT_TRUE(status->ok());
-//   }
-
-//   int sample_count = 13765;
-//   int quantile_count = 144;
-//   auto samples = GenerateSamples(sample_count, -10000, 10000);
-//   auto qs = GenerateQuantiles(quantile_count);
-//   auto expect_result = QuantileIntervalOf(samples, qs);
-//   std::shuffle(samples.begin(), samples.end(), std::mt19937(kSeed));
-
-//   int group_count = 100;
-//   auto samples_sub_group =
-//       samples | ranges::views::chunk(sample_count / group_count) | ranges::to<std::vector<std::vector<double>>>();
-
-//   for (const auto &s : samples_sub_group) {
-//     auto status = tdigest_->Add(*ctx_, test_digest_name, s);
-//     ASSERT_TRUE(status.ok()) << status.ToString();
-//   }
-
-//   redis::TDigestQuantitleResult tdigest_result;
-//   auto status = tdigest_->Quantile(*ctx_, test_digest_name, qs, &tdigest_result);
-//   ASSERT_TRUE(status.ok()) << status.ToString();
-
-//   for (int i = 0; i < quantile_count; i++) {
-//     auto &[expect_down, expect_upper] = expect_result[i];
-//     auto got = tdigest_result.quantiles[i];
-//     EXPECT_GE(got, expect_down) << fmt::format("quantile is {}, should in interval [{}, {}]", qs[i], expect_down,
-//                                                expect_upper);
-//     EXPECT_LE(got, expect_upper) << fmt::format("quantile is {}, should in interval [{}, {}]", qs[i], expect_down,
-//                                                 expect_upper);
-//   }
-// }

@@ -25,10 +25,10 @@
 #include <memory>
 #include <queue>
 
-#include "fmt/format.h"
-#include "glog/logging.h"
+#include <fmt/format.h>
+#include <glog/logging.h>
+
 #include "status.h"
-#include "types/redis_tdigest.h"
 
 namespace {
 

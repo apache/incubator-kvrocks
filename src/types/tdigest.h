@@ -56,22 +56,25 @@ struct CentroidsWithDelta {
 StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<CentroidsWithDelta>& centroids_list);
 StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<double>& buffer, const CentroidsWithDelta& centroid_list);
 
-// TD should looks like below:
-// class TDSample {
-//   public:
-//   struct Iterator {
-//     Iterator* Clone() const;
-//     bool Next();
-//     bool Valid() const;
-//     StatusOr<Centroid> GetCentroid() const;
-//   };
+/**
 
-//   Iterator* Begin();
-//   Iterator* End();
-//   double TotalWeight();
-//   double Min() const;
-//   double Max() const;
-// };
+TD should looks like below:
+class TDSample {
+  public:
+  struct Iterator {
+    Iterator* Clone() const;
+    bool Next();
+    bool Valid() const;
+    StatusOr<Centroid> GetCentroid() const;
+  };
+  Iterator* Begin();
+  Iterator* End();
+  double TotalWeight();
+  double Min() const;
+  double Max() const;
+};
+
+**/
 
 template <typename TD, typename Lerp>
 inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
