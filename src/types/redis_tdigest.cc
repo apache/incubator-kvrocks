@@ -396,10 +396,6 @@ rocksdb::Status TDigest::mergeCurrentBuffer(engine::Context& ctx, const std::str
     return status;
   }
 
-  if (additional_buffer == nullptr || additional_buffer->empty()) {
-    return rocksdb::Status::OK();
-  }
-
   if (additional_buffer != nullptr) {
     std::copy(additional_buffer->cbegin(), additional_buffer->cend(), std::back_inserter(buffer));
   }

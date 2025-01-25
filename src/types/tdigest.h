@@ -22,6 +22,8 @@
 
 #include <vector>
 
+#include <fmt/format.h>
+
 #include "status.h"
 
 struct Centroid {
@@ -33,6 +35,8 @@ struct Centroid {
     weight += centroid.weight;
     mean += (centroid.mean - mean) * centroid.weight / weight;
   }
+
+  std::string ToString() const { return fmt::format("centroid<mean: {}, weight: {}>", mean, weight); }
 
   template <typename T>
   explicit Centroid(T&& centroid) : mean(centroid.mean), weight(centroid.weight) {}

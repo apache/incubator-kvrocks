@@ -225,4 +225,31 @@ TEST_F(RedisTDigestTest, PlentyQuantile_10000_144) {
   }
 }
 
-TEST_F(RedisTDigestTest, CDF) {}
+TEST_F(RedisTDigestTest, PlentyQuantile_10000_1777) {
+  std::string test_digest_name = "test_digest_quantile" + std::to_string(util::GetTimeStampMS());
+  {
+    auto status = tdigest_->Create(*ctx_, test_digest_name, {100});
+    ASSERT_TRUE(status);
+    ASSERT_TRUE(status->ok());
+  }
+
+  int sample_count = 10000;
+  int quantile_count = 1777;
+  double from = -1 * std::rand() % 100;
+  double to = std::rand() % 100;
+  auto error_double = (to - from) / sample_count;
+  auto samples = GenerateSamples(sample_count, -100, 100);
+  auto status = tdigest_->Add(*ctx_, test_digest_name, samples);
+  ASSERT_TRUE(status.ok()) << status.ToString();
+
+  auto qs = GenerateQuantiles(quantile_count);
+  auto result = QuantileOf(samples, qs);
+
+  redis::TDigestQuantitleResult tdigest_result;
+  status = tdigest_->Quantile(*ctx_, test_digest_name, qs, &tdigest_result);
+  ASSERT_TRUE(status.ok()) << status.ToString();
+
+  for (int i = 0; i < quantile_count; i++) {
+    EXPECT_NEAR(tdigest_result.quantiles[i], result[i], error_double) << "quantile is: " << qs[i];
+  }
+}
