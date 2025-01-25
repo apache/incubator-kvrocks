@@ -20,22 +20,22 @@
 
 #include "redis_tdigest.h"
 
-#include <algorithm>
-#include <iterator>
-#include <limits>
-#include <vector>
-#include <memory>
-
 #include <fmt/format.h>
-#include <range/v3/algorithm/minmax.hpp>
-#include <range/v3/range/conversion.hpp>
-#include <range/v3/view/join.hpp>
-#include <range/v3/view/transform.hpp>
 #include <rocksdb/db.h>
 #include <rocksdb/iterator.h>
 #include <rocksdb/options.h>
 #include <rocksdb/slice.h>
 #include <rocksdb/status.h>
+
+#include <algorithm>
+#include <iterator>
+#include <limits>
+#include <memory>
+#include <range/v3/algorithm/minmax.hpp>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/join.hpp>
+#include <range/v3/view/transform.hpp>
+#include <vector>
 
 #include "db_util.h"
 #include "encoding.h"
@@ -45,19 +45,12 @@
 #include "types/tdigest.h"
 
 namespace redis {
-namespace {
-// a numerically stable lerp is unbelievably complex
-// but we are *approximating* the quantile, so let's keep it simple
-// reference:
-// https://github.com/apache/arrow/blob/27bbd593625122a4a25d9471c8aaf5df54a6dcf9/cpp/src/arrow/util/tdigest.cc#L38
-double Lerp(double a, double b, double t) { return a + t * (b - a); }
-}  // namespace
 
 // It should be replaced by a iteration of the rocksdb iterator
 class DummyCentroids {
  public:
-  DummyCentroids(const TDigestMetadata& meta_data, const std::vector<Centroid>& centroids)
-      : meta_data_(meta_data), centroids_(centroids) {}
+  DummyCentroids(const TDigestMetadata& meta_data, std::vector<Centroid> centroids)
+      : meta_data_(meta_data), centroids_(std::move(centroids)) {}
   class Iterator {
    public:
     Iterator(std::vector<Centroid>::const_iterator&& iter, const std::vector<Centroid>& centroids)

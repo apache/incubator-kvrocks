@@ -20,9 +20,9 @@
 
 #pragma once
 
-#include <vector>
-
 #include <fmt/format.h>
+
+#include <vector>
 
 #include "status.h"
 
@@ -75,6 +75,12 @@ class TDSample {
 };
 
 **/
+
+// a numerically stable lerp is unbelievably complex
+// but we are *approximating* the quantile, so let's keep it simple
+// reference:
+// https://github.com/apache/arrow/blob/27bbd593625122a4a25d9471c8aaf5df54a6dcf9/cpp/src/arrow/util/tdigest.cc#L38
+static inline double Lerp(double a, double b, double t) { return a + t * (b - a); }
 
 template <typename TD, typename Lerp>
 inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {

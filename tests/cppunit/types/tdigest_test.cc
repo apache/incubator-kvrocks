@@ -17,30 +17,30 @@
  * under the License.
  *
  */
- 
-#include <cmath>
 
-#include <algorithm>
-#include <memory>
-#include <random>
-#include <string>
-#include <vector>
+#include "types/tdigest.h"
 
 #include <fmt/format.h>
 #include <glog/logging.h>
 #include <gtest/gtest.h>
+
+#include <algorithm>
+#include <cmath>
+#include <memory>
+#include <random>
 #include <range/v3/algorithm/shuffle.hpp>
 #include <range/v3/range.hpp>
 #include <range/v3/view/chunk.hpp>
 #include <range/v3/view/iota.hpp>
 #include <range/v3/view/join.hpp>
 #include <range/v3/view/transform.hpp>
+#include <string>
+#include <vector>
 
 #include "storage/redis_metadata.h"
 #include "test_base.h"
 #include "time_util.h"
 #include "types/redis_tdigest.h"
-#include "types/tdigest.h"
 
 namespace {
 constexpr std::random_device::result_type kSeed = 14863;  // fixed seed for reproducibility

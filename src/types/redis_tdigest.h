@@ -20,11 +20,12 @@
 
 #pragma once
 
-#include <vector>
-
 #include <rocksdb/db.h>
 #include <rocksdb/slice.h>
 #include <rocksdb/status.h>
+
+#include <vector>
+
 #include "storage/redis_db.h"
 #include "storage/redis_metadata.h"
 #include "storage/storage.h"
@@ -72,10 +73,10 @@ class TDigest : public SubKeyScanner {
   rocksdb::Status appendBuffer(engine::Context& ctx, ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch,
                                const std::string& ns_key, const std::vector<double>& inputs, TDigestMetadata* metadata);
 
-  rocksdb::Status dumpCentroidsAndBuffer(engine::Context& ctx, const std::string& ns_key,
-                                         const TDigestMetadata& metadata, std::vector<Centroid>* centroids,
-                                         std::vector<double>* buffer = nullptr,
-                                         ObserverOrUniquePtr<rocksdb::WriteBatchBase>* clean_after_dump_batch = nullptr);
+  rocksdb::Status dumpCentroidsAndBuffer(
+      engine::Context& ctx, const std::string& ns_key, const TDigestMetadata& metadata,
+      std::vector<Centroid>* centroids, std::vector<double>* buffer = nullptr,
+      ObserverOrUniquePtr<rocksdb::WriteBatchBase>* clean_after_dump_batch = nullptr);
   rocksdb::Status applyNewCentroids(ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch, const std::string& ns_key,
                                     const TDigestMetadata& metadata, const std::vector<Centroid>& centroids);
 

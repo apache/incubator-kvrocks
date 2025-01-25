@@ -20,23 +20,17 @@
 
 #include "tdigest.h"
 
+#include <fmt/format.h>
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <iterator>
 #include <memory>
 #include <queue>
 
-#include <fmt/format.h>
-#include <glog/logging.h>
-
 #include "status.h"
 
 namespace {
-
-// reference:
-// https://github.com/apache/arrow/blob/a08037f33f2fe00763032623e18ba049d19a024f/cpp/src/arrow/util/tdigest.cc a
-// numerically stable lerp is unbelievably complex but we are *approximating* the quantile, so let's keep it simple
-double Lerp(double a, double b, double t) { return a + t * (b - a); }
-
 // scale function K0: linear function, as baseline
 struct ScalerK0 {
   explicit ScalerK0(uint32_t delta) : delta_norm(delta / 2.0) {}
