@@ -28,6 +28,7 @@
 #include "fmt/format.h"
 #include "glog/logging.h"
 #include "status.h"
+#include "types/redis_tdigest.h"
 
 namespace {
 
@@ -68,7 +69,8 @@ class TDigest {
 
   void Merge(const std::vector<TDigest>& others);
   void Add(std::vector<double> items);
-  void Reset(const std::vector<Centroid>& centroids);
+  void Reset(const CentroidsWithDelta& centroid_list);
+  void Reset();
   CentroidsWithDelta DumpCentroids() const;
 
  private:
@@ -148,18 +150,18 @@ class TDigest::TDigestImpl {
     tdigests_[1].resize(0);
     current_ = 0;
     total_weight_ = 0;
-    min_ = std::numeric_limits<double>::max();
-    max_ = std::numeric_limits<double>::lowest();
+    min_ = std::numeric_limits<double>::infinity();
+    max_ = -std::numeric_limits<double>::infinity();
     merger_.Reset(0, nullptr);
   }
 
-  void Reset(const std::vector<Centroid>& centroids) {
+  void Reset(const std::vector<Centroid>& centroids, double min, double max, double total_weight) {
     tdigests_[0] = centroids;
     tdigests_[1].resize(0);
     current_ = 0;
-    total_weight_ = 0;
-    min_ = std::numeric_limits<double>::max();
-    max_ = std::numeric_limits<double>::lowest();
+    total_weight_ = total_weight;
+    min_ = min;
+    max_ = max;
     merger_.Reset(0, nullptr);
   }
 
@@ -191,6 +193,10 @@ class TDigest::TDigestImpl {
   }
 
   std::vector<Centroid> Centroids() const { return tdigests_[current_]; }
+
+  double Min() const { return min_; }
+
+  double Max() const { return max_; }
 
   uint32_t Delta() const { return delta_; }
 
@@ -388,11 +394,21 @@ void TDigest::Merge(const std::vector<TDigest>& others) {
   impl_->Merge(impls);
 }
 
-void TDigest::Reset(const std::vector<Centroid>& centroids) { impl_->Reset(centroids); }
+void TDigest::Reset(const CentroidsWithDelta& centroids_list) {
+  impl_->Reset(centroids_list.centroids, centroids_list.min, centroids_list.max, centroids_list.total_weight);
+}
+
+void TDigest::Reset() { impl_->Reset(); }
 
 CentroidsWithDelta TDigest::DumpCentroids() const {
   auto centroids = impl_->Centroids();
-  return {std::move(centroids), impl_->Delta()};
+  return {
+      .centroids = std::move(centroids),
+      .delta = impl_->Delta(),
+      .min = impl_->Min(),
+      .max = impl_->Max(),
+      .total_weight = impl_->TotalWeight(),
+  };
 }
 
 void TDigest::Add(std::vector<double> items) { impl_->MergeInput(items); }
@@ -406,14 +422,14 @@ StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<CentroidsWithDelta>&
   }
 
   TDigest digest{centroids_list.front().delta};
-  digest.Reset(centroids_list.front().centroids);
+  digest.Reset(centroids_list.front());
 
   std::vector<TDigest> others;
   others.reserve(centroids_list.size() - 1);
 
   for (size_t i = 1; i < centroids_list.size(); ++i) {
     TDigest d{centroids_list[i].delta};
-    digest.Reset(centroids_list[i].centroids);
+    digest.Reset(centroids_list[i]);
     others.emplace_back(std::move(d));
   }
 
@@ -423,7 +439,7 @@ StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<CentroidsWithDelta>&
 }
 StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<double>& buffer, const CentroidsWithDelta& centroid_list) {
   TDigest digest{centroid_list.delta};
-  digest.Reset(centroid_list.centroids);
+  digest.Reset(centroid_list);
   digest.Add(buffer);
   return digest.DumpCentroids();
 }

@@ -48,6 +48,9 @@ struct Centroid {
 struct CentroidsWithDelta {
   std::vector<Centroid> centroids;
   uint64_t delta;
+  double min;
+  double max;
+  double total_weight;
 };
 
 StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<CentroidsWithDelta>& centroids_list);

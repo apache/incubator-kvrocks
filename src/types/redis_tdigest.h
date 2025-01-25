@@ -85,15 +85,14 @@ class TDigest : public SubKeyScanner {
   rocksdb::ColumnFamilyHandle* cf_handle_;
 
   rocksdb::Status appendBuffer(engine::Context& ctx, ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch,
-                               const std::string& ns_key, const std::vector<double>& inputs,
-                               TDigestMetadata* metadata);
+                               const std::string& ns_key, const std::vector<double>& inputs, TDigestMetadata* metadata);
 
   rocksdb::Status dumpCentroidsAndBuffer(engine::Context& ctx, const std::string& ns_key,
                                          const TDigestMetadata& metadata, std::vector<Centroid>* centroids,
-                                         std::vector<double>* buffer = nullptr);
-  rocksdb::Status applyNewCentroidsAndCleanBuffer(ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch,
-                                                  const std::string& ns_key, const TDigestMetadata& metadata,
-                                                  const std::vector<Centroid>& centroids);
+                                         std::vector<double>* buffer = nullptr,
+                                         ObserverOrUniquePtr<rocksdb::WriteBatchBase>* clean_after_dump_batch = nullptr);
+  rocksdb::Status applyNewCentroids(ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch, const std::string& ns_key,
+                                    const TDigestMetadata& metadata, const std::vector<Centroid>& centroids);
 
   std::string internalSegmentGuardPrefixKey(const TDigestMetadata& metadata, const std::string& ns_key,
                                             SegmentType seg);
