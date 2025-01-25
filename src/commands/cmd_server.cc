@@ -647,7 +647,7 @@ class CommandDebug : public Commander {
   }
 
   static uint64_t FlagGen(uint64_t flags, const std::vector<std::string> &args) {
-    if (args.size() >= 2 && (util::EqualICase(args[1], "protocol") || util::EqualICase(args[1], "dbsize-limit"))) {
+    if (args.size() >= 2 && util::EqualICase(args[1], "protocol")) {
       return flags & ~kCmdExclusive;
     }
 
