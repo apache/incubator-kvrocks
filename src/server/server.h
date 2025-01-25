@@ -269,8 +269,7 @@ class Server {
   void KillClient(int64_t *killed, const std::string &addr, uint64_t id, uint64_t type, bool skipme,
                   redis::Connection *conn);
 
-  lua_State *Lua() { return lua_; }
-  Status ScriptExists(const std::string &sha);
+  Status ScriptExists(const std::string &sha) const;
   Status ScriptGet(const std::string &sha, std::string *body) const;
   Status ScriptSet(const std::string &sha, const std::string &body) const;
   void ScriptReset();
@@ -337,8 +336,6 @@ class Server {
   Config *config_ = nullptr;
   std::string last_random_key_cursor_;
   std::mutex last_random_key_cursor_mu_;
-
-  std::atomic<lua_State *> lua_;
 
   // client counters
   std::atomic<uint64_t> client_id_{1};

@@ -66,13 +66,13 @@ struct CommandFunction : Commander {
     } else if (parser.EatEqICase("listlib")) {
       auto libname = GET_OR_RET(parser.TakeStr().Prefixed("expect a library name"));
 
-      return lua::FunctionListLib(srv, conn, libname, output);
+      return lua::FunctionListLib(conn, libname, output);
     } else if (parser.EatEqICase("delete")) {
       auto libname = GET_OR_RET(parser.TakeStr());
       if (!lua::FunctionIsLibExist(conn, libname)) {
         return {Status::NotOK, "no such library"};
       }
-      auto s = lua::FunctionDelete(ctx, srv, libname);
+      auto s = lua::FunctionDelete(ctx, conn, libname);
       if (!s) return s;
 
       *output = RESP_OK;
@@ -102,7 +102,7 @@ struct CommandFCall : Commander {
 CommandKeyRange GetScriptEvalKeyRange(const std::vector<std::string> &args);
 
 uint64_t GenerateFunctionFlags(uint64_t flags, const std::vector<std::string> &args) {
-  if (util::EqualICase(args[1], "load") || util::EqualICase(args[1], "delete")) {
+  if (args.size() >= 2 && (util::EqualICase(args[1], "load") || util::EqualICase(args[1], "delete"))) {
     return flags | kCmdWrite;
   }
 
@@ -112,7 +112,7 @@ uint64_t GenerateFunctionFlags(uint64_t flags, const std::vector<std::string> &a
 REDIS_REGISTER_COMMANDS(Function,
                         MakeCmdAttr<CommandFunction>("function", -2, "exclusive no-script", NO_KEY,
                                                      GenerateFunctionFlags),
-                        MakeCmdAttr<CommandFCall<>>("fcall", -3, "exclusive write no-script", GetScriptEvalKeyRange),
+                        MakeCmdAttr<CommandFCall<>>("fcall", -3, "write no-script", GetScriptEvalKeyRange),
                         MakeCmdAttr<CommandFCall<true>>("fcall_ro", -3, "read-only no-script", GetScriptEvalKeyRange));
 
 }  // namespace redis

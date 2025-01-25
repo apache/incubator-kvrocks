@@ -368,9 +368,11 @@ assert(bit.bor(1,2,4,8,16,32,64,128) == 255)
 		r1 := rdb.Eval(ctx, "return 1+1", []string{})
 		require.NoError(t, r1.Err())
 		require.Equal(t, int64(2), r1.Val())
-		r2 := rdb.ScriptExists(ctx, "a27e7e8a43702b7046d4f6a7ccf5b60cef6b9bd9", "a27e7e8a43702b7046d4f6a7ccf5b60cef6b9bda")
+		r2 := rdb.ScriptLoad(ctx, "return 1+2")
 		require.NoError(t, r2.Err())
-		require.Equal(t, []bool{true, false}, r2.Val())
+		r3 := rdb.ScriptExists(ctx, "a27e7e8a43702b7046d4f6a7ccf5b60cef6b9bd9", "a27e7e8a43702b7046d4f6a7ccf5b60cef6b9bda", r2.Val())
+		require.NoError(t, r3.Err())
+		require.Equal(t, []bool{false, false, true}, r3.Val())
 	})
 
 	t.Run("SCRIPT LOAD - should return SHA as the bulk string", func(t *testing.T) {
