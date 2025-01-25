@@ -552,3 +552,60 @@ func TestFullSyncReplication(t *testing.T) {
 		require.Equal(t, "bar", slaveClient.Get(ctx, "foo").Val())
 	})
 }
+
+func TestSlaveLostMaster(t *testing.T) {
+	// integration test for #2662 and #2671
+	ctx := context.Background()
+
+	masterSrv := util.StartServer(t, map[string]string{
+		"cluster-enabled":               "yes",
+		"max-replication-mb":            "1",
+		"rocksdb.compression":           "no",
+		"rocksdb.write_buffer_size":     "1",
+		"rocksdb.target_file_size_base": "1",
+	})
+	defer func() { masterSrv.Close() }()
+	masterClient := masterSrv.NewClient()
+	defer func() { require.NoError(t, masterClient.Close()) }()
+	masterNodeID := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00"
+	require.NoError(t, masterClient.Do(ctx, "clusterx", "SETNODEID", masterNodeID).Err())
+
+	replicaSrv := util.StartServer(t, map[string]string{
+		"cluster-enabled":                "yes",
+		"replication-connect-timeout-ms": "5000",
+		"replication-recv-timeout-ms":    "5100",
+	})
+	defer func() { replicaSrv.Close() }()
+	replicaClient := replicaSrv.NewClient()
+	// allow to run the read-only command in the replica
+	require.NoError(t, replicaClient.ReadOnly(ctx).Err())
+	defer func() { require.NoError(t, replicaClient.Close()) }()
+	replicaNodeID := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx01"
+	require.NoError(t, replicaClient.Do(ctx, "clusterx", "SETNODEID", replicaNodeID).Err())
+
+	proxyCtx, cancelProxy := context.WithCancel(ctx)
+	newMasterPort := util.SimpleTCPProxy(proxyCtx, t, fmt.Sprintf("127.0.0.1:%d", masterSrv.Port()), true)
+
+	masterNodesInfo := fmt.Sprintf("%s 127.0.0.1 %d master - 0-16383\n%s 127.0.0.1 %d slave %s",
+		masterNodeID, masterSrv.Port(), replicaNodeID, replicaSrv.Port(), masterNodeID)
+	clusterNodesInfo := fmt.Sprintf("%s 127.0.0.1 %d master - 0-16383\n%s 127.0.0.1 %d slave %s",
+		masterNodeID, newMasterPort, replicaNodeID, replicaSrv.Port(), masterNodeID)
+	unexistNodesInfo := fmt.Sprintf("%s 127.0.0.2 %d master - 0-16383\n%s 127.0.0.1 %d slave %s",
+		masterNodeID, newMasterPort, replicaNodeID, replicaSrv.Port(), masterNodeID)
+
+	require.NoError(t, masterClient.Do(ctx, "clusterx", "SETNODES", masterNodesInfo, "1").Err())
+	value := strings.Repeat("a", 128*1024)
+
+	for i := 0; i < 1024; i++ {
+		require.NoError(t, masterClient.Set(ctx, fmt.Sprintf("key%d", i), value, 0).Err())
+	}
+
+	require.NoError(t, replicaClient.Do(ctx, "clusterx", "SETNODES", clusterNodesInfo, "1").Err())
+
+	time.Sleep(2 * time.Second)
+	cancelProxy()
+	start := time.Now()
+	require.NoError(t, replicaClient.Do(ctx, "clusterx", "SETNODES", unexistNodesInfo, "2").Err())
+	duration := time.Since(start)
+	require.Less(t, duration, time.Second*6)
+}

@@ -117,6 +117,7 @@ TEST(SQLParserTest, Simple) {
   AssertIR(Parse("select a from b where y > 2"), "select a from b where y > 2");
   AssertIR(Parse("select a from b where 3 >= z"), "select a from b where z <= 3");
   AssertIR(Parse("select a from b where x hastag \"hi\""), "select a from b where x hastag \"hi\"");
+  AssertIR(Parse("select a from b where x tagged \"hi\""), "select a from b where x hastag \"hi\"");
   AssertIR(Parse(R"(select a from b where x hastag "a\nb")"), R"(select a from b where x hastag "a\nb")");
   AssertIR(Parse(R"(select a from b where x hastag "")"), R"(select a from b where x hastag "")");
   AssertIR(Parse(R"(select a from b where x hastag "hello ,  hi")"), R"(select a from b where x hastag "hello ,  hi")");

@@ -22,8 +22,10 @@
 
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <map>
+#include <memory>
 #include <shared_mutex>
 #include <string>
 #include <vector>
@@ -42,6 +44,13 @@ enum StatsMetricFlags {
 };
 
 constexpr int STATS_METRIC_SAMPLES = 16;  // Number of samples per metric
+
+// Experimental part to support histograms for cmd statistics
+struct CommandHistogram {
+  std::vector<std::unique_ptr<std::atomic<uint64_t>>> buckets;
+  std::atomic<uint64_t> calls;
+  std::atomic<uint64_t> sum;
+};
 
 struct CommandStat {
   std::atomic<uint64_t> calls;
@@ -69,7 +78,12 @@ class Stats {
   std::atomic<uint64_t> psync_ok_count = {0};
   std::map<std::string, CommandStat> commands_stats;
 
-  Stats();
+  using BucketBoundaries = std::vector<double>;
+  BucketBoundaries bucket_boundaries;
+  std::map<std::string, CommandHistogram> commands_histogram;
+
+  explicit Stats(std::vector<double> histogram_bucket_boundaries);
+
   void IncrCalls(const std::string &command_name);
   void IncrLatency(uint64_t latency, const std::string &command_name);
   void IncrInboundBytes(uint64_t bytes) { in_bytes.fetch_add(bytes, std::memory_order_relaxed); }

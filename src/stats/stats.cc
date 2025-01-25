@@ -26,7 +26,7 @@
 #include "fmt/format.h"
 #include "time_util.h"
 
-Stats::Stats() {
+Stats::Stats(std::vector<double> bucket_boundaries) : bucket_boundaries(std::move(bucket_boundaries)) {
   for (int i = 0; i < STATS_METRIC_COUNT; i++) {
     InstMetric im;
     im.last_sample_time_ms = 0;
@@ -86,10 +86,22 @@ int64_t Stats::GetMemoryRSS() {
 void Stats::IncrCalls(const std::string &command_name) {
   total_calls.fetch_add(1, std::memory_order_relaxed);
   commands_stats[command_name].calls.fetch_add(1, std::memory_order_relaxed);
+
+  if (bucket_boundaries.size() > 0) {
+    commands_histogram[command_name].calls.fetch_add(1, std::memory_order_relaxed);
+  }
 }
 
 void Stats::IncrLatency(uint64_t latency, const std::string &command_name) {
   commands_stats[command_name].latency.fetch_add(latency, std::memory_order_relaxed);
+
+  if (bucket_boundaries.size() > 0) {
+    commands_histogram[command_name].sum.fetch_add(latency, std::memory_order_relaxed);
+
+    const auto bucket_index = static_cast<std::size_t>(std::distance(
+        bucket_boundaries.begin(), std::lower_bound(bucket_boundaries.begin(), bucket_boundaries.end(), latency)));
+    commands_histogram[command_name].buckets[bucket_index]->fetch_add(1, std::memory_order_relaxed);
+  }
 }
 
 void Stats::TrackInstantaneousMetric(int metric, uint64_t current_reading) {

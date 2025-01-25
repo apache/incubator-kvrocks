@@ -24,13 +24,12 @@
 #include <rocksdb/env.h>
 #include <strings.h>
 
-#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <iostream>
 #include <iterator>
-#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -125,7 +124,7 @@ Status SetRocksdbCompression(Server *srv, const rocksdb::CompressionType compres
   std::vector<std::string> compression_per_level_builder;
   compression_per_level_builder.reserve(KVROCKS_MAX_LSM_LEVEL);
 
-  for (int i = 0; i < compression_start_level; i++) {
+  for (size_t i = 0; i < compression_start_level; i++) {
     compression_per_level_builder.emplace_back("kNoCompression");
   }
   for (size_t i = compression_start_level; i < KVROCKS_MAX_LSM_LEVEL; i++) {
@@ -240,6 +239,7 @@ Config::Config() {
        new EnumField<JsonStorageFormat>(&json_storage_format, json_storage_formats, JsonStorageFormat::JSON)},
       {"txn-context-enabled", true, new YesNoField(&txn_context_enabled, false)},
       {"skip-block-cache-deallocation-on-close", false, new YesNoField(&skip_block_cache_deallocation_on_close, false)},
+      {"histogram-bucket-boundaries", true, new StringField(&histogram_bucket_boundaries_str_, "")},
 
       /* rocksdb options */
       {"rocksdb.compression", false,
@@ -755,6 +755,25 @@ void Config::initFieldCallback() {
       {"tls-session-cache-size", set_tls_option},
       {"tls-session-cache-timeout", set_tls_option},
 #endif
+      {"histogram-bucket-boundaries",
+       [this]([[maybe_unused]] Server *srv, [[maybe_unused]] const std::string &k, const std::string &v) -> Status {
+         std::vector<std::string> buckets = util::Split(v, ",");
+         histogram_bucket_boundaries.clear();
+         if (buckets.size() < 1) {
+           return Status::OK();
+         }
+         for (const auto &bucket_val : buckets) {
+           auto parse_result = ParseFloat<double>(bucket_val);
+           if (!parse_result) {
+             return {Status::NotOK, "The values in the bucket list must be double or integer."};
+           }
+           histogram_bucket_boundaries.push_back(*parse_result);
+         }
+         if (!std::is_sorted(histogram_bucket_boundaries.begin(), histogram_bucket_boundaries.end())) {
+           return {Status::NotOK, "The values for the histogram must be sorted."};
+         }
+         return Status::OK();
+       }},
   };
   for (const auto &iter : callbacks) {
     auto field_iter = fields_.find(iter.first);

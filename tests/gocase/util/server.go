@@ -34,7 +34,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 )

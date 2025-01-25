@@ -59,6 +59,8 @@ endif()
 
 if(CMAKE_GENERATOR STREQUAL "Ninja")
     set(MAKE_COMMAND make)
+    set(NINJA_MAKE_JOBS 4 CACHE STRING "specify concurrent level while ninja calling make")
+    set(NINJA_MAKE_JOBS_FLAG -j${NINJA_MAKE_JOBS})
 else()
     set(MAKE_COMMAND $(MAKE))
 endif()

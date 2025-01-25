@@ -237,6 +237,9 @@ Status Cluster::SetMasterSlaveRepl() {
     return Status::OK();
   }
 
+  bool is_slave = srv_->IsSlave();
+  bool is_cluster_enabled = srv_->GetConfig()->cluster_enabled;
+
   if (myself_->role == kClusterMaster) {
     // Master mode
     auto s = srv_->RemoveMaster();
@@ -244,16 +247,30 @@ Status Cluster::SetMasterSlaveRepl() {
       return s.Prefixed("failed to remove master");
     }
     LOG(INFO) << "MASTER MODE enabled by cluster topology setting";
-  } else if (nodes_.find(myself_->master_id) != nodes_.end()) {
+    if (srv_->slot_migrator && is_cluster_enabled && is_slave) {
+      // Slave -> Master
+      srv_->slot_migrator->SetStopMigrationFlag(false);
+      LOG(INFO) << "Change server role to master, restart migration task";
+    }
+    return Status::OK();
+  }
+
+  auto it = nodes_.find(myself_->master_id);
+  if (it != nodes_.end()) {
     // Replica mode and master node is existing
-    std::shared_ptr<ClusterNode> master = nodes_[myself_->master_id];
+    std::shared_ptr<ClusterNode> master = it->second;
     auto s = srv_->AddMaster(master->host, master->port, false);
     if (!s.IsOK()) {
       LOG(WARNING) << "SLAVE OF " << master->host << ":" << master->port
                    << " wasn't enabled by cluster topology setting, encounter error: " << s.Msg();
       return s.Prefixed("failed to add master");
     }
-    LOG(INFO) << "SLAVE OF " << master->host << ":" << master->port << " enabled by cluster topology setting";
+    if (srv_->slot_migrator && is_cluster_enabled && !is_slave) {
+      // Master -> Slave
+      srv_->slot_migrator->SetStopMigrationFlag(true);
+      LOG(INFO) << "Change server role to slave, stop migration task";
+    }
+    LOG(INFO) << fmt::format("SLAVE OF {}:{} enabled by cluster topology setting", master->host, master->port);
   }
 
   return Status::OK();

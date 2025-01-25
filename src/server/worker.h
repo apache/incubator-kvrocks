@@ -74,6 +74,9 @@ class Worker : EventCallbackBase<Worker>, EvconnlistenerBase<Worker> {
   void TimerCB(int, int16_t events);
 
   lua_State *Lua() { return lua_; }
+  void LuaReset();
+  int64_t GetLuaMemorySize();
+
   std::map<int, redis::Connection *> GetConnections() const { return conns_; }
   Server *srv;
 
@@ -95,7 +98,7 @@ class Worker : EventCallbackBase<Worker>, EvconnlistenerBase<Worker> {
 
   struct bufferevent_rate_limit_group *rate_limit_group_ = nullptr;
   struct ev_token_bucket_cfg *rate_limit_group_cfg_ = nullptr;
-  lua_State *lua_;
+  std::atomic<lua_State *> lua_;
   std::atomic<bool> is_terminated_ = false;
 };
 

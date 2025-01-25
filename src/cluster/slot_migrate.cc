@@ -29,6 +29,7 @@
 #include "io_util.h"
 #include "storage/batch_extractor.h"
 #include "storage/iterator.h"
+#include "storage/redis_metadata.h"
 #include "sync_migrate_context.h"
 #include "thread_util.h"
 #include "time_util.h"
@@ -343,10 +344,13 @@ Status SlotMigrator::sendSnapshotByCmd() {
   std::string prefix = ComposeSlotKeyPrefix(namespace_, slot_range.start);
   LOG(INFO) << "[migrate] Iterate keys of slot(s), key's prefix: " << prefix;
 
+  std::string upper_bound = ComposeSlotKeyUpperBound(namespace_, slot_range.end);
   rocksdb::ReadOptions read_options = storage_->DefaultScanOptions();
   read_options.snapshot = slot_snapshot_;
   Slice prefix_slice(prefix);
+  Slice upper_bound_slice(upper_bound);
   read_options.iterate_lower_bound = &prefix_slice;
+  read_options.iterate_upper_bound = &upper_bound_slice;
   rocksdb::ColumnFamilyHandle *cf_handle = storage_->GetCFHandle(ColumnFamilyID::Metadata);
   auto iter = util::UniqueIterator(storage_->GetDB()->NewIterator(read_options, cf_handle));
 
@@ -1267,13 +1271,17 @@ Status SlotMigrator::sendMigrationBatch(BatchSender *batch) {
 Status SlotMigrator::sendSnapshotByRawKV() {
   uint64_t start_ts = util::GetTimeStampMS();
   auto slot_range = slot_range_.load();
-  LOG(INFO) << "[migrate] Migrating snapshot of slot(s) " << slot_range.String() << " by raw key value";
+  LOG(INFO) << fmt::format("[migrate] Migrating snapshot of slot(s) {} by raw key value", slot_range.String());
 
   auto prefix = ComposeSlotKeyPrefix(namespace_, slot_range.start);
+  auto upper_bound = ComposeSlotKeyUpperBound(namespace_, slot_range.end);
+
   rocksdb::ReadOptions read_options = storage_->DefaultScanOptions();
   read_options.snapshot = slot_snapshot_;
   rocksdb::Slice prefix_slice(prefix);
+  rocksdb::Slice upper_bound_slice(upper_bound);
   read_options.iterate_lower_bound = &prefix_slice;
+  read_options.iterate_upper_bound = &upper_bound_slice;
   auto no_txn_ctx = engine::Context::NoTransactionContext(storage_);
   engine::DBIterator iter(no_txn_ctx, read_options);
 

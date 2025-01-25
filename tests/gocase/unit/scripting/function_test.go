@@ -516,7 +516,7 @@ func TestFunctionScriptFlags(t *testing.T) {
 		{ 'no-writes', 'allow-cross-slot-keys' })
 
 		redis.register_function('no_write_allow_cross_func_2', 
-		function() redis.call('set', 'bar'); return redis.call('set', 'test'); end, 
+		function() redis.call('set', 'bar', 'value'); return redis.call('set', 'test'); end,
 		{ 'no-writes', 'allow-cross-slot-keys' })
 
 		redis.register_function('no_write_allow_cross_func_3', 
