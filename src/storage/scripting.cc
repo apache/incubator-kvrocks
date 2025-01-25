@@ -755,15 +755,15 @@ int RedisGenericCommand(lua_State *lua, int raise_error) {
   auto cmd = *std::move(cmd_s);
 
   auto attributes = cmd->GetAttributes();
+  if (!attributes->CheckArity(argc)) {
+    PushError(lua, "Wrong number of args calling Redis command From Lua script");
+    return raise_error ? RaiseError(lua) : 1;
+  }
+
   auto cmd_flags = attributes->GenerateFlags(args);
 
   if ((script_run_ctx->flags & ScriptFlagType::kScriptNoWrites) && !(cmd_flags & redis::kCmdReadOnly)) {
     PushError(lua, "Write commands are not allowed from read-only scripts");
-    return raise_error ? RaiseError(lua) : 1;
-  }
-
-  if (!attributes->CheckArity(argc)) {
-    PushError(lua, "Wrong number of args calling Redis command From Lua script");
     return raise_error ? RaiseError(lua) : 1;
   }
 
