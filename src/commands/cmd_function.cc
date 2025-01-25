@@ -102,7 +102,7 @@ struct CommandFCall : Commander {
 CommandKeyRange GetScriptEvalKeyRange(const std::vector<std::string> &args);
 
 uint64_t GenerateFunctionFlags(uint64_t flags, const std::vector<std::string> &args) {
-  if (util::EqualICase(args[1], "load") || util::EqualICase(args[1], "delete")) {
+  if (args.size() >= 2 && (util::EqualICase(args[1], "load") || util::EqualICase(args[1], "delete"))) {
     return flags | kCmdWrite;
   }
 

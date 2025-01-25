@@ -118,7 +118,7 @@ CommandKeyRange GetScriptEvalKeyRange(const std::vector<std::string> &args) {
 }
 
 uint64_t GenerateScriptFlags(uint64_t flags, const std::vector<std::string> &args) {
-  if (util::EqualICase(args[1], "load") || util::EqualICase(args[1], "flush")) {
+  if (args.size() >= 2 && (util::EqualICase(args[1], "load") || util::EqualICase(args[1], "flush"))) {
     return flags | kCmdWrite;
   }
 
