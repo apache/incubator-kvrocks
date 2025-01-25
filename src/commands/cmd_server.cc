@@ -646,6 +646,14 @@ class CommandDebug : public Commander {
     return Status::OK();
   }
 
+  static uint64_t FlagGen(uint64_t flags, const std::vector<std::string> &args) {
+    if (args.size() >= 2 && util::EqualICase(args[1], "protocol")) {
+      return flags & ~kCmdExclusive;
+    }
+
+    return flags;
+  }
+
  private:
   std::string subcommand_;
   std::string protocol_type_;
@@ -1348,7 +1356,7 @@ REDIS_REGISTER_COMMANDS(Server, MakeCmdAttr<CommandAuth>("auth", 2, "read-only o
                         MakeCmdAttr<CommandQuit>("quit", 1, "read-only", NO_KEY),
                         MakeCmdAttr<CommandScan>("scan", -2, "read-only", NO_KEY),
                         MakeCmdAttr<CommandRandomKey>("randomkey", 1, "read-only", NO_KEY),
-                        MakeCmdAttr<CommandDebug>("debug", -2, "read-only exclusive", NO_KEY),
+                        MakeCmdAttr<CommandDebug>("debug", -2, "read-only exclusive", NO_KEY, CommandDebug::FlagGen),
                         MakeCmdAttr<CommandCommand>("command", -1, "read-only", NO_KEY),
                         MakeCmdAttr<CommandEcho>("echo", 2, "read-only", NO_KEY),
                         MakeCmdAttr<CommandTime>("time", 1, "read-only ok-loading", NO_KEY),

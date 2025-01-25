@@ -767,7 +767,13 @@ int RedisGenericCommand(lua_State *lua, int raise_error) {
     return raise_error ? RaiseError(lua) : 1;
   }
 
-  if (cmd_flags & redis::kCmdNoScript) {
+  if ((cmd_flags & redis::kCmdNoScript) || (cmd_flags & redis::kCmdExclusive)) {
+    PushError(lua, "This Redis command is not allowed from scripts");
+    return raise_error ? RaiseError(lua) : 1;
+  }
+
+  // TODO: fix blocking commands to make them work in scripting
+  if (cmd_flags & redis::kCmdBlocking) {
     PushError(lua, "This Redis command is not allowed from scripts");
     return raise_error ? RaiseError(lua) : 1;
   }
