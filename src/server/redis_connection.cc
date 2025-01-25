@@ -130,6 +130,17 @@ void Connection::OnEvent(bufferevent *bev, int16_t events) {
 }
 
 void Connection::Reply(const std::string &msg) {
+  // Do not send replies for both SKIP and OFF modes
+  if (IsFlagEnabled(Flag::kReplyModeOff) || IsFlagEnabled(Flag::kReplyModeSkip)) {
+    return;
+  }
+
+  // Skip starting from the next reply for SKIP mode
+  if (IsFlagEnabled(Flag::kReplyModeSkipNext)) {
+    DisableFlag(Flag::kReplyModeSkipNext);
+    EnableFlag(Flag::kReplyModeSkip);
+  }
+
   owner_->srv->stats.IncrOutboundBytes(msg.size());
   redis::Reply(bufferevent_get_output(bev_), msg);
 }
@@ -371,6 +382,17 @@ static bool IsCmdAllowedInStaleData(const std::string &cmd_name) {
 }
 
 void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
+  // Do not execute commands if we are in pause mode
+  if (srv_->GetCommandPauseType() == kPauseAll ||
+      (srv_->GetCommandPauseType() == kPauseWrite && this->IsFlagEnabled(kPaused))) {
+    return;
+  } else {
+    // Unpause the client when the pause mode ends
+    if (this->IsFlagEnabled(kPaused)) {
+      this->DisableFlag(kPaused);
+    }
+  }
+
   const Config *config = srv_->GetConfig();
   std::string reply;
   std::string password = config->requirepass;
@@ -398,6 +420,16 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
     const auto &attributes = current_cmd->GetAttributes();
     auto cmd_name = attributes->name;
     auto cmd_flags = attributes->GenerateFlags(cmd_tokens);
+
+    // Start pausing the client when we first receive the write command
+    if (!(this->GetClientType() == kTypeSlave) && srv_->GetCommandPauseType() == kPauseWrite &&
+        (cmd_flags & kCmdWrite)) {
+      this->EnableFlag(kPaused);  // Pause the client
+      to_process_cmds->emplace_back(cmd_tokens);
+
+      Reply(redis::SimpleString("OK"));  // Should return OK ASAP
+      break;                             // Do not process remanining commands for now
+    }
 
     if (GetNamespace().empty()) {
       if (!password.empty()) {

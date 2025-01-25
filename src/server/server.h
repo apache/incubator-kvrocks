@@ -140,6 +140,12 @@ enum ClientType {
   kTypeSlave = (1ULL << 3),   // slave client
 };
 
+enum ClientCommandPauseType {
+  kPauseNone = (1ULL << 0),   // pause no commands
+  kPauseWrite = (1ULL << 1),  // pause write commands
+  kPauseAll = (1ULL << 2)     // pause all commands
+};
+
 enum ServerLogType { kServerLogNone, kReplIdLog };
 
 enum class AuthResult {
@@ -242,6 +248,7 @@ class Server {
   void GetCommandsStatsInfo(std::string *info);
   void GetClusterInfo(std::string *info);
   void GetInfo(const std::string &ns, const std::string &section, std::string *info);
+  int64_t GetCommandPauseType();
   std::string GetRocksDBStatsJson() const;
   ReplState GetReplicationState();
 
@@ -283,6 +290,8 @@ class Server {
   Status Propagate(const std::string &channel, const std::vector<std::string> &tokens) const;
   Status ExecPropagatedCommand(const std::vector<std::string> &tokens);
   Status ExecPropagateScriptCommand(const std::vector<std::string> &tokens);
+  void PauseCommands(uint64_t type, uint64_t timeout_ms);
+  void UnpauseCommands();
 
   LogCollector<PerfEntry> *GetPerfLog() { return &perf_log_; }
   LogCollector<SlowEntry> *GetSlowLog() { return &slow_log_; }
@@ -336,6 +345,8 @@ class Server {
   Config *config_ = nullptr;
   std::string last_random_key_cursor_;
   std::mutex last_random_key_cursor_mu_;
+  std::atomic<int64_t> pause_type_{kPauseNone};
+  std::atomic<int64_t> pause_end_timestamp_ms_{0};
 
   // client counters
   std::atomic<uint64_t> client_id_{1};

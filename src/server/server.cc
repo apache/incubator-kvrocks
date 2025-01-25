@@ -1345,6 +1345,15 @@ void Server::GetInfo(const std::string &ns, const std::string &section, std::str
   *info = string_stream.str();
 }
 
+int64_t Server::GetCommandPauseType() {
+  // Stop pausing command if the timeout has reached
+  if (pause_end_timestamp_ms_.load(std::memory_order_relaxed) <= util::GetTimeStampMS()) {
+    UnpauseCommands();
+  }
+
+  return (int64_t)pause_type_.load(std::memory_order_relaxed);
+}
+
 std::string Server::GetRocksDBStatsJson() const {
   jsoncons::json stats_json;
 
@@ -1836,6 +1845,13 @@ Status Server::ExecPropagatedCommand(const std::vector<std::string> &tokens) {
 
   return Status::OK();
 }
+
+void Server::PauseCommands(uint64_t type, uint64_t timeout_ms) {
+  pause_type_.store((int64_t)type, std::memory_order_relaxed);
+  pause_end_timestamp_ms_.store((int64_t)(util::GetTimeStampMS() + timeout_ms), std::memory_order_relaxed);
+}
+
+void Server::UnpauseCommands() { pause_type_.store((int64_t)kPauseNone, std::memory_order_relaxed); }
 
 // AdjustOpenFilesLimit only try best to raise the max open files according to
 // the max clients and RocksDB open file configuration. It also reserves a number

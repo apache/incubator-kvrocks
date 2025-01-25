@@ -404,9 +404,11 @@ class CommandSlowlog : public Commander {
 class CommandClient : public Commander {
  public:
   Status Parse(const std::vector<std::string> &args) override {
-    subcommand_ = util::ToLower(args[1]);
-    // subcommand: getname id kill list info setname
-    if ((subcommand_ == "id" || subcommand_ == "getname" || subcommand_ == "list" || subcommand_ == "info") &&
+    CommandParser parser(args, 1);
+    subcommand_ = util::ToLower(GET_OR_RET(parser.TakeStr()));
+    // subcommand: getname id kill list info setname unpause
+    if ((subcommand_ == "id" || subcommand_ == "getname" || subcommand_ == "list" || subcommand_ == "info" ||
+         subcommand_ == "unpause") &&
         args.size() == 2) {
       return Status::OK();
     }
@@ -477,7 +479,48 @@ class CommandClient : public Commander {
       }
       return Status::OK();
     }
-    return {Status::RedisInvalidCmd, "Syntax error, try CLIENT LIST|INFO|KILL ip:port|GETNAME|SETNAME"};
+
+    // command format: client pause <timeout> [write|all]
+    if ((subcommand_ == "pause")) {
+      if (args.size() != 3 && args.size() != 4) {
+        return {Status::RedisParseErr, errInvalidSyntax};
+      }
+
+      pause_timeout_ms_ = GET_OR_RET(parser.TakeInt());
+
+      if (parser.EatEqICase("all")) {
+        pause_type_ = kPauseAll;
+      } else if (parser.EatEqICase("write")) {
+        pause_type_ = kPauseWrite;
+      } else if (!parser.Good()) {  // Default mode is to pause all commands
+        pause_type_ = kPauseAll;
+      } else {
+        return {Status::RedisParseErr, errInvalidSyntax};
+      }
+
+      return Status::OK();
+    }
+
+    if (subcommand_ == "reply") {
+      if (args.size() != 2 && args.size() != 3) {
+        return {Status::RedisParseErr, errInvalidSyntax};
+      }
+
+      if (parser.EatEqICase("on")) {
+        reply_type_ = 0;
+      } else if (parser.EatEqICase("off")) {
+        reply_type_ = Connection::Flag::kReplyModeOff;
+      } else if (parser.EatEqICase("skip")) {
+        reply_type_ = Connection::Flag::kReplyModeSkipNext;
+      } else {
+        return {Status::RedisParseErr, errInvalidSyntax};
+      }
+
+      return Status::OK();
+    }
+
+    return {Status::RedisInvalidCmd,
+            "Syntax error, try CLIENT LIST|INFO|KILL|PAUSE|UNPAUSE|REPLY ip:port|GETNAME|SETNAME|timeout"};
   }
 
   Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
@@ -510,6 +553,20 @@ class CommandClient : public Commander {
           *output = redis::RESP_OK;
       }
       return Status::OK();
+    } else if (subcommand_ == "pause") {
+      srv->PauseCommands(pause_type_, pause_timeout_ms_);
+      return Status::OK();
+    } else if (subcommand_ == "unpause") {
+      srv->UnpauseCommands();
+      return Status::OK();
+    } else if (subcommand_ == "reply") {
+      conn->DisableFlag(redis::Connection::Flag::kReplyModeOff);
+      conn->DisableFlag(redis::Connection::Flag::kReplyModeSkip);
+      conn->DisableFlag(redis::Connection::Flag::kReplyModeSkipNext);
+      if (reply_type_ != 0) {
+        conn->EnableFlag((redis::Connection::Flag)reply_type_);
+      }
+      return Status::OK();
     }
 
     return {Status::RedisInvalidCmd, "Syntax error, try CLIENT LIST|INFO|KILL ip:port|GETNAME|SETNAME"};
@@ -521,6 +578,9 @@ class CommandClient : public Commander {
   std::string subcommand_;
   bool skipme_ = false;
   int64_t kill_type_ = 0;
+  int64_t pause_type_ = 0;
+  int64_t pause_timeout_ms_ = 0;
+  int64_t reply_type_ = 0;
   uint64_t id_ = 0;
   bool new_format_ = true;
 };

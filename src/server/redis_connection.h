@@ -48,6 +48,10 @@ class Connection : public EvbufCallbackBase<Connection> {
     kMultiExec = 1 << 8,
     kReadOnly = 1 << 9,
     kAsking = 1 << 10,
+    kReplyModeOff = 1 << 11,
+    kReplyModeSkip = 1 << 12,
+    kReplyModeSkipNext = 1 << 13,
+    kPaused = 1 << 14
   };
 
   explicit Connection(bufferevent *bev, Worker *owner);
