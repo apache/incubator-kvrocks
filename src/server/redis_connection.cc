@@ -397,8 +397,15 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
 
     const auto &attributes = current_cmd->GetAttributes();
     auto cmd_name = attributes->name;
-    auto cmd_flags = attributes->GenerateFlags(cmd_tokens);
 
+    int tokens = static_cast<int>(cmd_tokens.size());
+    if (!attributes->CheckArity(tokens)) {
+      if (is_multi_exec) multi_error_ = true;
+      Reply(redis::Error({Status::NotOK, "wrong number of arguments"}));
+      continue;
+    }
+
+    auto cmd_flags = attributes->GenerateFlags(cmd_tokens);
     if (GetNamespace().empty()) {
       if (!password.empty()) {
         if (!(cmd_flags & kCmdAuth)) {
@@ -428,13 +435,6 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
     if (srv_->IsLoading() && !(cmd_flags & kCmdLoading)) {
       Reply(redis::Error({Status::RedisLoading, errRestoringBackup}));
       if (is_multi_exec) multi_error_ = true;
-      continue;
-    }
-
-    int tokens = static_cast<int>(cmd_tokens.size());
-    if (!attributes->CheckArity(tokens)) {
-      if (is_multi_exec) multi_error_ = true;
-      Reply(redis::Error({Status::NotOK, "wrong number of arguments"}));
       continue;
     }
 
