@@ -18,6 +18,11 @@
  *
  */
 
+/*
+This implementation follows apache arrow.
+refer to https://github.com/apache/arrow/blob/27bbd593625122a4a25d9471c8aaf5df54a6dcf9/cpp/src/arrow/util/tdigest.cc
+*/
+
 #include "tdigest.h"
 
 #include <fmt/format.h>
@@ -62,7 +67,7 @@ class TDigest {
   ~TDigest() = default;
 
   void Merge(const std::vector<TDigest>& others);
-  void Add(std::vector<double> items);
+  void Add(const std::vector<double>& items);
   void Reset(const CentroidsWithDelta& centroid_list);
   void Reset();
   CentroidsWithDelta DumpCentroids() const;
@@ -248,7 +253,7 @@ class TDigest::TDigestImpl {
   }
 
   // merge input data with current tdigest
-  void MergeInput(std::vector<double>& input) {
+  void MergeInput(std::vector<double> input) {
     if (tdigests_[current_].empty() && !input.empty()) {
       min_ = input.front();
       max_ = input.front();
@@ -256,12 +261,9 @@ class TDigest::TDigestImpl {
     total_weight_ += static_cast<double>(input.size());
 
     std::sort(input.begin(), input.end());
-    LOG(INFO) << "input size: " << input.size();
     if (input.empty()) {
-      LOG(INFO) << "empty input";
       return;
     }
-    LOG(INFO) << " front: " << input.front() << " back: " << input.back() << "min_: " << min_ << " max_: " << max_;
     min_ = std::min(min_, input.front());
     max_ = std::max(max_, input.back());
 
@@ -283,8 +285,6 @@ class TDigest::TDigestImpl {
       merger_.Add(Centroid{input[input_index++], 1});
     }
     merger_.Reset(0, nullptr);
-
-    input.resize(0);
     current_ = 1 - current_;
   }
 
@@ -405,7 +405,7 @@ CentroidsWithDelta TDigest::DumpCentroids() const {
   };
 }
 
-void TDigest::Add(std::vector<double> items) { impl_->MergeInput(items); }
+void TDigest::Add(const std::vector<double>& items) { impl_->MergeInput(items); }
 
 StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<CentroidsWithDelta>& centroids_list) {
   if (centroids_list.empty()) {

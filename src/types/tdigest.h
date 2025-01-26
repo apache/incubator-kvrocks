@@ -99,27 +99,20 @@ inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
   double weight_sum = 0;
   auto iter = td.Begin();
   for (; iter->Valid(); iter->Next()) {
-    auto centroid = iter->GetCentroid();
-    if (!centroid) {
-      return centroid.ToStatus();
-    }
-    weight_sum += centroid->weight;
+    weight_sum += GET_OR_RET(iter->GetCentroid()).weight;
     if (index <= weight_sum) {
       break;
     }
   }
 
-  auto centroid = iter->GetCentroid();
-  if (!centroid) {
-    return centroid.ToStatus();
-  }
+  auto centroid = GET_OR_RET(iter->GetCentroid());
 
   // deviation of index from the centroid center
-  double diff = index + centroid->weight / 2 - weight_sum;
+  double diff = index + centroid.weight / 2 - weight_sum;
 
   // index happen to be in a unit weight centroid
-  if (centroid->weight == 1 && std::abs(diff) < 0.5) {
-    return centroid->mean;
+  if (centroid.weight == 1 && std::abs(diff) < 0.5) {
+    return centroid.mean;
   }
 
   // find adjacent centroids for interpolation
@@ -128,46 +121,28 @@ inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
   if (diff > 0) {
     if (ci_right == td.End()) {
       // index larger than center of last bin
-      auto c = ci_left->GetCentroid();
-      if (!c) {
-        return c.ToStatus();
-      }
-      DCHECK_GE(c->weight, 2);
-      return lerp(c->mean, td.Max(), diff / (c->weight / 2));
+      auto c = GET_OR_RET(ci_left->GetCentroid());
+      DCHECK_GE(c.weight, 2);
+      return lerp(c.mean, td.Max(), diff / (c.weight / 2));
     }
     ci_right->Next();
   } else {
     if (ci_left == td.Begin()) {
       // index smaller than center of first bin
-      auto c = ci_left->GetCentroid();
-      if (!c) {
-        return c.ToStatus();
-      }
-      DCHECK_GE(c->weight, 2);
-      return lerp(td.Min(), c->mean, index / (c->weight / 2));
+      auto c = GET_OR_RET(ci_left->GetCentroid());
+      DCHECK_GE(c.weight, 2);
+      return lerp(td.Min(), c.mean, index / (c.weight / 2));
     }
     ci_left->Prev();
-    auto lc = ci_left->GetCentroid();
-    if (!lc) {
-      return lc.ToStatus();
-    }
-    auto rc = ci_right->GetCentroid();
-    if (!rc) {
-      return rc.ToStatus();
-    }
-    diff += lc->weight / 2 + rc->weight / 2;
+    auto lc = GET_OR_RET(ci_left->GetCentroid());
+    auto rc = GET_OR_RET(ci_right->GetCentroid());
+    diff += lc.weight / 2 + rc.weight / 2;
   }
 
-  auto lc = ci_left->GetCentroid();
-  if (!lc) {
-    return lc.ToStatus();
-  }
-  auto rc = ci_right->GetCentroid();
-  if (!rc) {
-    return rc.ToStatus();
-  }
+  auto lc = GET_OR_RET(ci_left->GetCentroid());
+  auto rc = GET_OR_RET(ci_right->GetCentroid());
 
   // interpolate from adjacent centroids
-  diff /= (lc->weight / 2 + rc->weight / 2);
-  return lerp(lc->mean, rc->mean, diff);
+  diff /= (lc.weight / 2 + rc.weight / 2);
+  return lerp(lc.mean, rc.mean, diff);
 }

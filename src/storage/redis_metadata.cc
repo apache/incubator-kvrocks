@@ -519,7 +519,7 @@ rocksdb::Status TDigestMetadata::Decode(Slice *input) {
     return s;
   }
 
-  if (input->size() < sizeof(uint64_t) * 8) {
+  if (input->size() < sizeof(uint64_t) * 8 + sizeof(double) * 2) {
     return rocksdb::Status::InvalidArgument(kErrMetadataTooShort);
   }
 

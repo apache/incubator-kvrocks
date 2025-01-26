@@ -362,7 +362,6 @@ Status Storage::Open(DBOpenMode mode) {
   column_families.emplace_back(std::string(kPropagateColumnFamilyName), propagate_opts);
   column_families.emplace_back(std::string(kStreamColumnFamilyName), subkey_opts);
   column_families.emplace_back(std::string(kSearchColumnFamilyName), search_opts);
-  column_families.emplace_back(std::string(kTDigestColumnFamilyName), subkey_opts);
 
   std::vector<std::string> old_column_families;
   auto s = rocksdb::DB::ListColumnFamilies(options, config_->db_dir, &old_column_families);

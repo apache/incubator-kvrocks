@@ -56,7 +56,7 @@ class TDigest : public SubKeyScanner {
  public:
   using Slice = rocksdb::Slice;
   explicit TDigest(engine::Storage* storage, const std::string& ns)
-      : SubKeyScanner(storage, ns), cf_handle_(storage->GetCFHandle(ColumnFamilyID::TDigest)) {}
+      : SubKeyScanner(storage, ns), cf_handle_(storage->GetCFHandle(ColumnFamilyID::PrimarySubkey)) {}
   std::optional<rocksdb::Status> Create(engine::Context& ctx, const Slice& digest_name,
                                         const TDigestCreateOptions& options);
   rocksdb::Status Add(engine::Context& ctx, const Slice& digest_name, const std::vector<double>& inputs);
