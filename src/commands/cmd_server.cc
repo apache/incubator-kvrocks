@@ -525,7 +525,7 @@ class CommandMonitor : public Commander {
 
 class CommandShutdown : public Commander {
  public:
-  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn,
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, [[maybe_unused]] Connection *conn,
                  [[maybe_unused]] std::string *output) override {
     if (!srv->IsStopped()) {
       LOG(INFO) << "SHUTDOWN command received, stopping the server";
@@ -898,7 +898,8 @@ class CommandBGSave : public Commander {
 
 class CommandFlushBackup : public Commander {
  public:
-  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, [[maybe_unused]] Connection *conn,
+                 std::string *output) override {
     Status s = srv->AsyncPurgeOldBackups(0, 0);
     if (!s.IsOK()) return s;
 
@@ -1014,7 +1015,8 @@ static uint64_t GenerateConfigFlag(uint64_t flags, const std::vector<std::string
 
 class CommandLastSave : public Commander {
  public:
-  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
+  Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, [[maybe_unused]] Connection *conn,
+                 std::string *output) override {
     int64_t unix_sec = srv->GetLastBgsaveTime();
     *output = redis::Integer(unix_sec);
     return Status::OK();
