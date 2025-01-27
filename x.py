@@ -55,7 +55,8 @@ SEMVER_REGEX = re.compile(
 )
 
 
-def run(*args: str, msg: Optional[str] = None, verbose: bool = False, **kwargs: Any) -> Popen[str]:
+# NOTE: the return type should be Popen[str], but Popen is not subscriptable before python 3.9
+def run(*args: str, msg: Optional[str] = None, verbose: bool = False, **kwargs: Any) -> Popen:
     sys.stdout.flush()
     if verbose:
         print(f"$ {' '.join(args)}")
