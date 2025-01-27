@@ -807,6 +807,11 @@ int RedisGenericCommand(lua_State *lua, int raise_error) {
     }
   }
 
+  if ((cmd_flags & redis::kCmdAdmin) && !conn->IsAdmin()) {
+    PushError(lua, redis::errAdminPermissionRequired);
+    return raise_error ? RaiseError(lua) : 1;
+  }
+
   if (config->slave_readonly && srv->IsSlave() && (cmd_flags & redis::kCmdWrite)) {
     PushError(lua, "READONLY You can't write against a read only slave.");
     return raise_error ? RaiseError(lua) : 1;

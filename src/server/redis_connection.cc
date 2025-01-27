@@ -452,6 +452,11 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       continue;
     }
 
+    if ((cmd_flags & kCmdAdmin) && !IsAdmin()) {
+      Reply(redis::Error({Status::RedisExecErr, errAdminPermissionRequired}));
+      continue;
+    }
+
     if (config->cluster_enabled) {
       s = srv_->cluster->CanExecByMySelf(attributes, cmd_tokens, this);
       if (!s.IsOK()) {

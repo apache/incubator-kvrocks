@@ -83,6 +83,8 @@ enum CommandFlags : uint64_t {
   kCmdBlocking = 1ULL << 14,
   // "auth" flag, for commands used for authentication
   kCmdAuth = 1ULL << 15,
+  // "admin" flag, for commands that require admin permission
+  kCmdAdmin = 1ULL << 16,
 };
 
 enum class CommandCategory : uint8_t {
@@ -335,6 +337,8 @@ inline uint64_t ParseCommandFlags(const std::string &description, const std::str
       flags |= kCmdAuth;
     else if (flag == "blocking")
       flags |= kCmdBlocking;
+    else if (flag == "admin")
+      flags |= kCmdAdmin;
     else {
       std::cout << fmt::format("Encountered non-existent flag '{}' in command {} in command attribute parsing", flag,
                                cmd_name)
