@@ -159,7 +159,7 @@ func TestPollUpdates_Basic(t *testing.T) {
 		require.ErrorContains(t, rdb0.Do(ctx, "POLLUPDATES", 0, "MAX", 1001).Err(),
 			"ERR out of numeric range")
 		require.ErrorContains(t, rdb0.Do(ctx, "POLLUPDATES", 0, "FORMAT", "COMMAND").Err(),
-			"ERR invalid FORMAT option, only support RAW")
+			"ERR invalid FORMAT option, should be RAW or RESP")
 		require.ErrorContains(t, rdb0.Do(ctx, "POLLUPDATES", 12, "FORMAT", "RAW").Err(),
 			"ERR next sequence is out of range")
 		require.Error(t, rdb0.Do(ctx, "POLLUPDATES", 1, "FORMAT", "EXTRA").Err())
