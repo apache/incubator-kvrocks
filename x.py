@@ -171,7 +171,8 @@ def clang_format(clang_format_path: str, fix: bool = False) -> None:
     command = find_command(clang_format_path, msg="clang-format is required")
 
     version_res = run_pipe(command, '--version').read().strip()
-    if version_re_res := re.search(r'version\s+((?:\w|\.)+)', version_res):
+    version_re_res = re.search(r'version\s+((?:\w|\.)+)', version_res)
+    if version_re_res:
         version_str = version_re_res.group(1)
     else:
         raise RuntimeError(f"version not found in `{command} --version`")
@@ -195,7 +196,8 @@ def clang_tidy(dir: str, jobs: Optional[int], clang_tidy_path: str, run_clang_ti
     tidy_command = find_command(clang_tidy_path, msg="clang-tidy is required")
 
     version_res = run_pipe(tidy_command, '--version').read().strip()
-    if version_re_res := re.search(r'version\s+((?:\w|\.)+)', version_res):
+    version_re_res = re.search(r'version\s+((?:\w|\.)+)', version_res)
+    if version_re_res:
         version_str = version_re_res.group(1)
     else:
         raise RuntimeError(f"version not found in `{tidy_command} --version`")
@@ -231,7 +233,8 @@ def golangci_lint(golangci_lint_path: str) -> None:
     def get_syspath(sys_path: str) -> Tuple[str, str]:
         golangci_command = find_command(sys_path, msg="golangci-lint is required")
         version_res = run_pipe(golangci_command, '--version').read().strip()
-        if version_re_res := re.search(r'version\s+((?:\w|\.)+)', version_res):
+        version_re_res = re.search(r'version\s+((?:\w|\.)+)', version_res)
+        if version_re_res:
             version_str = version_re_res.group(1)
         else:
             raise RuntimeError(f"version not found in `{golangci_command} --version`")
