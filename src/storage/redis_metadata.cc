@@ -30,7 +30,6 @@
 
 #include "cluster/redis_slot.h"
 #include "encoding.h"
-#include "rocksdb/status.h"
 #include "time_util.h"
 
 // 52 bit for microseconds and 11 bit for counter
