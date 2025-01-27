@@ -18,6 +18,8 @@
  *
  */
 
+#include <storage/batch_extractor.h>
+
 #include "command_parser.h"
 #include "commander.h"
 #include "commands/scan_base.h"
@@ -1297,8 +1299,10 @@ class CommandPollUpdates : public Commander {
         auto format = GET_OR_RET(parser.TakeStr());
         if (util::EqualICase(format, "RAW")) {
           format_ = Format::Raw;
+        } else if (util::EqualICase(format, "RESP")) {
+          format_ = Format::RESP;
         } else {
-          return {Status::RedisParseErr, "invalid FORMAT option, only support RAW"};
+          return {Status::RedisParseErr, "invalid FORMAT option, should be RAW or RESP"};
         }
       } else {
         return {Status::RedisParseErr, errInvalidSyntax};
@@ -1307,17 +1311,57 @@ class CommandPollUpdates : public Commander {
     return Status::OK();
   }
 
+  static StatusOr<std::string> ToRespFormat(const engine::Storage *storage,
+                                            const std::vector<rocksdb::BatchResult> &batches) {
+    std::map<std::string, std::vector<std::string>> ns_commands;
+    for (const auto &batch : batches) {
+      rocksdb::WriteBatch write_batch(batch.writeBatchPtr->Data());
+      WriteBatchExtractor extractor(storage->IsSlotIdEncoded(), -1, true);
+      auto db_status = write_batch.Iterate(&extractor);
+      if (!db_status.ok()) {
+        return {Status::RedisExecErr, db_status.ToString()};
+      }
+      auto parsed_commands = extractor.GetRESPCommands();
+      for (const auto &iter : *parsed_commands) {
+        // Add the command vector to the namespace
+        ns_commands[iter.first].insert(ns_commands[iter.first].end(), iter.second.begin(), iter.second.end());
+      }
+    }
+
+    std::string updates = MultiLen(ns_commands.size() * 2);
+    for (const auto &iter : ns_commands) {
+      if (iter.first == kDefaultNamespace) {
+        updates += BulkString("default");
+      } else {
+        updates += BulkString(iter.first);
+      }
+      updates += Array(iter.second);
+    }
+    return updates;
+  }
+
+  static StatusOr<std::string> ToRawFormat(const std::vector<rocksdb::BatchResult> &batches) {
+    std::string updates = redis::MultiLen(batches.size());
+    for (const auto &batch : batches) {
+      updates += BulkString(util::StringToHex(batch.writeBatchPtr->Data()));
+    }
+    return updates;
+  }
+
   Status Execute([[maybe_unused]] engine::Context &ctx, Server *srv, Connection *conn, std::string *output) override {
     uint64_t next_sequence = sequence_;
     // sequence + 1 is for excluding the current sequence to avoid getting duplicate updates
     auto batches = GET_OR_RET(srv->PollUpdates(sequence_ + 1, max_, is_strict_));
-    std::string updates = redis::MultiLen(batches.size());
-    for (const auto &batch : batches) {
-      updates += redis::BulkString(util::StringToHex(batch.writeBatchPtr->Data()));
-      // It might contain more than one sequence in a batch
-      next_sequence = batch.sequence + batch.writeBatchPtr->Count() - 1;
+    if (batches.size() > 0) {
+      auto &last_batch = batches.back();
+      next_sequence = last_batch.sequence + last_batch.writeBatchPtr->Count() - 1;
     }
-
+    std::string updates;
+    if (format_ == Format::RESP) {
+      updates = GET_OR_RET(ToRespFormat(srv->storage, batches));
+    } else {
+      updates = GET_OR_RET(ToRawFormat(batches));
+    }
     *output = conn->Map({
         {redis::BulkString("latest_sequence"), redis::Integer(srv->storage->LatestSeqNumber())},
         {redis::BulkString("updates"), std::move(updates)},
@@ -1329,6 +1373,7 @@ class CommandPollUpdates : public Commander {
  private:
   enum class Format {
     Raw,
+    RESP,
   };
 
   uint64_t sequence_ = -1;
