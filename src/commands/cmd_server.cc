@@ -1302,7 +1302,7 @@ class CommandPollUpdates : public Commander {
         } else if (util::EqualICase(format, "RESP")) {
           format_ = Format::RESP;
         } else {
-          return {Status::RedisParseErr, "invalid FORMAT option, only support RAW"};
+          return {Status::RedisParseErr, "invalid FORMAT option, should be RAW or RESP"};
         }
       } else {
         return {Status::RedisParseErr, errInvalidSyntax};
