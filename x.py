@@ -25,7 +25,7 @@ import re
 import filecmp
 from subprocess import Popen, PIPE
 import sys
-from typing import List, Any, Optional, TextIO, Tuple
+from typing import List, Any, Optional, IO, Tuple
 from shutil import which
 
 CMAKE_REQUIRE_VERSION = (3, 16, 0)
@@ -55,6 +55,7 @@ SEMVER_REGEX = re.compile(
 )
 
 
+# NOTE: the return type should be Popen[str], but Popen is not subscriptable before python 3.9
 def run(*args: str, msg: Optional[str] = None, verbose: bool = False, **kwargs: Any) -> Popen:
     sys.stdout.flush()
     if verbose:
@@ -71,9 +72,9 @@ def run(*args: str, msg: Optional[str] = None, verbose: bool = False, **kwargs: 
     return p
 
 
-def run_pipe(*args: str, msg: Optional[str] = None, verbose: bool = False, **kwargs: Any) -> TextIO:
+def run_pipe(*args: str, msg: Optional[str] = None, verbose: bool = False, **kwargs: Any) -> IO[str]:
     p = run(*args, msg=msg, verbose=verbose, stdout=PIPE, universal_newlines=True, **kwargs)
-    return p.stdout  # type: ignore
+    return p.stdout # type: ignore
 
 
 def find_command(command: str, msg: Optional[str] = None) -> str:
@@ -171,7 +172,11 @@ def clang_format(clang_format_path: str, fix: bool = False) -> None:
     command = find_command(clang_format_path, msg="clang-format is required")
 
     version_res = run_pipe(command, '--version').read().strip()
-    version_str = re.search(r'version\s+((?:\w|\.)+)', version_res).group(1)
+    version_re_res = re.search(r'version\s+((?:\w|\.)+)', version_res)
+    if version_re_res:
+        version_str = version_re_res.group(1)
+    else:
+        raise RuntimeError(f"version not found in `{command} --version`")
 
     check_version(version_str, CLANG_FORMAT_REQUIRED_VERSION, "clang-format")
 
@@ -192,7 +197,11 @@ def clang_tidy(dir: str, jobs: Optional[int], clang_tidy_path: str, run_clang_ti
     tidy_command = find_command(clang_tidy_path, msg="clang-tidy is required")
 
     version_res = run_pipe(tidy_command, '--version').read().strip()
-    version_str = re.search(r'version\s+((?:\w|\.)+)', version_res).group(1)
+    version_re_res = re.search(r'version\s+((?:\w|\.)+)', version_res)
+    if version_re_res:
+        version_str = version_re_res.group(1)
+    else:
+        raise RuntimeError(f"version not found in `{tidy_command} --version`")
 
     check_version(version_str, CLANG_TIDY_REQUIRED_VERSION, "clang-tidy")
 
@@ -225,7 +234,11 @@ def golangci_lint(golangci_lint_path: str) -> None:
     def get_syspath(sys_path: str) -> Tuple[str, str]:
         golangci_command = find_command(sys_path, msg="golangci-lint is required")
         version_res = run_pipe(golangci_command, '--version').read().strip()
-        version_str = re.search(r'version\s+((?:\w|\.)+)', version_res).group(1)
+        version_re_res = re.search(r'version\s+((?:\w|\.)+)', version_res)
+        if version_re_res:
+            version_str = version_re_res.group(1)
+        else:
+            raise RuntimeError(f"version not found in `{golangci_command} --version`")
         return golangci_command, version_str
 
     def download_package(bindir: str) -> None:
