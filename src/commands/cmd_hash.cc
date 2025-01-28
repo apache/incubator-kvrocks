@@ -262,10 +262,10 @@ class CommandHMSet : public Commander {
 class CommandHSetEx : public Commander {
  public:
   Status Parse(const std::vector<std::string> &args) override {
-    if (args.size() < 5) {
-      return {Status::RedisParseErr, errWrongNumOfArguments};
-    }
     ttl_ = GET_OR_RET(ParseInt<uint64_t>(args[2], 10));
+    if ((args.size() - 3) % 2 != 0) {
+      return {Status::RedisParseErr, "Invalid number of arguments: field-value pairs must be complete"};
+    }
     for (size_t i = 3; i < args_.size(); i += 2) {
       field_values_.emplace_back(args_[i], args_[i + 1]);
     }
@@ -479,7 +479,7 @@ REDIS_REGISTER_COMMANDS(Hash, MakeCmdAttr<CommandHGet>("hget", 3, "read-only", 1
                         MakeCmdAttr<CommandHIncrBy>("hincrby", 4, "write", 1, 1, 1),
                         MakeCmdAttr<CommandHIncrByFloat>("hincrbyfloat", 4, "write", 1, 1, 1),
                         MakeCmdAttr<CommandHMSet>("hset", -4, "write", 1, 1, 1),
-                        MakeCmdAttr<CommandHSetEx>("hsetex", -4, "write", 1, 1, 1),
+                        MakeCmdAttr<CommandHSetEx>("hsetex", -5, "write", 1, 1, 1),
                         MakeCmdAttr<CommandHSetNX>("hsetnx", -4, "write", 1, 1, 1),
                         MakeCmdAttr<CommandHDel>("hdel", -3, "write no-dbsize-check", 1, 1, 1),
                         MakeCmdAttr<CommandHStrlen>("hstrlen", 3, "read-only", 1, 1, 1),
