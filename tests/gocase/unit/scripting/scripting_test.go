@@ -198,8 +198,14 @@ return {type(foo),foo == false}
 	})
 
 	t.Run("EVAL - Scripts can't run certain commands", func(t *testing.T) {
-		r := rdb.Eval(ctx, `return redis.pcall('blpop','x',0)`, []string{})
+		r := rdb.Eval(ctx, `return redis.pcall('shutdown')`, []string{})
 		require.ErrorContains(t, r.Err(), "not allowed")
+	})
+
+	t.Run("EVAL - Scripts can run blocking commands and get immediate result", func(t *testing.T) {
+		r := rdb.Eval(ctx, `return redis.pcall('blpop', KEYS[1], 0)`, []string{"key_for_blpop_script"})
+		require.Equal(t, r.Val(), nil)
+		require.ErrorContains(t, r.Err(), "nil")
 	})
 
 	t.Run("EVAL - Scripts can run certain commands", func(t *testing.T) {

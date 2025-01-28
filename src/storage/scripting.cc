@@ -756,7 +756,7 @@ int RedisGenericCommand(lua_State *lua, int raise_error) {
 
   auto attributes = cmd->GetAttributes();
   if (!attributes->CheckArity(argc)) {
-    PushError(lua, "Wrong number of args calling Redis command From Lua script");
+    PushError(lua, "Wrong number of args while calling Redis command from Lua script");
     return raise_error ? RaiseError(lua) : 1;
   }
 
@@ -768,12 +768,6 @@ int RedisGenericCommand(lua_State *lua, int raise_error) {
   }
 
   if ((cmd_flags & redis::kCmdNoScript) || (cmd_flags & redis::kCmdExclusive)) {
-    PushError(lua, "This Redis command is not allowed from scripts");
-    return raise_error ? RaiseError(lua) : 1;
-  }
-
-  // TODO: fix blocking commands to make them work in scripting
-  if (cmd_flags & redis::kCmdBlocking) {
     PushError(lua, "This Redis command is not allowed from scripts");
     return raise_error ? RaiseError(lua) : 1;
   }
