@@ -756,7 +756,7 @@ int RedisGenericCommand(lua_State *lua, int raise_error) {
 
   auto attributes = cmd->GetAttributes();
   if (!attributes->CheckArity(argc)) {
-    PushError(lua, "Wrong number of args calling Redis command From Lua script");
+    PushError(lua, "Wrong number of args while calling Redis command from Lua script");
     return raise_error ? RaiseError(lua) : 1;
   }
 
