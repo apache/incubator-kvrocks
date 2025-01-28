@@ -52,7 +52,7 @@ class BlockingCommander : public Commander,
   // to start the blocking process
   // usually put to the end of the Execute method
   Status StartBlocking(int64_t timeout, std::string *output) {
-    if (conn_->IsInExec()) {
+    if (conn_->IsInExec() || conn_->IsInScript()) {
       *output = NoopReply(conn_);
       return Status::OK();  // no blocking in multi-exec
     }

@@ -452,6 +452,11 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       continue;
     }
 
+    if ((cmd_flags & kCmdAdmin) && !IsAdmin()) {
+      Reply(redis::Error({Status::RedisExecErr, errAdminPermissionRequired}));
+      continue;
+    }
+
     if (config->cluster_enabled) {
       s = srv_->cluster->CanExecByMySelf(attributes, cmd_tokens, this);
       if (!s.IsOK()) {
@@ -489,6 +494,12 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
                           "Link with MASTER is down "
                           "and slave-serve-stale-data is set to 'no'."}));
       continue;
+    }
+
+    ScopeExit in_script_exit{[this] { in_script_ = false; }, false};
+    if (attributes->category == CommandCategory::Script || attributes->category == CommandCategory::Function) {
+      in_script_ = true;
+      in_script_exit.Enable();
     }
 
     SetLastCmd(cmd_name);

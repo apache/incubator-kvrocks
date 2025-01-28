@@ -70,10 +70,6 @@ class CommandCluster : public Commander {
       return {Status::RedisExecErr, "Cluster mode is not enabled"};
     }
 
-    if (!conn->IsAdmin()) {
-      return {Status::RedisExecErr, errAdminPermissionRequired};
-    }
-
     if (subcommand_ == "keyslot") {
       auto slot_id = GetSlotIdFromKey(args_[2]);
       *output = redis::Integer(slot_id);
@@ -249,10 +245,6 @@ class CommandClusterX : public Commander {
       return {Status::RedisExecErr, "Cluster mode is not enabled"};
     }
 
-    if (!conn->IsAdmin()) {
-      return {Status::RedisExecErr, errAdminPermissionRequired};
-    }
-
     bool need_persist_nodes_info = false;
     if (subcommand_ == "setnodes") {
       Status s = srv->cluster->SetClusterNodes(nodes_str_, set_version_, force_);
@@ -357,8 +349,9 @@ class CommandAsking : public Commander {
   }
 };
 
-REDIS_REGISTER_COMMANDS(Cluster, MakeCmdAttr<CommandCluster>("cluster", -2, "no-script", NO_KEY, GenerateClusterFlag),
-                        MakeCmdAttr<CommandClusterX>("clusterx", -2, "no-script", NO_KEY, GenerateClusterFlag),
+REDIS_REGISTER_COMMANDS(Cluster,
+                        MakeCmdAttr<CommandCluster>("cluster", -2, "no-script admin", NO_KEY, GenerateClusterFlag),
+                        MakeCmdAttr<CommandClusterX>("clusterx", -2, "no-script admin", NO_KEY, GenerateClusterFlag),
                         MakeCmdAttr<CommandReadOnly>("readonly", 1, "no-multi", NO_KEY),
                         MakeCmdAttr<CommandReadWrite>("readwrite", 1, "no-multi", NO_KEY),
                         MakeCmdAttr<CommandAsking>("asking", 1, "", NO_KEY), )
