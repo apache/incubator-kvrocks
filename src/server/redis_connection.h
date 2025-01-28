@@ -171,6 +171,7 @@ class Connection : public EvbufCallbackBase<Connection> {
   // Multi exec
   void SetInExec() { in_exec_ = true; }
   bool IsInExec() const { return in_exec_; }
+  bool IsInScript() const { return in_script_; }
   bool IsMultiError() const { return multi_error_; }
   void ResetMultiExec();
   std::deque<redis::CommandTokens> *GetMultiExecCommands() { return &multi_cmds_; }
@@ -210,6 +211,7 @@ class Connection : public EvbufCallbackBase<Connection> {
   bool multi_error_ = false;
   std::atomic<bool> is_running_ = false;
   std::deque<redis::CommandTokens> multi_cmds_;
+  bool in_script_ = false;
 
   bool importing_ = false;
   RESP protocol_version_ = RESP::v2;

@@ -496,6 +496,12 @@ void Connection::ExecuteCommands(std::deque<CommandTokens> *to_process_cmds) {
       continue;
     }
 
+    ScopeExit in_script_exit{[this] { in_script_ = false; }, false};
+    if (attributes->category == CommandCategory::Script || attributes->category == CommandCategory::Function) {
+      in_script_ = true;
+      in_script_exit.Enable();
+    }
+
     SetLastCmd(cmd_name);
     {
       std::optional<MultiLockGuard> guard;
