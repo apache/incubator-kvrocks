@@ -239,7 +239,7 @@ rocksdb::Status Hash::Delete(engine::Context &ctx, const Slice &user_key, const 
 }
 
 rocksdb::Status Hash::MSet(engine::Context &ctx, const Slice &user_key, const std::vector<FieldValue> &field_values,
-                           bool nx, uint64_t *added_cnt, uint64_t ttl_) {
+                           bool nx, uint64_t *added_cnt, uint64_t expire) {
   *added_cnt = 0;
   std::string ns_key = AppendNamespacePrefix(user_key);
 
@@ -247,8 +247,8 @@ rocksdb::Status Hash::MSet(engine::Context &ctx, const Slice &user_key, const st
   rocksdb::Status s = GetMetadata(ctx, ns_key, &metadata);
   if (!s.ok() && !s.IsNotFound()) return s;
   bool ttl_updated = false;
-  if (ttl_ != -1 && metadata.expire != ttl_) {
-    metadata.expire = ttl_;
+  if (expire > 0 && metadata.expire != expire) {
+    metadata.expire = expire;
     ttl_updated = true;
   }
   int added = 0;

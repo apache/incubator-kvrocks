@@ -265,7 +265,7 @@ class CommandHSetEx : public Commander {
     if (args.size() < 5) {
       return {Status::RedisParseErr, errWrongNumOfArguments};
     }
-    ttl_ = GET_OR_RET(ParseInt<int64_t>(args[2], 10));
+    ttl_ = GET_OR_RET(ParseInt<uint64_t>(args[2], 10));
     for (size_t i = 3; i < args_.size(); i += 2) {
       field_values_.emplace_back(args_[i], args_[i + 1]);
     }
