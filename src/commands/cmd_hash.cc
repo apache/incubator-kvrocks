@@ -259,7 +259,7 @@ class CommandHMSet : public Commander {
   std::vector<FieldValue> field_values_;
 };
 
-class CommandHSetEx : public Commander {
+class CommandHSetExpire : public Commander {
  public:
   Status Parse(const std::vector<std::string> &args) override {
     ttl_ = GET_OR_RET(ParseInt<uint64_t>(args[2], 10));
@@ -479,7 +479,7 @@ REDIS_REGISTER_COMMANDS(Hash, MakeCmdAttr<CommandHGet>("hget", 3, "read-only", 1
                         MakeCmdAttr<CommandHIncrBy>("hincrby", 4, "write", 1, 1, 1),
                         MakeCmdAttr<CommandHIncrByFloat>("hincrbyfloat", 4, "write", 1, 1, 1),
                         MakeCmdAttr<CommandHMSet>("hset", -4, "write", 1, 1, 1),
-                        MakeCmdAttr<CommandHSetEx>("hsetex", -5, "write", 1, 1, 1),
+                        MakeCmdAttr<CommandHSetExpire>("hsetexpire", -5, "write", 1, 1, 1),
                         MakeCmdAttr<CommandHSetNX>("hsetnx", -4, "write", 1, 1, 1),
                         MakeCmdAttr<CommandHDel>("hdel", -3, "write no-dbsize-check", 1, 1, 1),
                         MakeCmdAttr<CommandHStrlen>("hstrlen", 3, "read-only", 1, 1, 1),

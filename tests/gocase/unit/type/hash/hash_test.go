@@ -120,23 +120,23 @@ var testHash = func(t *testing.T, configs util.KvrocksServerConfigs) {
 		require.Equal(t, int64(1), rdb.HSet(ctx, "hmsetmulti", "key1", "val1", "key3", "val3").Val())
 	})
 
-	t.Run("HSETEX wrong number of args", func(t *testing.T) {
+	t.Run("HSETEXPIRE wrong number of args", func(t *testing.T) {
 		pattern := ".*wrong number.*"
 		ttlStr := "3600"
 		testKey := "hsetKey"
-		r := rdb.Do(ctx, "hsetex", testKey, ttlStr)
+		r := rdb.Do(ctx, "hsetexpire", testKey, ttlStr)
 		util.ErrorRegexp(t, r.Err(), pattern)
 	})
 
-	t.Run("HSETEX incomplete pairs", func(t *testing.T) {
+	t.Run("HSETEXPIRE incomplete pairs", func(t *testing.T) {
 		pattern := ".*field-value pairs must be complete.*"
 		ttlStr := "3600"
 		testKey := "hsetKey"
-		r := rdb.Do(ctx, "hsetex", testKey, ttlStr, "key1", "val1", "key2")
+		r := rdb.Do(ctx, "hsetexpire", testKey, ttlStr, "key1", "val1", "key2")
 		util.ErrorRegexp(t, r.Err(), pattern)
 	})
 
-	t.Run("HSETEX/HSETEX update expire time", func(t *testing.T) {
+	t.Run("HSET/HSETEXPIRE/HSETEXPIRE/persist update expire time", func(t *testing.T) {
 		ttlStr := "3600"
 		testKey := "hsetKeyUpdateTime"
 		// create an hash without expiration
@@ -150,7 +150,7 @@ var testHash = func(t *testing.T, configs util.KvrocksServerConfigs) {
 		assert.Equal(t, 2, len(values.Val()))
 
 		// update the hash and add expiration
-		r = rdb.Do(ctx, "hsetex", testKey, ttlStr, "key3", "val3")
+		r = rdb.Do(ctx, "hsetexpire", testKey, ttlStr, "key3", "val3")
 		require.NoError(t, r.Err())
 		assert.Equal(t, "OK", r.Val())
 		firstExp := rdb.ExpireTime(ctx, testKey)
@@ -164,7 +164,7 @@ var testHash = func(t *testing.T, configs util.KvrocksServerConfigs) {
 
 		// update the has and expiration
 		time.Sleep(1 * time.Second)
-		r = rdb.Do(ctx, "hsetex", testKey, ttlStr, "key4", "val4")
+		r = rdb.Do(ctx, "hsetexpire", testKey, ttlStr, "key4", "val4")
 		require.NoError(t, r.Err())
 		assert.Equal(t, "OK", r.Val())
 		// validate there is exp set on the key and it is new
@@ -187,7 +187,7 @@ var testHash = func(t *testing.T, configs util.KvrocksServerConfigs) {
 		assert.Equal(t, 4, len(values.Val()))
 	})
 
-	t.Run("HSETEX/HLEN/EXPIRETIME - Small hash creation", func(t *testing.T) {
+	t.Run("HSETEXPIRE/HLEN/EXPIRETIME - Small hash creation", func(t *testing.T) {
 		ttlStr := "3600"
 		testKey := "hsetexsmallhash"
 		hsetExSmallHash := make(map[string]string)
@@ -197,7 +197,7 @@ var testHash = func(t *testing.T, configs util.KvrocksServerConfigs) {
 			if _, ok := hsetExSmallHash[key]; ok {
 				i--
 			}
-			rdb.Do(ctx, "hsetex", testKey, ttlStr, key, val)
+			rdb.Do(ctx, "hsetexpire", testKey, ttlStr, key, val)
 			hsetExSmallHash[key] = val
 		}
 		require.Equal(t, int64(8), rdb.HLen(ctx, testKey).Val())
@@ -206,7 +206,7 @@ var testHash = func(t *testing.T, configs util.KvrocksServerConfigs) {
 		require.Greater(t, expireTime, time.Now().Unix())
 	})
 
-	t.Run("HSETEX/HLEN/EXPIRETIME - Big hash creation", func(t *testing.T) {
+	t.Run("HSETEXPIRE/HLEN/EXPIRETIME - Big hash creation", func(t *testing.T) {
 		ttlStr := "3600"
 		testKey := "hsetexbighash"
 		hsetExBigHash := make(map[string]string)
@@ -216,7 +216,7 @@ var testHash = func(t *testing.T, configs util.KvrocksServerConfigs) {
 			if _, ok := hsetExBigHash[key]; ok {
 				i--
 			}
-			rdb.Do(ctx, "hsetex", testKey, ttlStr, key, val)
+			rdb.Do(ctx, "hsetexpire", testKey, ttlStr, key, val)
 			hsetExBigHash[key] = val
 		}
 		require.Equal(t, int64(1024), rdb.HLen(ctx, testKey).Val())
@@ -225,11 +225,11 @@ var testHash = func(t *testing.T, configs util.KvrocksServerConfigs) {
 		require.Greater(t, expireTime, time.Now().Unix())
 	})
 
-	t.Run("HSETEX/HLEN/EXPIRETIME - Multi field-value pairs creation", func(t *testing.T) {
+	t.Run("HSETEXPIRE/HLEN/EXPIRETIME - Multi field-value pairs creation", func(t *testing.T) {
 		ttlStr := "3600"
 		testKey := "hsetexbighashPair"
 		hsetExBigHash := make(map[string]string)
-		cmd := []string{"hsetex", testKey, ttlStr}
+		cmd := []string{"hsetexpire", testKey, ttlStr}
 		for i := 0; i < 10; i++ {
 			key := "__avoid_collisions__" + util.RandString(0, 8, util.Alpha)
 			val := "__avoid_collisions__" + util.RandString(0, 8, util.Alpha)
