@@ -128,7 +128,7 @@ var testHash = func(t *testing.T, configs util.KvrocksServerConfigs) {
 		util.ErrorRegexp(t, r.Err(), pattern)
 	})
 
-	t.Run("HSETEX uncomplete pairs", func(t *testing.T) {
+	t.Run("HSETEX incomplete pairs", func(t *testing.T) {
 		pattern := ".*field-value pairs must be complete.*"
 		ttlStr := "3600"
 		testKey := "hsetKey"
