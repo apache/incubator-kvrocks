@@ -49,8 +49,8 @@ namespace redis {
 // It should be replaced by a iteration of the rocksdb iterator
 class DummyCentroids {
  public:
-  DummyCentroids(const TDigestMetadata& meta_data, std::vector<Centroid> centroids)
-      : meta_data_(meta_data), centroids_(std::move(centroids)) {}
+  DummyCentroids(const TDigestMetadata& meta_data, const std::vector<Centroid>& centroids)
+      : meta_data_(meta_data), centroids_(centroids) {}
   class Iterator {
    public:
     Iterator(std::vector<Centroid>::const_iterator&& iter, const std::vector<Centroid>& centroids)
@@ -98,7 +98,7 @@ class DummyCentroids {
 
  private:
   const TDigestMetadata& meta_data_;
-  std::vector<Centroid> centroids_;
+  const std::vector<Centroid>& centroids_;
 };
 
 uint64_t constexpr kMaxElements = 1 * 1024;  // 1k doubles

@@ -38,8 +38,7 @@ struct Centroid {
 
   std::string ToString() const { return fmt::format("centroid<mean: {}, weight: {}>", mean, weight); }
 
-  template <typename T>
-  explicit Centroid(T&& centroid) : mean(centroid.mean), weight(centroid.weight) {}
+  Centroid(const Centroid& centroid) = default;
 
   explicit Centroid() = default;
   explicit Centroid(double mean, double weight) : mean(mean), weight(weight) {}
