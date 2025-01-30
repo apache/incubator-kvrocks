@@ -299,7 +299,8 @@ rocksdb::Status TDigest::decodeCentroidFromKeyValue(const rocksdb::Slice& key, c
     return rocksdb::Status::Corruption(fmt::format("corrupted tdigest centroid key type: {}", type_flg));
   }
   GetDouble(&subkey, &centroid->mean);
-  GetDouble(&const_cast<rocksdb::Slice&>(value), &centroid->weight);
+  rocksdb::Slice value_slice = value;  // GetDouble needs a mutable pointer of slice
+  GetDouble(&value_slice, &centroid->weight);
   return rocksdb::Status::OK();
 }
 
