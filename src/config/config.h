@@ -193,6 +193,8 @@ struct Config {
     int max_write_buffer_number;
     int max_background_compactions;
     int max_background_flushes;
+    int compaction_threads_number;
+    int flush_threads_number;
     int max_subcompactions;
     int stats_dump_period_sec;
     bool enable_pipelined_write;

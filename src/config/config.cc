@@ -130,8 +130,8 @@ Status SetRocksdbCompression(Server *srv, const rocksdb::CompressionType compres
   for (size_t i = compression_start_level; i < KVROCKS_MAX_LSM_LEVEL; i++) {
     compression_per_level_builder.emplace_back(compression_option);
   }
-  const std::string compression_per_level = util::StringJoin(
-      compression_per_level_builder, [](const auto &s) -> decltype(auto) { return s; }, ":");
+  const std::string compression_per_level =
+      util::StringJoin(compression_per_level_builder, [](const auto &s) -> decltype(auto) { return s; }, ":");
   return srv->storage->SetOptionForAllColumnFamilies("compression_per_level", compression_per_level);
 };
 
@@ -255,6 +255,8 @@ Config::Config() {
       {"rocksdb.target_file_size_base", false, new IntField(&rocks_db.target_file_size_base, 128, 1, 1024)},
       {"rocksdb.max_background_compactions", false, new IntField(&rocks_db.max_background_compactions, 2, -1, 32)},
       {"rocksdb.max_background_flushes", true, new IntField(&rocks_db.max_background_flushes, 2, -1, 32)},
+      {"rocksdb.compaction_threads_number", true, new IntField(&rocks_db.compaction_threads_number, 1, 0, INT_MAX)},
+      {"rocksdb.flush_threads_number", true, new IntField(&rocks_db.flush_threads_number, 1, 0, INT_MAX)},
       {"rocksdb.max_subcompactions", false, new IntField(&rocks_db.max_subcompactions, 2, 0, 16)},
       {"rocksdb.delayed_write_rate", false, new Int64Field(&rocks_db.delayed_write_rate, 0, 0, INT64_MAX)},
       {"rocksdb.wal_compression", true,

@@ -201,6 +201,7 @@ rocksdb::Options Storage::InitRocksDBOptions() {
   options.max_total_wal_size = static_cast<uint64_t>(config_->rocks_db.max_total_wal_size * MiB);
   options.listeners.emplace_back(new EventListener(this));
   options.dump_malloc_stats = config_->rocks_db.dump_malloc_stats;
+
   sst_file_manager_ = std::shared_ptr<rocksdb::SstFileManager>(rocksdb::NewSstFileManager(rocksdb::Env::Default()));
   options.sst_file_manager = sst_file_manager_;
   int64_t max_io_mb = kIORateLimitMaxMb;
@@ -225,6 +226,10 @@ rocksdb::Options Storage::InitRocksDBOptions() {
   // avoid blocking io on iteration
   // see https://github.com/facebook/rocksdb/wiki/IO#avoid-blocking-io
   options.avoid_unnecessary_blocking_io = config_->rocks_db.avoid_unnecessary_blocking_io;
+
+  options.env->SetBackgroundThreads(config_->rocks_db.compaction_threads_number, rocksdb::Env::LOW);
+  options.env->SetBackgroundThreads(config_->rocks_db.flush_threads_number, rocksdb::Env::HIGH);
+
   return options;
 }
 
