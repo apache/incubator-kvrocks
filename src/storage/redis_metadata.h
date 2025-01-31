@@ -50,6 +50,7 @@ enum RedisType : uint8_t {
   kRedisBloomFilter = 9,
   kRedisJson = 10,
   kRedisHyperLogLog = 11,
+  kRedisCountMinSketch = 12,
 };
 
 struct RedisTypes {
@@ -91,9 +92,9 @@ enum RedisCommand {
   kRedisCmdLMove,
 };
 
-const std::vector<std::string> RedisTypeNames = {"none",   "string",    "hash",      "list",
-                                                 "set",    "zset",      "bitmap",    "sortedint",
-                                                 "stream", "MBbloom--", "ReJSON-RL", "hyperloglog"};
+const std::vector<std::string> RedisTypeNames = {"none",      "string",      "hash",          "list",   "set",
+                                                 "zset",      "bitmap",      "sortedint",     "stream", "MBbloom--",
+                                                 "ReJSON-RL", "hyperloglog", "countminsketch"};
 
 constexpr const char *kErrMsgWrongType = "WRONGTYPE Operation against a key holding the wrong kind of value";
 constexpr const char *kErrMsgKeyExpired = "the key was expired";
@@ -335,4 +336,16 @@ class HyperLogLogMetadata : public Metadata {
   rocksdb::Status Decode(Slice *input) override;
 
   EncodeType encode_type = EncodeType::DENSE;
+};
+
+class CountMinSketchMetadata : public Metadata {
+ public:
+  uint32_t width;
+  uint32_t depth;
+  uint64_t counter = 0;
+  std::vector<uint32_t> array;
+
+  explicit CountMinSketchMetadata(bool generate_version = true) : Metadata(kRedisCountMinSketch, generate_version) {}
+  void Encode(std::string *dst) const override;
+  rocksdb::Status Decode(Slice *input) override;
 };
