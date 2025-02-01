@@ -508,6 +508,7 @@ jobs:
         run: |
           apk update
           apk add bash cmake curl git python3 wget make gcc g++ autoconf linux-headers py3-pip
+          echo "NPROC=$(nproc)" >> $GITHUB_ENV
 
       - name: Cache redis
         id: cache-redis
