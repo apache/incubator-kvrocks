@@ -422,8 +422,9 @@ jobs:
 
   build-and-test-in-container:
     name: Build and test in container
-    needs: [precondition, check-and-lint, check-typos]
-    if: ${{ needs.precondition.outputs.docs_only != 'true' }}
+    # TODO: revert them
+    # needs: [precondition, check-and-lint, check-typos]
+    # if: ${{ needs.precondition.outputs.docs_only != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -443,6 +444,10 @@ jobs:
           - name: Debian 12
             image: debian:12
             compiler: gcc
+          - name: Alpine 3
+            image: alpine:3
+            compiler: gcc
+            disable_jemalloc: -DDISABLE_JEMALLOC=ON
 
     runs-on: ubuntu-22.04
     container:
@@ -498,6 +503,12 @@ jobs:
           apt install -y bash build-essential cmake curl git libssl-dev libtool python3 python3-pip wget
           echo "NPROC=$(nproc)" >> $GITHUB_ENV
 
+      - name: Setup Alpine
+        if: ${{ startsWith(matrix.image, 'alpine') }}
+        run: |
+          apk update
+          apk add bash cmake curl git python3 wget make gcc g++ autoconf linux-headers py3-pip
+
       - name: Cache redis
         id: cache-redis
         uses: actions/cache@v4
@@ -533,7 +544,7 @@ jobs:
 
       - name: Build Kvrocks
         run: |
-          ./x.py build -j$NPROC --unittest --compiler ${{ matrix.compiler }}
+          ./x.py build -j$NPROC --unittest --compiler ${{ matrix.compiler }} ${{ matrix.disable_jemalloc }}
 
       - name: Run Unit Test
         run: |
