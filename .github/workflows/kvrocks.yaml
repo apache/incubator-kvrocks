@@ -422,9 +422,8 @@ jobs:
 
   build-and-test-in-container:
     name: Build and test in container
-    # TODO: revert them
-    # needs: [precondition, check-and-lint, check-typos]
-    # if: ${{ needs.precondition.outputs.docs_only != 'true' }}
+    needs: [precondition, check-and-lint, check-typos]
+    if: ${{ needs.precondition.outputs.docs_only != 'true' }}
     strategy:
       fail-fast: false
       matrix:
