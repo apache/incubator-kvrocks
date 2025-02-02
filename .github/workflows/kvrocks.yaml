@@ -507,7 +507,7 @@ jobs:
         if: ${{ startsWith(matrix.image, 'alpine') }}
         run: |
           apk update
-          apk add bash cmake curl git python3 wget make gcc g++ autoconf linux-headers py3-pip
+          apk add bash cmake curl git python3 wget make gcc g++ autoconf linux-headers py3-pip py3-redis
           echo "NPROC=$(nproc)" >> $GITHUB_ENV
 
       - name: Cache redis
@@ -558,7 +558,7 @@ jobs:
           ./x.py test go build $GOCASE_RUN_ARGS
 
       - name: Install redis-py for openSUSE and Rocky
-        if: ${{ !startsWith(matrix.image, 'archlinux') && !startsWith(matrix.image, 'debian') }}
+        if: ${{ !startsWith(matrix.image, 'archlinux') && !startsWith(matrix.image, 'debian') && !startsWith(matrix.image, 'alpine') }}
         run: pip3 install redis==4.3.6
 
       - name: Install redis-py for Debian
