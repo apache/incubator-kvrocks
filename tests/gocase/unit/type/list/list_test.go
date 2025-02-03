@@ -1053,10 +1053,6 @@ func testList(t *testing.T, configs util.KvrocksServerConfigs) {
 		require.EqualValues(t, 5, rdb.LPush(ctx, key2, "ONE", "TWO", "THREE", "FOUR", "FIVE").Val())
 
 		t.Run(fmt.Sprintf("LMPOP test oneKey countSingle %s", direction), func(t *testing.T) {
-			start := time.Now()
-			defer func() {
-				fmt.Printf("Test %s executed in %v\n", t.Name(), time.Since(start))
-			}()
 			result := rdb.LMPop(ctx, direction, 1, key1)
 			resultKey, resultVal := result.Val()
 			require.NoError(t, result.Err())

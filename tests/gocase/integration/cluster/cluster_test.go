@@ -234,6 +234,7 @@ func TestClusterReplicas(t *testing.T) {
 }
 
 func TestClusterDumpAndLoadClusterNodesInfo(t *testing.T) {
+	t.Parallel()
 	srv1 := util.StartServer(t, map[string]string{
 		"bind":            "0.0.0.0",
 		"cluster-enabled": "yes",
@@ -293,6 +294,7 @@ func TestClusterDumpAndLoadClusterNodesInfo(t *testing.T) {
 }
 
 func TestClusterComplexTopology(t *testing.T) {
+	t.Parallel()
 	srv := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer srv.Close()
 
@@ -379,7 +381,6 @@ func TestClusterSlotSet(t *testing.T) {
 }
 
 func TestClusterMultiple(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 
 	var srv []*util.KvrocksServer
@@ -512,21 +513,21 @@ func TestClusterReset(t *testing.T) {
 	defer func() { srv0.Close() }()
 	rdb0 := srv0.NewClientWithOption(&redis.Options{PoolSize: 1})
 	defer func() { require.NoError(t, rdb0.Close()) }()
-	id0 := util.GenerateNodeID()
+	id0 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00"
 	require.NoError(t, rdb0.Do(ctx, "clusterx", "SETNODEID", id0).Err())
 
 	srv1 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv1.Close() }()
 	rdb1 := srv1.NewClientWithOption(&redis.Options{PoolSize: 1})
 	defer func() { require.NoError(t, rdb1.Close()) }()
-	id1 := util.GenerateNodeID()
+	id1 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx01"
 	require.NoError(t, rdb1.Do(ctx, "clusterx", "SETNODEID", id1).Err())
 
 	srv2 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv2.Close() }()
 	rdb2 := srv2.NewClientWithOption(&redis.Options{PoolSize: 1})
 	defer func() { require.NoError(t, rdb2.Close()) }()
-	id2 := util.GenerateNodeID()
+	id2 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx02"
 	require.NoError(t, rdb1.Do(ctx, "clusterx", "SETNODEID", id1).Err())
 
 	clusterNodes := fmt.Sprintf("%s %s %d master - 0-8191\n", id0, srv0.Host(), srv0.Port())
