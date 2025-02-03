@@ -24,7 +24,7 @@
 
 #include <vector>
 
-#include "status.h"
+#include "common/status.h"
 
 struct Centroid {
   double mean;
@@ -37,8 +37,6 @@ struct Centroid {
   }
 
   std::string ToString() const { return fmt::format("centroid<mean: {}, weight: {}>", mean, weight); }
-
-  Centroid(const Centroid& centroid) = default;
 
   explicit Centroid() = default;
   explicit Centroid(double mean, double weight) : mean(mean), weight(weight) {}
@@ -81,10 +79,10 @@ class TDSample {
 // https://github.com/apache/arrow/blob/27bbd593625122a4a25d9471c8aaf5df54a6dcf9/cpp/src/arrow/util/tdigest.cc#L38
 static inline double Lerp(double a, double b, double t) { return a + t * (b - a); }
 
-template <typename TD, typename Lerp>
-inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
+template <typename TD>
+inline StatusOr<double> TDigestQuantile(TD&& td, double q) {
   if (q < 0 || q > 1 || td.Size() == 0) {
-    return NAN;
+    return Status{Status::InvalidArgument, "invalid quantile or empty tdigest"};
   }
 
   const double index = q * td.TotalWeight();
@@ -102,6 +100,11 @@ inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
     if (index <= weight_sum) {
       break;
     }
+  }
+
+  // since index is in (1, total_weight - 1), iter should be valid
+  if (!iter->Valid()) {
+    return Status{Status::InvalidArgument, "invalid iterator during decoding tdigest centroid"};
   }
 
   auto centroid = GET_OR_RET(iter->GetCentroid());
@@ -122,7 +125,7 @@ inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
       // index larger than center of last bin
       auto c = GET_OR_RET(ci_left->GetCentroid());
       DCHECK_GE(c.weight, 2);
-      return lerp(c.mean, td.Max(), diff / (c.weight / 2));
+      return Lerp(c.mean, td.Max(), diff / (c.weight / 2));
     }
     ci_right->Next();
   } else {
@@ -130,7 +133,7 @@ inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
       // index smaller than center of first bin
       auto c = GET_OR_RET(ci_left->GetCentroid());
       DCHECK_GE(c.weight, 2);
-      return lerp(td.Min(), c.mean, index / (c.weight / 2));
+      return Lerp(td.Min(), c.mean, index / (c.weight / 2));
     }
     ci_left->Prev();
     auto lc = GET_OR_RET(ci_left->GetCentroid());
@@ -143,5 +146,5 @@ inline StatusOr<double> TDigestQuantile(TD&& td, double q, Lerp lerp) {
 
   // interpolate from adjacent centroids
   diff /= (lc.weight / 2 + rc.weight / 2);
-  return lerp(lc.mean, rc.mean, diff);
+  return Lerp(lc.mean, rc.mean, diff);
 }

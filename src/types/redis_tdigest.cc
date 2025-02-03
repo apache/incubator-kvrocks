@@ -90,7 +90,12 @@ class DummyCentroids {
   };
 
   std::unique_ptr<Iterator> Begin() { return std::make_unique<Iterator>(centroids_.cbegin(), centroids_); }
-  std::unique_ptr<Iterator> End() { return std::make_unique<Iterator>(centroids_.cend(), centroids_); }
+  std::unique_ptr<Iterator> End() {
+    if (centroids_.empty()) {
+      return std::make_unique<Iterator>(centroids_.cend(), centroids_);
+    }
+    return std::make_unique<Iterator>(std::prev(centroids_.cend()), centroids_);
+  }
   double TotalWeight() const { return static_cast<double>(meta_data_.total_weight); }
   double Min() const { return meta_data_.minimum; }
   double Max() const { return meta_data_.maximum; }
@@ -101,10 +106,15 @@ class DummyCentroids {
   const std::vector<Centroid>& centroids_;
 };
 
-uint64_t constexpr kMaxElements = 1 * 1024;  // 1k doubles
+uint32_t constexpr kMaxElements = 1 * 1024;  // 1k doubles
+uint32_t constexpr kMaxCompression = 1000;   // limit the compression to 1k
 
 std::optional<rocksdb::Status> TDigest::Create(engine::Context& ctx, const Slice& digest_name,
                                                const TDigestCreateOptions& options) {
+  if (options.compression > kMaxCompression) {
+    return rocksdb::Status::InvalidArgument(fmt::format("compression should be less than {}", kMaxCompression));
+  }
+
   auto ns_key = AppendNamespacePrefix(digest_name);
   auto capacity = options.compression * 6 + 10;
   capacity = ((capacity < kMaxElements) ? capacity : kMaxElements);
@@ -207,14 +217,14 @@ rocksdb::Status TDigest::Quantile(engine::Context& ctx, const Slice& digest_name
   }
 
   std::vector<Centroid> centroids;
-  if (auto status = dumpCentroidsAndBuffer(ctx, ns_key, metadata, &centroids); !status.ok()) {
+  if (auto status = dumpCentroids(ctx, ns_key, metadata, &centroids); !status.ok()) {
     return status;
   }
 
   auto dump_centroids = DummyCentroids(metadata, centroids);
 
   for (auto q : qs) {
-    auto status_or_value = TDigestQuantile(dump_centroids, q, Lerp);
+    auto status_or_value = TDigestQuantile(dump_centroids, q);
     if (!status_or_value) {
       return rocksdb::Status::InvalidArgument(status_or_value.Msg());
     }
@@ -345,8 +355,8 @@ rocksdb::Status TDigest::dumpCentroidsAndBuffer(engine::Context& ctx, const std:
       for (uint64_t i = 0; i < metadata.unmerged_nodes; ++i) {
         double tmp_value = std::numeric_limits<double>::quiet_NaN();
         if (!GetDouble(&buffer_slice, &tmp_value)) {
-          return rocksdb::Status::Corruption(
-              fmt::format("metadata has {} records, but get {} failed", metadata.unmerged_nodes, i));
+          LOG(ERROR) << "metadata has " << metadata.unmerged_nodes << " records, but get " << i << " failed";
+          return rocksdb::Status::Corruption("corrupted tdigest buffer value");
         }
         buffer->emplace_back(tmp_value);
       }
@@ -378,11 +388,10 @@ rocksdb::Status TDigest::dumpCentroidsAndBuffer(engine::Context& ctx, const std:
       return status;
     }
     centroids->emplace_back(centroid);
-  }
-
-  if (clean_after_dump_batch != nullptr) {
-    if (auto status = (*clean_after_dump_batch)->DeleteRange(cf_handle_, start_key, guard_key); !status.ok()) {
-      return status;
+    if (clean_after_dump_batch != nullptr) {
+      if (auto status = (*clean_after_dump_batch)->Delete(cf_handle_, iter->key()); !status.ok()) {
+        return status;
+      }
     }
   }
 

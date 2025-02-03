@@ -38,21 +38,14 @@ struct CentroidWithKey {
 };
 
 struct TDigestCreateOptions {
-  uint64_t compression;
+  uint32_t compression;
 };
-
-struct TDigestMergeOptions {};
-
-struct TDigestCDFResult {};
 
 struct TDigestQuantitleResult {
   std::vector<double> quantiles;
 };
 
-class RedisTDigestTest;
 class TDigest : public SubKeyScanner {
-  friend class RedisTDigestTest;
-
  public:
   using Slice = rocksdb::Slice;
   explicit TDigest(engine::Storage* storage, const std::string& ns)
@@ -73,10 +66,27 @@ class TDigest : public SubKeyScanner {
   rocksdb::Status appendBuffer(engine::Context& ctx, ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch,
                                const std::string& ns_key, const std::vector<double>& inputs, TDigestMetadata* metadata);
 
-  rocksdb::Status dumpCentroidsAndBuffer(
-      engine::Context& ctx, const std::string& ns_key, const TDigestMetadata& metadata,
-      std::vector<Centroid>* centroids, std::vector<double>* buffer = nullptr,
-      ObserverOrUniquePtr<rocksdb::WriteBatchBase>* clean_after_dump_batch = nullptr);
+  rocksdb::Status dumpCentroids(engine::Context& ctx, const std::string& ns_key, const TDigestMetadata& metadata,
+                                std::vector<Centroid>* centroids) {
+    return dumpCentroidsAndBuffer(ctx, ns_key, metadata, centroids, nullptr, nullptr);
+  }
+
+  /**
+   * @brief Dumps the centroids and buffer of the t-digest.
+   *
+   * This function reads the centroids and buffer from persistent storage and removes them from the storage.
+   * @param ctx The context of the operation.
+   * @param ns_key The namespace key of the t-digest.
+   * @param metadata The metadata of the t-digest.
+   * @param centroids The output vector to store the centroids.
+   * @param buffer The output vector to store the buffer. If it is nullptr, the buffer will not be read.
+   * @param clean_after_dump_batch The write batch to store the clean operations. If it is nullptr, the clean operations
+   * @return rocksdb::Status
+   */
+  rocksdb::Status dumpCentroidsAndBuffer(engine::Context& ctx, const std::string& ns_key,
+                                         const TDigestMetadata& metadata, std::vector<Centroid>* centroids,
+                                         std::vector<double>* buffer,
+                                         ObserverOrUniquePtr<rocksdb::WriteBatchBase>* clean_after_dump_batch);
   rocksdb::Status applyNewCentroids(ObserverOrUniquePtr<rocksdb::WriteBatchBase>& batch, const std::string& ns_key,
                                     const TDigestMetadata& metadata, const std::vector<Centroid>& centroids);
 

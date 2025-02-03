@@ -341,18 +341,18 @@ class HyperLogLogMetadata : public Metadata {
 
 class TDigestMetadata : public Metadata {
  public:
-  uint64_t compression;
-  uint64_t capacity;
+  uint32_t compression;
+  uint32_t capacity;
   uint64_t unmerged_nodes = 0;
   uint64_t merged_nodes = 0;
   uint64_t total_weight = 0;
   uint64_t merged_weight = 0;
-  double minimum = std::numeric_limits<double>::infinity();
-  double maximum = -1 * std::numeric_limits<double>::infinity();
+  double minimum = std::numeric_limits<double>::max();
+  double maximum = std::numeric_limits<double>::lowest();
   uint64_t total_observations = 0;
   uint64_t merge_times = 0;
 
-  explicit TDigestMetadata(uint64_t compression, uint64_t capacity, bool generate_version = true)
+  explicit TDigestMetadata(uint32_t compression, uint32_t capacity, bool generate_version = true)
       : Metadata(kRedisTDigest, generate_version), compression(compression), capacity(capacity) {}
   explicit TDigestMetadata(bool generate_version = true) : TDigestMetadata(0, 0, generate_version) {}
   void Encode(std::string *dst) const override;

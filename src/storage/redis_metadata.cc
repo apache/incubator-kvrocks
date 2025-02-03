@@ -501,8 +501,8 @@ rocksdb::Status HyperLogLogMetadata::Decode(Slice *input) {
 
 void TDigestMetadata::Encode(std::string *dst) const {
   Metadata::Encode(dst);
-  PutFixed64(dst, compression);
-  PutFixed64(dst, capacity);
+  PutFixed32(dst, compression);
+  PutFixed32(dst, capacity);
   PutFixed64(dst, unmerged_nodes);
   PutFixed64(dst, merged_nodes);
   PutFixed64(dst, total_weight);
@@ -518,12 +518,12 @@ rocksdb::Status TDigestMetadata::Decode(Slice *input) {
     return s;
   }
 
-  if (input->size() < (sizeof(uint64_t) * 8 + sizeof(double) * 2)) {
+  if (input->size() < (sizeof(uint32_t) * 2 + sizeof(uint64_t) * 6 + sizeof(double) * 2)) {
     return rocksdb::Status::InvalidArgument(kErrMetadataTooShort);
   }
 
-  GetFixed64(input, &compression);
-  GetFixed64(input, &capacity);
+  GetFixed32(input, &compression);
+  GetFixed32(input, &capacity);
   GetFixed64(input, &unmerged_nodes);
   GetFixed64(input, &merged_nodes);
   GetFixed64(input, &total_weight);

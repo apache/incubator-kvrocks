@@ -30,10 +30,9 @@ refer to https://github.com/apache/arrow/blob/27bbd593625122a4a25d9471c8aaf5df54
 
 #include <algorithm>
 #include <iterator>
-#include <memory>
 #include <queue>
 
-#include "status.h"
+#include "common/status.h"
 
 namespace {
 // scale function K0: linear function, as baseline
@@ -56,26 +55,6 @@ struct ScalerK1 {
   const double delta_norm;
 };
 }  // namespace
-
-class TDigest {
- public:
-  explicit TDigest(uint64_t delta);
-
-  TDigest(const TDigest&) = delete;
-  TDigest& operator=(const TDigest&) = delete;
-  TDigest(TDigest&& rhs) = default;
-  ~TDigest() = default;
-
-  void Merge(const std::vector<TDigest>& others);
-  void Add(const std::vector<double>& items);
-  void Reset(const CentroidsWithDelta& centroid_list);
-  void Reset();
-  CentroidsWithDelta DumpCentroids() const;
-
- private:
-  class TDigestImpl;
-  std::unique_ptr<TDigestImpl> impl_;
-};
 
 template <typename T = ScalerK1>
 class TDigestMerger : private T {
@@ -135,7 +114,7 @@ class TDigestMerger : private T {
   std::vector<Centroid>* tdigest_;
 };
 
-class TDigest::TDigestImpl {
+class TDigestImpl {
  public:
   using Status = rocksdb::Status;
   explicit TDigestImpl(uint32_t delta) : delta_(delta > 10 ? delta : 10), merger_(delta_) {
@@ -372,7 +351,27 @@ class TDigest::TDigestImpl {
   int current_;
 };
 
-TDigest::TDigest(uint64_t delta) : impl_(std::make_unique<TDigestImpl>(delta)) { Reset({}); }
+class TDigest {
+ public:
+  explicit TDigest(uint64_t delta);
+
+  TDigest(const TDigest&) = delete;
+  TDigest& operator=(const TDigest&) = delete;
+  TDigest(TDigest&& rhs) = default;
+  ~TDigest() = default;
+
+  void Merge(const std::vector<TDigest>& others);
+  void Add(const std::vector<double>& items);
+  void Reset(const CentroidsWithDelta& centroid_list);
+  void Reset();
+  CentroidsWithDelta DumpCentroids() const;
+
+ private:
+  // class TDigestImpl;
+  TDigestImpl impl_;
+};
+
+TDigest::TDigest(uint64_t delta) : impl_(TDigestImpl(delta)) { Reset({}); }
 
 void TDigest::Merge(const std::vector<TDigest>& others) {
   if (others.empty()) {
@@ -382,30 +381,29 @@ void TDigest::Merge(const std::vector<TDigest>& others) {
   std::vector<const TDigestImpl*> impls;
   impls.reserve(others.size());
 
-  std::transform(others.cbegin(), others.cend(), std::back_inserter(impls),
-                 [](const TDigest& i) { return i.impl_.get(); });
+  std::transform(others.cbegin(), others.cend(), std::back_inserter(impls), [](const TDigest& i) { return &i.impl_; });
 
-  impl_->Merge(impls);
+  impl_.Merge(impls);
 }
 
 void TDigest::Reset(const CentroidsWithDelta& centroids_list) {
-  impl_->Reset(centroids_list.centroids, centroids_list.min, centroids_list.max, centroids_list.total_weight);
+  impl_.Reset(centroids_list.centroids, centroids_list.min, centroids_list.max, centroids_list.total_weight);
 }
 
-void TDigest::Reset() { impl_->Reset(); }
+void TDigest::Reset() { impl_.Reset(); }
 
 CentroidsWithDelta TDigest::DumpCentroids() const {
-  auto centroids = impl_->Centroids();
+  auto centroids = impl_.Centroids();
   return {
       .centroids = std::move(centroids),
-      .delta = impl_->Delta(),
-      .min = impl_->Min(),
-      .max = impl_->Max(),
-      .total_weight = impl_->TotalWeight(),
+      .delta = impl_.Delta(),
+      .min = impl_.Min(),
+      .max = impl_.Max(),
+      .total_weight = impl_.TotalWeight(),
   };
 }
 
-void TDigest::Add(const std::vector<double>& items) { impl_->MergeInput(items); }
+void TDigest::Add(const std::vector<double>& items) { impl_.MergeInput(items); }
 
 StatusOr<CentroidsWithDelta> TDigestMerge(const std::vector<CentroidsWithDelta>& centroids_list) {
   if (centroids_list.empty()) {
