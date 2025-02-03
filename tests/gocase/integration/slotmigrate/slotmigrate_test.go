@@ -58,14 +58,14 @@ func TestSlotMigrateFromSlave(t *testing.T) {
 	defer func() { master.Close() }()
 	masterClient := master.NewClient()
 	defer func() { require.NoError(t, masterClient.Close()) }()
-	masterID := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00"
+	masterID := util.GenerateNodeID()
 	require.NoError(t, masterClient.Do(ctx, "clusterx", "SETNODEID", masterID).Err())
 
 	slave := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { slave.Close() }()
 	slaveClient := slave.NewClient()
 	defer func() { require.NoError(t, slaveClient.Close()) }()
-	slaveID := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx01"
+	slaveID := util.GenerateNodeID()
 	require.NoError(t, slaveClient.Do(ctx, "clusterx", "SETNODEID", slaveID).Err())
 
 	clusterNodes := fmt.Sprintf("%s %s %d master - 0-100\n", masterID, master.Host(), master.Port())
@@ -83,13 +83,14 @@ func TestSlotMigrateFromSlave(t *testing.T) {
 }
 
 func TestSlotMigrateDestServerKilled(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	srv0 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv0.Close() }()
 	rdb0 := srv0.NewClient()
 	defer func() { require.NoError(t, rdb0.Close()) }()
-	id0 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00"
+	id0 := util.GenerateNodeID()
 	require.NoError(t, rdb0.Do(ctx, "clusterx", "SETNODEID", id0).Err())
 
 	srv1 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
@@ -101,7 +102,7 @@ func TestSlotMigrateDestServerKilled(t *testing.T) {
 	}()
 	rdb1 := srv1.NewClient()
 	defer func() { require.NoError(t, rdb1.Close()) }()
-	id1 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx01"
+	id1 := util.GenerateNodeID()
 	require.NoError(t, rdb1.Do(ctx, "clusterx", "SETNODEID", id1).Err())
 
 	clusterNodes := fmt.Sprintf("%s %s %d master - 0-10000\n", id0, srv0.Host(), srv0.Port())
@@ -123,13 +124,14 @@ func TestSlotMigrateDestServerKilled(t *testing.T) {
 }
 
 func TestSlotMigrateDestServerKilledAgain(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	srv0 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv0.Close() }()
 	rdb0 := srv0.NewClient()
 	defer func() { require.NoError(t, rdb0.Close()) }()
-	id0 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00"
+	id0 := util.GenerateNodeID()
 	require.NoError(t, rdb0.Do(ctx, "clusterx", "SETNODEID", id0).Err())
 
 	srv1 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
@@ -141,7 +143,7 @@ func TestSlotMigrateDestServerKilledAgain(t *testing.T) {
 	}()
 	rdb1 := srv1.NewClient()
 	defer func() { require.NoError(t, rdb1.Close()) }()
-	id1 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx01"
+	id1 := util.GenerateNodeID()
 	require.NoError(t, rdb1.Do(ctx, "clusterx", "SETNODEID", id1).Err())
 
 	clusterNodes := fmt.Sprintf("%s %s %d master - 0-10000\n", id0, srv0.Host(), srv0.Port())
@@ -204,6 +206,7 @@ func TestSlotMigrateDestServerKilledAgain(t *testing.T) {
 }
 
 func TestSlotMigrateSourceServerFlushedOrKilled(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	srv0 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
@@ -215,14 +218,14 @@ func TestSlotMigrateSourceServerFlushedOrKilled(t *testing.T) {
 	}()
 	rdb0 := srv0.NewClient()
 	defer func() { require.NoError(t, rdb0.Close()) }()
-	id0 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00"
+	id0 := util.GenerateNodeID()
 	require.NoError(t, rdb0.Do(ctx, "clusterx", "SETNODEID", id0).Err())
 
 	srv1 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv1.Close() }()
 	rdb1 := srv1.NewClient()
 	defer func() { require.NoError(t, rdb1.Close()) }()
-	id1 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx01"
+	id1 := util.GenerateNodeID()
 	require.NoError(t, rdb1.Do(ctx, "clusterx", "SETNODEID", id1).Err())
 
 	clusterNodes := fmt.Sprintf("%s %s %d master - 0-10000\n", id0, srv0.Host(), srv0.Port())
@@ -264,6 +267,7 @@ func TestSlotMigrateSourceServerFlushedOrKilled(t *testing.T) {
 }
 
 func TestSlotMigrateDisablePersistClusterNodes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	srv0 := util.StartServer(t, map[string]string{
@@ -273,7 +277,7 @@ func TestSlotMigrateDisablePersistClusterNodes(t *testing.T) {
 	defer func() { srv0.Close() }()
 	rdb0 := srv0.NewClient()
 	defer func() { require.NoError(t, rdb0.Close()) }()
-	id0 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00"
+	id0 := util.GenerateNodeID()
 	require.NoError(t, rdb0.Do(ctx, "clusterx", "SETNODEID", id0).Err())
 
 	srv1 := util.StartServer(t, map[string]string{
@@ -283,7 +287,7 @@ func TestSlotMigrateDisablePersistClusterNodes(t *testing.T) {
 	defer func() { srv1.Close() }()
 	rdb1 := srv1.NewClient()
 	defer func() { require.NoError(t, rdb1.Close()) }()
-	id1 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx01"
+	id1 := util.GenerateNodeID()
 	require.NoError(t, rdb1.Do(ctx, "clusterx", "SETNODEID", id1).Err())
 
 	clusterNodes := fmt.Sprintf("%s %s %d master - 0-16383\n", id0, srv0.Host(), srv0.Port())
@@ -309,20 +313,21 @@ func TestSlotMigrateDisablePersistClusterNodes(t *testing.T) {
 }
 
 func TestSlotMigrateNewNodeAndAuth(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	srv0 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv0.Close() }()
 	rdb0 := srv0.NewClient()
 	defer func() { require.NoError(t, rdb0.Close()) }()
-	id0 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00"
+	id0 := util.GenerateNodeID()
 	require.NoError(t, rdb0.Do(ctx, "clusterx", "SETNODEID", id0).Err())
 
 	srv1 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv1.Close() }()
 	rdb1 := srv1.NewClient()
 	defer func() { require.NoError(t, rdb1.Close()) }()
-	id1 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx01"
+	id1 := util.GenerateNodeID()
 	require.NoError(t, rdb1.Do(ctx, "clusterx", "SETNODEID", id1).Err())
 
 	clusterNodes := fmt.Sprintf("%s %s %d master - 0-16383\n", id0, srv0.Host(), srv0.Port())
@@ -377,27 +382,28 @@ func TestSlotMigrateNewNodeAndAuth(t *testing.T) {
 }
 
 func TestSlotMigrateThreeNodes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	srv0 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv0.Close() }()
 	rdb0 := srv0.NewClient()
 	defer func() { require.NoError(t, rdb0.Close()) }()
-	id0 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00"
+	id0 := util.GenerateNodeID()
 	require.NoError(t, rdb0.Do(ctx, "clusterx", "SETNODEID", id0).Err())
 
 	srv1 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv1.Close() }()
 	rdb1 := srv1.NewClient()
 	defer func() { require.NoError(t, rdb1.Close()) }()
-	id1 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx01"
+	id1 := util.GenerateNodeID()
 	require.NoError(t, rdb1.Do(ctx, "clusterx", "SETNODEID", id1).Err())
 
 	srv2 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv2.Close() }()
 	rdb2 := srv2.NewClient()
 	defer func() { require.NoError(t, rdb2.Close()) }()
-	id2 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx02"
+	id2 := util.GenerateNodeID()
 	require.NoError(t, rdb2.Do(ctx, "clusterx", "SETNODEID", id2).Err())
 
 	clusterNodes := fmt.Sprintf("%s %s %d master - 0-10000\n", id0, srv0.Host(), srv0.Port())
@@ -429,20 +435,21 @@ func TestSlotMigrateThreeNodes(t *testing.T) {
 }
 
 func TestSlotMigrateSync(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	srv0 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv0.Close() }()
 	rdb0 := srv0.NewClientWithOption(&redis.Options{PoolSize: 1})
 	defer func() { require.NoError(t, rdb0.Close()) }()
-	id0 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00"
+	id0 := util.GenerateNodeID()
 	require.NoError(t, rdb0.Do(ctx, "clusterx", "SETNODEID", id0).Err())
 
 	srv1 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv1.Close() }()
 	rdb1 := srv1.NewClientWithOption(&redis.Options{PoolSize: 1})
 	defer func() { require.NoError(t, rdb1.Close()) }()
-	id1 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx01"
+	id1 := util.GenerateNodeID()
 	require.NoError(t, rdb1.Do(ctx, "clusterx", "SETNODEID", id1).Err())
 
 	clusterNodes := fmt.Sprintf("%s %s %d master - 0-8191\n", id0, srv0.Host(), srv0.Port())
@@ -496,20 +503,21 @@ func TestSlotMigrateSync(t *testing.T) {
 }
 
 func TestSlotMigrateDataType(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	srv0 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv0.Close() }()
 	rdb0 := srv0.NewClient()
 	defer func() { require.NoError(t, rdb0.Close()) }()
-	id0 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00"
+	id0 := util.GenerateNodeID()
 	require.NoError(t, rdb0.Do(ctx, "clusterx", "SETNODEID", id0).Err())
 
 	srv1 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	defer func() { srv1.Close() }()
 	rdb1 := srv1.NewClient()
 	defer func() { require.NoError(t, rdb1.Close()) }()
-	id1 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx01"
+	id1 := util.GenerateNodeID()
 	require.NoError(t, rdb1.Do(ctx, "clusterx", "SETNODEID", id1).Err())
 
 	clusterNodes := fmt.Sprintf("%s %s %d master - 0-10000\n", id0, srv0.Host(), srv0.Port())
@@ -1118,6 +1126,7 @@ func TestSlotMigrateDataType(t *testing.T) {
 }
 
 func TestSlotMigrateTypeFallback(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	srv0 := util.StartServer(t, map[string]string{
@@ -1128,7 +1137,7 @@ func TestSlotMigrateTypeFallback(t *testing.T) {
 	defer srv0.Close()
 	rdb0 := srv0.NewClient()
 	defer func() { require.NoError(t, rdb0.Close()) }()
-	id0 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00"
+	id0 := util.GenerateNodeID()
 	require.NoError(t, rdb0.Do(ctx, "clusterx", "setnodeid", id0).Err())
 
 	srv1 := util.StartServer(t, map[string]string{
@@ -1138,7 +1147,7 @@ func TestSlotMigrateTypeFallback(t *testing.T) {
 	defer srv1.Close()
 	rdb1 := srv1.NewClient()
 	defer func() { require.NoError(t, rdb1.Close()) }()
-	id1 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx01"
+	id1 := util.GenerateNodeID()
 	require.NoError(t, rdb1.Do(ctx, "clusterx", "setnodeid", id1).Err())
 
 	clusterNodes := fmt.Sprintf("%s %s %d master - 0-16383\n", id0, srv0.Host(), srv0.Port())
@@ -1218,13 +1227,14 @@ func migrateSlotRangeAndSetSlot(t *testing.T, ctx context.Context, source *redis
 }
 
 func TestSlotRangeMigrate(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	srv0 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
 	rdb0 := srv0.NewClient()
 	defer func() { require.NoError(t, rdb0.Close()) }()
 	defer func() { srv0.Close() }()
-	id0 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00"
+	id0 := util.GenerateNodeID()
 	require.NoError(t, rdb0.Do(ctx, "clusterx", "SETNODEID", id0).Err())
 
 	srv1 := util.StartServer(t, map[string]string{"cluster-enabled": "yes"})
@@ -1237,7 +1247,7 @@ func TestSlotRangeMigrate(t *testing.T) {
 
 	rdb1 := srv1.NewClient()
 	defer func() { require.NoError(t, rdb1.Close()) }()
-	id1 := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx01"
+	id1 := util.GenerateNodeID()
 	require.NoError(t, rdb1.Do(ctx, "clusterx", "SETNODEID", id1).Err())
 
 	clusterNodes := fmt.Sprintf("%s %s %d master - 0-10000\n", id0, srv0.Host(), srv0.Port())

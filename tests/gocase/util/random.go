@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"sync/atomic"
 )
 
 func RandPath[T any](f ...func() T) T {
@@ -153,4 +154,12 @@ func RandomValueWithSeed(seed int64) string {
 			)
 		},
 	)
+}
+
+var nodeIDCounter uint64 = 0
+
+func GenerateNodeID() string {
+	id := atomic.AddUint64(&nodeIDCounter, 1)
+	nodeID := fmt.Sprintf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx%02d", id)
+	return nodeID
 }
