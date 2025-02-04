@@ -225,6 +225,10 @@ rocksdb::Options Storage::InitRocksDBOptions() {
   // avoid blocking io on iteration
   // see https://github.com/facebook/rocksdb/wiki/IO#avoid-blocking-io
   options.avoid_unnecessary_blocking_io = config_->rocks_db.avoid_unnecessary_blocking_io;
+
+  options.env->SetBackgroundThreads(config_->rocks_db.compaction_threads_number, rocksdb::Env::LOW);
+  options.env->SetBackgroundThreads(config_->rocks_db.flush_threads_number, rocksdb::Env::HIGH);
+
   return options;
 }
 
